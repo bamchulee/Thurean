@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ทุเรียนบ้านสวน | สั่งทุเรียนคัดคุณภาพ ส่งตรงถึงบ้าน",
+  title: "ทุเรียนวินคิน | คัดสดจากสวน วิ่งส่งตรงถึงบ้าน โทร. 082-282-4238",
   description:
-    "สั่งทุเรียนสดคัดคุณภาพจากสวนชั้นดี หมอนทอง ก้านยาว ชะนี พวงมณี ส่งตรงถึงบ้านทั่วไทย",
+    "ทุเรียนวินคิน คัดสรรทุเรียนแก่จัด 85%+ สดตรงจากสวนระยองและจันทบุรี วิ่งรถส่งตรงถึงบ้านคุณ การันตีคุณภาพเนื้อทุกลูก พบปัญหาเคลมฟรี 100% โทร. 082-282-4238",
+  icons: {
+    icon: "/logo.jpg",
+  },
 };
 
 export default function RootLayout({
@@ -15,12 +18,14 @@ export default function RootLayout({
   return (
     <html lang="th">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased min-h-screen flex flex-col">{children}</body>
     </html>
   );
 }
