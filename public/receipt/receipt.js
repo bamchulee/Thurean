@@ -50,7 +50,7 @@
             <img src="/logo.jpg" alt="ทุเรียนวินคิน" class="logo" />
             <div>
               <div class="brand-name">ทุเรียนวินคิน (WINKIN DURIAN)</div>
-              <div style="font-size:11px; color:#57534e;">คัดสดจากสวน วิ่งส่งตรงถึงบ้าน • โทร. 082-282-4238 • LINE: @durianwinkin</div>
+              <div style="font-size:11px; color:#57534e;">คัดสดจากสวน วิ่งส่งตรงถึงบ้าน • โทร. 082-282-4238 • LINE: @713imada</div>
             </div>
           </div>
           <div class="doc-title">
