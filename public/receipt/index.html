@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ใบเสร็จรับเงิน &amp; ใบปะหน้าพัสดุ | ทุเรียนวินคิน</title>
+  <link rel="icon" href="/logo.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/receipt/receipt.css" />
+</head>
+<body>
+  <div class="toolbar no-print">
+    <a href="/admin" class="btn-back">← กลับหน้า Admin</a>
+    <button id="btn-print" type="button" class="btn-print">สั่งพิมพ์ใบเสร็จ / ใบปะหน้า</button>
+  </div>
+
+  <main id="sheet" class="paper">
+    <p id="loading-msg" class="loading">กำลังโหลดข้อมูลคำสั่งซื้อ...</p>
+  </main>
+
+  <script src="/receipt/receipt.js"></script>
+</body>
+</html>

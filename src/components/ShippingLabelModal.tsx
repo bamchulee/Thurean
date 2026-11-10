@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Printer, X } from "lucide-react";
+import { AlertTriangle, ExternalLink, Printer, X } from "lucide-react";
 import { shopInfo } from "../data/mock";
 import type { Order } from "../types/durian";
 
@@ -97,19 +97,28 @@ export function ShippingLabelModal({
           </div>
         </div>
 
-        <div className="flex gap-2 print:hidden">
+        <div className="flex flex-wrap gap-2 print:hidden">
           <button
             type="button"
             onClick={() => window.print()}
             className="flex-1 bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold py-3 rounded-xl text-xs transition flex items-center justify-center gap-2"
           >
             <Printer className="w-4 h-4" />
-            <span>สั่งพิมพ์ใบปะหน้ากล่อง</span>
+            <span>พิมพ์ใบปะหน้า</span>
           </button>
+          <a
+            href={`/receipt/index.html?id=${encodeURIComponent(order.id)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="px-4 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold rounded-xl text-xs inline-flex items-center gap-1.5"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>ใบเสร็จ (HTML)</span>
+          </a>
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl text-xs"
+            className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl text-xs"
           >
             ปิด
           </button>

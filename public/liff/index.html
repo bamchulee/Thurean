@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ทุเรียนวินคิน | สั่งด่วนผ่าน LINE OA (HTML5 + CSS3 + JS)</title>
+  <link rel="icon" href="/logo.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/liff/style.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a href="/" class="brand">
+        <img src="/logo.jpg" alt="ทุเรียนวินคิน" class="brand-logo" />
+        <div>
+          <h1 class="brand-title">ทุเรียนวินคิน</h1>
+          <p class="brand-sub">สั่งด่วนผ่าน LINE OA • 082-282-4238</p>
+        </div>
+      </a>
+
+      <div class="topbar-actions">
+        <button id="btn-open-cart" class="btn-cart" type="button">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+            <path d="M3 6h18" />
+            <path d="M16 10a4 4 0 0 1-8 0" />
+          </svg>
+          <span>ตะกร้า</span>
+          <span id="cart-badge" class="badge">0</span>
+        </button>
+        <a href="/" class="btn-outline-sm">หน้าหลัก</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- LINE Welcome Banner (Hidden unless LIFF profile loaded) -->
+  <div id="liff-banner" class="liff-banner hidden"></div>
+
+  <!-- Round & Live Countdown Banner -->
+  <section class="hero-strip">
+    <div class="container hero-grid">
+      <div>
+        <span class="pill-tag">รอบรถกระบะรับตรงจากสวน</span>
+        <h2 id="round-name" class="hero-title">กำลังโหลดรอบจัดส่ง...</h2>
+        <p id="round-route" class="hero-route"></p>
+        <div class="round-meta">
+          <span>วันตัดสด: <strong id="round-harvest">-</strong></span>
+          <span>วันส่งถึงบ้าน: <strong id="round-delivery">-</strong></span>
+          <span>เหลือโควตา: <strong id="round-quota" class="text-gold">-</strong></span>
+        </div>
+      </div>
+
+      <!-- Vanilla JS Live Countdown Timer -->
+      <div class="countdown-box">
+        <p class="countdown-label">นับถอยหลังปิดรับยอดรอบนี้</p>
+        <div class="countdown-grid">
+          <div class="time-cell">
+            <span id="cd-days" class="time-num">00</span>
+            <span class="time-unit">วัน</span>
+          </div>
+          <div class="time-cell">
+            <span id="cd-hours" class="time-num">00</span>
+            <span class="time-unit">ชม.</span>
+          </div>
+          <div class="time-cell">
+            <span id="cd-mins" class="time-num">00</span>
+            <span class="time-unit">นาที</span>
+          </div>
+          <div class="time-cell">
+            <span id="cd-secs" class="time-num">00</span>
+            <span class="time-unit">วินาที</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Tabs: Order vs Track -->
+  <main class="container main-content">
+    <div class="mode-tabs">
+      <button type="button" class="mode-tab active" data-tab="shop">สั่งซื้อทุเรียน</button>
+      <button type="button" class="mode-tab" data-tab="track">เช็กสถานะออเดอร์</button>
+    </div>
+
+    <!-- Shop Tab -->
+    <section id="tab-shop">
+      <div id="variety-filters" class="filter-bar"></div>
+      <div id="product-grid" class="product-grid">
+        <p class="loading-text">กำลังโหลดรายการทุเรียน...</p>
+      </div>
+    </section>
+
+    <!-- Track Tab -->
+    <section id="tab-track" class="hidden">
+      <div class="track-card">
+        <h3>ตรวจสอบสถานะคำสั่งซื้อ</h3>
+        <p class="muted">กรอกรหัสออเดอร์ (เช่น WK-9521) หรือเลขพัสดุ</p>
+        <form id="track-form" class="track-form">
+          <input id="track-input" type="text" placeholder="เช่น WK-9521" required />
+          <button type="submit" class="btn-primary">ค้นหา</button>
+        </form>
+        <div id="track-result" class="track-result"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Cart & Checkout Drawer Modal -->
+  <div id="cart-modal" class="modal-backdrop hidden">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <h3>ตะกร้าและสั่งซื้อ</h3>
+          <p class="modal-sub">ทุเรียนวินคิน • การันตีเคลม 100%</p>
+        </div>
+        <button id="btn-close-cart" type="button" class="btn-close">✕</button>
+      </div>
+
+      <div id="cart-items-box" class="cart-items-box"></div>
+
+      <form id="checkout-form" class="checkout-form">
+        <label class="field">
+          <span>ระดับความสุกที่ต้องการ</span>
+          <select id="co-ripeness">
+            <option value="กรอบนอกนุ่มใน (ไก่ฉีก)">กรอบนอกนุ่มใน (ไก่ฉีก)</option>
+            <option value="สุกพอดีกิน (เนื้อเนียน)">สุกพอดีกิน (เนื้อเนียน)</option>
+            <option value="สุกนิ่ม (หวานฉ่ำ)">สุกนิ่ม (หวานฉ่ำ)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>ชื่อ-นามสกุล ผู้รับ *</span>
+          <input id="co-name" type="text" required placeholder="เช่น คุณสมชาย ใจดี" />
+        </label>
+        <label class="field">
+          <span>เบอร์โทรศัพท์ *</span>
+          <input id="co-phone" type="tel" required placeholder="08X-XXX-XXXX" />
+        </label>
+        <label class="field">
+          <span>ที่อยู่จัดส่งละเอียด *</span>
+          <textarea id="co-address" rows="2" required placeholder="บ้านเลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"></textarea>
+        </label>
+        <label class="field">
+          <span>ช่องทางจัดส่ง</span>
+          <select id="co-shipping"></select>
+        </label>
+
+        <div class="summary-bar">
+          <span>ยอดรวมสุทธิ (รวมค่าส่ง)</span>
+          <strong id="co-total">฿0</strong>
+        </div>
+
+        <div id="co-error" class="error-box hidden"></div>
+        <button id="btn-submit-order" type="submit" class="btn-primary btn-full">
+          ยืนยันสั่งซื้อ
+        </button>
+      </form>
+
+      <!-- Order Success View -->
+      <div id="order-success-box" class="success-box hidden">
+        <div class="success-icon">✓</div>
+        <h4>บันทึกคำสั่งจองสำเร็จ</h4>
+        <p class="order-code">รหัสออเดอร์: <strong id="res-order-id"></strong></p>
+        <div id="res-qr-wrap" class="qr-box"></div>
+        <p class="muted small">
+          สแกนจ่าย PromptPay (082-282-4238) หรือโอนบัญชี กสิกรไทย 082-2-82423-8 แล้วส่งสลิปทาง LINE @durianwinkin
+        </p>
+        <div class="success-actions">
+          <button id="btn-copy-summary" type="button" class="btn-amber">คัดลอกสรุปออเดอร์</button>
+          <button id="btn-done-order" type="button" class="btn-outline">ปิดหน้าต่าง</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/liff/app.js"></script>
+</body>
+</html>

@@ -14,9 +14,9 @@ import type { OrderStatus, PaymentStatus } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
 
-// Public lookup by Order ID or Tracking Number (for /tracking page)
+// Lookup by Order ID or Tracking Number (full details for authenticated Admin, masked PII for public tracking)
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -37,7 +37,11 @@ export async function GET(
       );
     }
 
-    // Mask phone number partially for public tracking privacy
+    if (isAdminRequest(req)) {
+      return NextResponse.json({ ok: true, order, isAdmin: true });
+    }
+
+    // Mask phone and omit full street address for public tracking privacy
     const maskedPhone =
       order.phone.length >= 4
         ? order.phone.slice(0, -4) + "XXXX"
@@ -48,6 +52,7 @@ export async function GET(
       order: {
         ...order,
         phone: maskedPhone,
+        address: undefined,
       },
     });
   } catch (err) {

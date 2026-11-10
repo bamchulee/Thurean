@@ -1133,6 +1133,13 @@ function Footer() {
               <span>ศูนย์รับประกันและแจ้งเคลม 100%</span>
             </a>
             <a
+              href="/liff/index.html"
+              className="flex items-center gap-1.5 text-emerald-300 hover:text-white transition"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>หน้าสั่งด่วนสำหรับ LINE OA (HTML/JS)</span>
+            </a>
+            <a
               href="/admin"
               className="flex items-center gap-1.5 hover:text-white transition"
             >
