@@ -6,7 +6,7 @@
   --brand-green-deep: #0f2d1c;
   --brand-gold: #f59e0b;
   --brand-gold-warm: #d97706;
-  --surface-page: #f8f7f3;
+  --surface-page: #fbf6e3;
   --surface-card: #ffffff;
   --border-subtle: #e7e5e4;
 }
@@ -30,6 +30,26 @@ body {
   transform: translateY(-3px);
   box-shadow: 0 16px 32px -12px rgba(27, 77, 49, 0.14), 0 4px 12px -4px rgba(0, 0, 0, 0.06);
   border-color: rgba(27, 77, 49, 0.28);
+}
+
+/* ลายหนามทุเรียน — ใช้ทับบนพื้นเขียวเข้ม */
+.thorn-pattern {
+  background-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.045) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(255, 255, 255, 0.045) 25%, transparent 25%),
+    linear-gradient(45deg, rgba(0, 0, 0, 0.14) 25%, transparent 25%),
+    linear-gradient(315deg, rgba(0, 0, 0, 0.14) 25%, transparent 25%);
+  background-size: 26px 26px;
+  background-position: 13px 0, 13px 0, 0 0, 0 0;
+}
+
+/* ขอบหยักแบบหนามทุเรียน ห้อยลงจากเซกชันสีเขียวด้านบน */
+.thorn-edge {
+  --thorn-color: #143b25;
+  height: 11px;
+  background:
+    linear-gradient(135deg, var(--thorn-color) 25%, transparent 25%) -11px 0 / 22px 22px,
+    linear-gradient(225deg, var(--thorn-color) 25%, transparent 25%) -11px 0 / 22px 22px;
 }
 
 @media print {

@@ -103,7 +103,7 @@ export default function TrackingPage() {
   const currentStep = foundOrder ? getStatusIndex(foundOrder.orderStatus) : -1;
 
   return (
-    <div className="min-h-screen bg-[#F8F7F3]">
+    <div className="min-h-screen bg-[#FBF6E3]">
       {/* Header */}
       <header className="bg-white border-b border-stone-200 shadow-xs">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">

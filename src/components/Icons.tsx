@@ -1,5 +1,25 @@
 import React from "react";
 
+// ไอคอนลูกทุเรียน (เปลือกหนาม + ขั้ว) สไตล์เส้นเดียวกับ lucide
+export function DurianIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 4.5L13.8 6.7L16.4 5.9L16.8 8.9L19.5 9.8L18.2 12.5L20.1 14.8L17.7 16.4L18.2 19.4L15.4 19.5L14.3 22.1L12 20.6L9.7 22.1L8.6 19.5L5.8 19.4L6.3 16.4L3.9 14.8L5.8 12.5L4.5 9.8L7.2 8.9L7.6 5.9L10.2 6.7Z" />
+      <path d="M12 4.5V2.2M12 2.2h2.2" />
+      <path d="M9.6 12l1.2-1.6 1.2 1.6M12 16l1.2-1.6 1.2 1.6" />
+    </svg>
+  );
+}
+
 export function LineIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">

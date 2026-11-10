@@ -5,7 +5,7 @@ import {
   CheckCircle2,
   Minus,
   Plus,
-  ShoppingBag,
+  ShoppingBasket,
   Sparkles,
   Trash2,
   X,
@@ -115,7 +115,7 @@ export function CartDrawerModal({
           <div className="bg-[#1B4D31] text-white px-5 py-4 flex items-center justify-between border-b border-emerald-900 sticky top-0 z-10">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
-                <ShoppingBag className="w-5 h-5 text-amber-300" />
+                <ShoppingBasket className="w-5 h-5 text-amber-300" />
               </div>
               <div>
                 <h4 className="font-bold text-base text-white">
@@ -140,7 +140,7 @@ export function CartDrawerModal({
             {items.length === 0 ? (
               <div className="text-center py-14 space-y-2">
                 <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto mb-2">
-                  <ShoppingBag className="w-7 h-7" />
+                  <ShoppingBasket className="w-7 h-7" />
                 </div>
                 <p className="font-bold text-stone-700 text-sm">
                   ยังไม่มีสินค้าในตะกร้า
