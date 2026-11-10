@@ -48,12 +48,12 @@ function Navbar({
   return (
     <>
       {/* Top Announcement Bar */}
-      <div className="bg-[#11301F] text-stone-200 text-xs py-2 px-4 border-b border-white/10">
+      <div className="bg-[#FFD84D] text-[#11301F] text-xs font-medium py-2 px-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Truck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <Truck className="w-3.5 h-3.5 text-[#1B4D31] shrink-0" />
             <span className="truncate">
-              <strong className="text-amber-300 font-semibold">
+              <strong className="font-extrabold">
                 เปิดจองรอบพิเศษ:
               </strong>{" "}
               คัดสดจากสวนระยอง-จันทบุรี แก่จัด 85%+ การันตีเคลม 100%
@@ -61,7 +61,7 @@ function Navbar({
           </div>
           <a
             href={`tel:${shopInfo.phone.replace(/-/g, "")}`}
-            className="hidden sm:inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/15 text-amber-300 px-3 py-1 rounded-full font-semibold text-xs transition shrink-0"
+            className="hidden sm:inline-flex items-center gap-1.5 bg-[#11301F] hover:bg-[#1B4D31] text-[#FFD84D] px-3 py-1 rounded-full font-semibold text-xs transition shrink-0"
           >
             <Phone className="w-3 h-3" />
             <span className="font-mono">{shopInfo.phone}</span>
@@ -70,7 +70,8 @@ function Navbar({
       </div>
 
       {/* Main Navbar */}
-      <header className="bg-white/95 backdrop-blur-md border-b border-stone-200 sticky top-0 z-50 shadow-xs">
+      <header className="bg-[#FFFBEA]/95 backdrop-blur-md sticky top-0 z-50">
+        <div className="absolute top-full inset-x-0 awning pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
           {/* Logo & Brand */}
           <a href="#" className="flex items-center gap-3 group">
@@ -236,7 +237,7 @@ function HeroBanner({ round }: { round: Round }) {
   );
 
   return (
-    <section className="relative bg-gradient-to-br from-[#11301F] via-[#1B4D31] to-[#143B25] text-white overflow-hidden py-12 sm:py-16">
+    <section className="relative bg-gradient-to-br from-[#11301F] via-[#1B4D31] to-[#143B25] text-white overflow-hidden pt-16 pb-14 sm:pt-20 sm:pb-16">
       <div className="absolute inset-0 thorn-pattern pointer-events-none" />
       <div className="absolute -top-24 -right-24 w-96 h-96 bg-amber-400/15 rounded-full blur-3xl pointer-events-none" />
 
@@ -251,7 +252,7 @@ function HeroBanner({ round }: { round: Round }) {
 
             <h2 className="text-3xl sm:text-5xl font-extrabold text-white leading-[1.18] tracking-tight">
               ทุเรียนแก่จัด คัดพูทอง <br />
-              <span className="text-amber-300">
+              <span className="text-[#FFD84D]">
                 หวานมัน สดใหม่ ส่งตรงถึงบ้าน
               </span>
             </h2>
@@ -322,7 +323,7 @@ function HeroBanner({ round }: { round: Round }) {
           {/* Right Durian Image */}
           <div className="lg:col-span-5 flex justify-center">
             <div className="relative w-full max-w-md">
-              <div className="rounded-3xl overflow-hidden border border-white/20 shadow-2xl bg-black">
+              <div className="pod-frame overflow-hidden border-[6px] border-[#FFD84D] shadow-2xl bg-black ring-8 ring-[#FFD84D]/15">
                 <img
                   src="https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=900&q=85"
                   alt="ทุเรียนวินคิน หมอนทองเนื้อทอง"
@@ -346,7 +347,7 @@ function HeroBanner({ round }: { round: Round }) {
               </div>
 
               {/* Top Sweetness Chip */}
-              <div className="absolute top-4 right-4 bg-[#11301F]/90 backdrop-blur-md text-amber-300 px-3.5 py-1.5 rounded-full shadow-lg font-bold text-xs border border-white/15 flex items-center gap-1.5">
+              <div className="absolute top-2 right-0 price-tag rotate-3 px-3.5 py-1.5 font-semibold text-xs flex items-center gap-1.5">
                 <Award className="w-3.5 h-3.5" />
                 <span>ความหวานมาตรฐาน 34° Brix</span>
               </div>
@@ -485,7 +486,7 @@ function ProductCard({
   };
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden border border-stone-200 shadow-xs durian-card flex flex-col justify-between">
+    <div className="bg-white rounded-2xl overflow-hidden border-2 border-[#1B4D31]/15 shadow-xs durian-card flex flex-col justify-between">
       <div>
         {/* Real Fruit Photo */}
         <div className="relative aspect-[4/3] overflow-hidden bg-stone-100">
@@ -551,11 +552,11 @@ function ProductCard({
                 ฿{product.marketPrice.toLocaleString()}
               </span>
             )}
-            <div className="flex items-baseline">
-              <span className="text-2xl font-extrabold text-[#1B4D31]">
+            <div className="price-tag inline-flex items-baseline px-2.5 py-0.5">
+              <span className="text-2xl font-semibold">
                 ฿{product.price.toLocaleString()}
               </span>
-              <span className="text-xs text-stone-500 ml-1">/{product.unit}</span>
+              <span className="text-xs font-medium ml-1">/{product.unit}</span>
             </div>
           </div>
 
@@ -590,7 +591,7 @@ function ProductCard({
               onClick={() => onOrder(product)}
               className={`px-4 py-2.5 rounded-xl font-bold text-xs shadow-xs transition inline-flex items-center gap-1 ${
                 product.isAvailable
-                  ? "bg-amber-500 hover:bg-amber-400 text-stone-950 active:scale-95"
+                  ? "bg-[#1B4D31] hover:bg-[#143B25] text-[#FFD84D] active:scale-95"
                   : "bg-stone-200 text-stone-500 cursor-not-allowed"
               }`}
             >
@@ -646,10 +647,10 @@ function ProductMenu({
             <button
               key={v}
               onClick={() => setFilter(v)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+              className={`px-4 py-2 rounded-full text-xs font-bold transition ${
                 filter === v
-                  ? "bg-[#1B4D31] text-white shadow-sm"
-                  : "bg-white text-stone-600 border border-stone-200 hover:border-stone-300"
+                  ? "bg-[#1B4D31] text-[#FFD84D] shadow-sm"
+                  : "bg-white text-stone-700 border border-amber-300 hover:bg-amber-50"
               }`}
             >
               {v === "all" ? "ทั้งหมดทุกลูก" : `พันธุ์${v}`}

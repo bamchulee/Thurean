@@ -85,7 +85,7 @@ export const products: Product[] = [
     origin: "สวนจันทบุรี คัดเกรดพรีเมียม",
     brix: "33° Brix",
     image:
-      "https://images.unsplash.com/photo-1587132137056-bfbf0166836e?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&h=600&q=80&crop=focalpoint&fp-z=1.7&fp-x=0.25&fp-y=0.3",
     badge: "พร้อมทาน",
     isAvailable: true,
     description:
@@ -109,7 +109,7 @@ export const products: Product[] = [
     origin: "สวนจันทบุรี ดั้งเดิม",
     brix: "34° - 36° Brix",
     image:
-      "https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&h=600&q=80&crop=focalpoint&fp-z=1.7&fp-x=0.75&fp-y=0.3",
     badge: "หายาก",
     isAvailable: true,
     description:
@@ -133,7 +133,7 @@ export const products: Product[] = [
     origin: "สวนระยอง",
     brix: "35° Brix",
     image:
-      "https://images.unsplash.com/photo-1579613832125-5d34a13ffe0a?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&h=600&q=80&crop=focalpoint&fp-z=1.7&fp-x=0.3&fp-y=0.75",
     badge: "หวานจัด",
     isAvailable: true,
     description:
@@ -180,7 +180,7 @@ export const products: Product[] = [
     origin: "เบตง จ.ยะลา",
     brix: "36° Brix",
     image:
-      "https://images.unsplash.com/photo-1552623770-3881998abc5f?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&h=600&q=80&crop=focalpoint&fp-z=1.7&fp-x=0.75&fp-y=0.75",
     badge: "นำเข้าพิเศษ",
     isAvailable: true,
     description:

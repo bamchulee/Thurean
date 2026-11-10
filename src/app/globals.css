@@ -21,6 +21,45 @@ body {
   color: #1c1917;
 }
 
+/* หัวข้อใช้ฟอนต์มน ๆ แบบป้ายร้านผลไม้ */
+h1,
+h2,
+h3,
+h4 {
+  font-family: 'Mitr', 'Prompt', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* กันสาดแผงผลไม้ ลายทางเขียว-เหลือง ชายหยักโค้ง */
+.awning {
+  height: 18px;
+  background: repeating-linear-gradient(90deg, #1b4d31 0 28px, #ffd84d 28px 56px);
+  -webkit-mask:
+    radial-gradient(circle at 14px 0, #000 13.5px, transparent 14px) 0 4px / 28px 14px repeat-x,
+    linear-gradient(#000, #000) 0 0 / 100% 4px no-repeat;
+  mask:
+    radial-gradient(circle at 14px 0, #000 13.5px, transparent 14px) 0 4px / 28px 14px repeat-x,
+    linear-gradient(#000, #000) 0 0 / 100% 4px no-repeat;
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.18));
+}
+
+/* ป้ายราคาแบบแผงทุเรียน */
+.price-tag {
+  font-family: 'Mitr', 'Prompt', sans-serif;
+  background: #ffd84d;
+  color: #11301f;
+  border: 2px solid #11301f;
+  border-radius: 10px;
+  box-shadow: 2px 3px 0 #11301f;
+  transform: rotate(-2deg);
+}
+
+/* กรอบรูปทรงพูทุเรียน */
+.pod-frame {
+  border-radius: 46% 54% 52% 48% / 44% 46% 54% 56%;
+}
+
 /* Smooth modern product card hover */
 .durian-card {
   transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
