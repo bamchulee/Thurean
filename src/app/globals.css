@@ -1,11 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --durian-gold: #f59e0b;
-  --durian-yellow: #facc15;
-  --durian-green: #15803d;
-  --durian-green-dark: #14532d;
-  --durian-cream: #fffbeb;
+  --brand-green: #1b4d31;
+  --brand-green-hover: #143b25;
+  --brand-green-deep: #0f2d1c;
+  --brand-gold: #f59e0b;
+  --brand-gold-warm: #d97706;
+  --surface-page: #f8f7f3;
+  --surface-card: #ffffff;
+  --border-subtle: #e7e5e4;
 }
 
 html {
@@ -14,21 +17,23 @@ html {
 
 body {
   font-family: 'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #faf6eb;
-  color: #1f2937;
+  background-color: var(--surface-page);
+  color: #1c1917;
 }
 
-/* Badge & Card Glow for Food Appetite */
-.food-card {
-  transition: all 0.25s ease;
+/* Smooth modern product card hover */
+.durian-card {
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
 
-.food-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 28px -8px rgba(180, 83, 9, 0.15), 0 10px 10px -8px rgba(22, 101, 52, 0.1);
+.durian-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px -12px rgba(27, 77, 49, 0.14), 0 4px 12px -4px rgba(0, 0, 0, 0.06);
+  border-color: rgba(27, 77, 49, 0.28);
 }
 
-/* Yellow Ribbon / Banner */
-.bg-durian-stripe {
-  background: linear-gradient(135deg, #15803d 0%, #166534 100%);
+@media print {
+  body {
+    background: #ffffff;
+  }
 }

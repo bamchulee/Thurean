@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  CheckCircle2,
+  Minus,
+  Plus,
+  ShoppingBag,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import { shopInfo } from "../data/mock";
 import { useCart } from "../context/CartContext";
 import type { Order } from "../types/durian";
 import { OrderSuccessModal } from "./OrderSuccessModal";
+import { LineIcon } from "./Icons";
 
 export function CartDrawerModal({
   roundId,
@@ -93,7 +103,7 @@ export function CartDrawerModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 z-50 flex justify-end backdrop-blur-sm"
+      className="fixed inset-0 bg-black/70 z-50 flex justify-end backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -102,57 +112,63 @@ export function CartDrawerModal({
       >
         <div>
           {/* Header */}
-          <div className="bg-green-800 text-white px-5 py-4 flex items-center justify-between border-b-2 border-yellow-400 sticky top-0 z-10">
-            <div className="flex items-center gap-2.5">
-              <span className="text-xl">🛒</span>
+          <div className="bg-[#1B4D31] text-white px-5 py-4 flex items-center justify-between border-b border-emerald-900 sticky top-0 z-10">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+                <ShoppingBag className="w-5 h-5 text-amber-300" />
+              </div>
               <div>
-                <h4 className="font-black text-base text-yellow-300">
-                  ตะกร้าทุเรียนของคุณ ({items.reduce((s, i) => s + i.qty, 0)})
+                <h4 className="font-bold text-base text-white">
+                  ตะกร้าสินค้า ({items.reduce((s, i) => s + i.qty, 0)})
                 </h4>
-                <p className="text-[10px] text-green-200">
-                  รวมหลายรายการ ประหยัดค่าจัดส่งในรอบเดียว
+                <p className="text-[11px] text-emerald-200">
+                  รวมหลายสายพันธุ์ ประหยัดค่าจัดส่งในรอบเดียว
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="text-white hover:text-yellow-300 text-xl font-bold"
+              className="text-white/70 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition"
+              aria-label="Close Cart"
             >
-              ✕
+              <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Cart Items */}
           <div className="p-5 space-y-3">
             {items.length === 0 ? (
-              <div className="text-center py-12 space-y-2">
-                <span className="text-5xl block">🍈</span>
-                <p className="font-bold text-gray-700 text-sm">
-                  ยังไม่มีทุเรียนในตะกร้าเลยครับ
+              <div className="text-center py-14 space-y-2">
+                <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto mb-2">
+                  <ShoppingBag className="w-7 h-7" />
+                </div>
+                <p className="font-bold text-stone-700 text-sm">
+                  ยังไม่มีสินค้าในตะกร้า
                 </p>
-                <p className="text-xs text-gray-400">
-                  เลือกสายพันธุ์ที่ชอบแล้วกด &quot;+ ใส่ตะกร้า&quot; ได้เลย
+                <p className="text-xs text-stone-400">
+                  เลือกทุเรียนที่ชอบแล้วกด &quot;ใส่ตะกร้า&quot; ได้เลยครับ
                 </p>
               </div>
             ) : (
               items.map((it) => (
                 <div
                   key={it.key}
-                  className="bg-amber-50/70 border border-yellow-200 rounded-2xl p-3 flex gap-3 items-center"
+                  className="bg-stone-50 border border-stone-200 rounded-2xl p-3 flex gap-3 items-center"
                 >
                   <img
                     src={it.product.image}
                     alt={it.product.name}
-                    className="w-14 h-14 rounded-xl object-cover shrink-0 border border-yellow-300"
+                    className="w-14 h-14 rounded-xl object-cover shrink-0 border border-stone-200"
                   />
                   <div className="flex-1 min-w-0">
-                    <h5 className="font-black text-xs text-gray-900 truncate">
+                    <h5 className="font-bold text-xs text-stone-900 truncate">
                       {it.product.name}
                     </h5>
-                    <p className="text-[11px] text-amber-800 font-bold">
-                      🥑 {it.ripenessPref}
+                    <p className="text-[11px] text-amber-700 font-medium flex items-center gap-1 mt-0.5">
+                      <Sparkles className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{it.ripenessPref}</span>
                     </p>
-                    <p className="text-xs font-black text-green-800 mt-0.5">
+                    <p className="text-xs font-bold text-[#1B4D31] mt-0.5">
                       ฿{(it.product.price * it.qty).toLocaleString()}
                     </p>
                   </div>
@@ -160,27 +176,27 @@ export function CartDrawerModal({
                     <button
                       type="button"
                       onClick={() => updateQty(it.key, it.qty - 1)}
-                      className="w-7 h-7 bg-white border border-gray-300 rounded-full text-xs font-black"
+                      className="w-7 h-7 bg-white border border-stone-300 rounded-lg flex items-center justify-center text-stone-700 hover:bg-stone-100"
                     >
-                      −
+                      <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <span className="text-xs font-black w-5 text-center">
+                    <span className="text-xs font-bold w-5 text-center">
                       {it.qty}
                     </span>
                     <button
                       type="button"
                       onClick={() => updateQty(it.key, it.qty + 1)}
-                      className="w-7 h-7 bg-green-700 text-white rounded-full text-xs font-black"
+                      className="w-7 h-7 bg-[#1B4D31] text-white rounded-lg flex items-center justify-center hover:bg-[#143B25]"
                     >
-                      +
+                      <Plus className="w-3.5 h-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => removeItem(it.key)}
-                      className="text-gray-400 hover:text-red-500 text-xs ml-1"
-                      title="ลบ"
+                      className="text-stone-400 hover:text-rose-600 p-1 ml-0.5 transition"
+                      title="ลบออก"
                     >
-                      🗑️
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -189,15 +205,16 @@ export function CartDrawerModal({
           </div>
         </div>
 
-        {/* Checkout Form when cart has items */}
+        {/* Checkout Form */}
         {items.length > 0 && (
           <form
             onSubmit={handleCheckout}
-            className="p-5 border-t-2 border-yellow-200 bg-gray-50/60 space-y-3"
+            className="p-5 border-t border-stone-200 bg-stone-50/80 space-y-3"
           >
             {lineProfile && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-2.5 text-xs text-green-800 font-bold">
-                💚 เชื่อมต่อ LINE คุณ {lineProfile.displayName} แล้ว (รับแจ้งเตือนพัสดุอัตโนมัติ)
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-800 font-semibold flex items-center gap-2">
+                <LineIcon className="w-4 h-4 text-[#06C755] shrink-0" />
+                <span>เชื่อมต่อบัญชีคุณ {lineProfile.displayName} แล้ว</span>
               </div>
             )}
 
@@ -207,7 +224,7 @@ export function CartDrawerModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="ชื่อ-นามสกุล ผู้รับ *"
-              className="w-full border-2 border-gray-200 rounded-xl px-3.5 py-2 text-xs bg-white focus:border-green-700 focus:outline-none"
+              className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs bg-white focus:border-[#1B4D31] focus:outline-none"
             />
             <input
               required
@@ -215,7 +232,7 @@ export function CartDrawerModal({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="เบอร์โทรศัพท์ * (08X-XXX-XXXX)"
-              className="w-full border-2 border-gray-200 rounded-xl px-3.5 py-2 text-xs bg-white focus:border-green-700 focus:outline-none"
+              className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs bg-white focus:border-[#1B4D31] focus:outline-none"
             />
             <textarea
               required
@@ -223,13 +240,13 @@ export function CartDrawerModal({
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="ที่อยู่จัดส่งละเอียด *"
-              className="w-full border-2 border-gray-200 rounded-xl px-3.5 py-2 text-xs bg-white focus:border-green-700 focus:outline-none resize-none"
+              className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs bg-white focus:border-[#1B4D31] focus:outline-none resize-none"
             />
 
             <select
               value={shipping}
               onChange={(e) => setShipping(e.target.value)}
-              className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-xs font-bold bg-white"
+              className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-xs font-semibold bg-white focus:border-[#1B4D31] focus:outline-none"
             >
               {shopInfo.shippingMethods.map((s) => (
                 <option key={s.name} value={s.name}>
@@ -238,29 +255,32 @@ export function CartDrawerModal({
               ))}
             </select>
 
-            <div className="bg-yellow-50 border border-yellow-300 rounded-2xl p-3 flex justify-between items-center">
-              <span className="text-xs font-bold text-amber-900">
+            <div className="bg-white border border-stone-200 rounded-2xl p-3.5 flex justify-between items-center">
+              <span className="text-xs font-semibold text-stone-600">
                 ยอดรวมสุทธิ (รวมค่าส่ง ฿{shippingCost})
               </span>
-              <span className="text-xl font-black text-green-800">
+              <span className="text-xl font-black text-[#1B4D31]">
                 ฿{grandTotal.toLocaleString()}
               </span>
             </div>
 
             {errorMsg && (
-              <div className="bg-red-50 text-red-700 text-xs font-bold p-2.5 rounded-xl border border-red-200">
-                ⚠️ {errorMsg}
+              <div className="bg-rose-50 text-rose-700 text-xs font-semibold p-2.5 rounded-xl border border-rose-200">
+                {errorMsg}
               </div>
             )}
 
             <button
               type="submit"
               disabled={submitting}
-              className="w-full bg-yellow-400 hover:bg-yellow-300 text-green-950 py-3.5 rounded-full font-black text-sm shadow-lg transition disabled:opacity-60"
+              className="w-full bg-[#1B4D31] hover:bg-[#143B25] text-white py-3.5 rounded-xl font-bold text-sm shadow-md transition disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {submitting
-                ? "⏳ กำลังสร้างออเดอร์..."
-                : `✓ สั่งซื้อทั้งหมด ฿${grandTotal.toLocaleString()}`}
+              <CheckCircle2 className="w-4 h-4 text-amber-300" />
+              <span>
+                {submitting
+                  ? "กำลังสร้างออเดอร์..."
+                  : `ยืนยันสั่งซื้อทั้งหมด ฿${grandTotal.toLocaleString()}`}
+              </span>
             </button>
           </form>
         )}

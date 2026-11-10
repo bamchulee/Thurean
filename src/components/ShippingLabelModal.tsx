@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Printer, X } from "lucide-react";
 import { shopInfo } from "../data/mock";
 import type { Order } from "../types/durian";
 
@@ -19,22 +20,22 @@ export function ShippingLabelModal({
         className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl space-y-4 print:shadow-none print:max-w-none"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b pb-3 print:hidden">
-          <h3 className="font-black text-base text-gray-900">
-            🖨️ ตัวอย่างใบปะหน้ากล่องพัสดุ ({order.id})
+        <div className="flex items-center justify-between border-b border-stone-200 pb-3 print:hidden">
+          <h3 className="font-bold text-base text-stone-900 flex items-center gap-2">
+            <Printer className="w-4 h-4 text-[#1B4D31]" />
+            <span>ใบปะหน้ากล่องพัสดุ ({order.id})</span>
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-lg font-bold"
+            className="text-stone-400 hover:text-stone-700 p-1 rounded-lg"
           >
-            ✕
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Printable Label Box */}
         <div className="border-2 border-black p-5 rounded-lg space-y-4 text-black bg-white">
-          {/* Sender Row */}
           <div className="flex items-center justify-between border-b-2 border-black pb-3">
             <div className="flex items-center gap-3">
               <img
@@ -55,7 +56,6 @@ export function ShippingLabelModal({
             </div>
           </div>
 
-          {/* Receiver Row */}
           <div className="border-b border-dashed border-gray-400 pb-3 space-y-1">
             <span className="text-[10px] font-black uppercase tracking-wider bg-black text-white px-2 py-0.5 rounded">
               ผู้รับ (TO)
@@ -67,7 +67,6 @@ export function ShippingLabelModal({
             </p>
           </div>
 
-          {/* Shipping & Contents */}
           <div className="text-xs space-y-1.5">
             <div className="flex justify-between">
               <span className="font-bold">ขนส่ง:</span>
@@ -79,7 +78,7 @@ export function ShippingLabelModal({
                 <span className="font-mono font-black">{order.trackingNo}</span>
               </div>
             )}
-            <div className="bg-gray-100 p-2 rounded border border-gray-300 mt-2">
+            <div className="bg-gray-100 p-2.5 rounded border border-gray-300 mt-2">
               <p className="font-bold mb-1">รายการในกล่อง:</p>
               {order.items.map((it, idx) => (
                 <p key={idx}>
@@ -92,9 +91,9 @@ export function ShippingLabelModal({
             </div>
           </div>
 
-          {/* Warning Banner */}
-          <div className="border-2 border-black p-2 text-center font-black text-xs tracking-wide uppercase">
-            ⚠️ ระวังหนามทุเรียน • ผลไม้สด กรุณาส่งด่วน ห้ามโยน / ห้ามตากแดด ⚠️
+          <div className="border-2 border-black p-2 text-center font-black text-xs tracking-wide uppercase flex items-center justify-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>ระวังหนามทุเรียน • ผลไม้สด กรุณาส่งด่วน ห้ามโยน / ห้ามตากแดด</span>
           </div>
         </div>
 
@@ -102,14 +101,15 @@ export function ShippingLabelModal({
           <button
             type="button"
             onClick={() => window.print()}
-            className="flex-1 bg-green-800 hover:bg-green-700 text-yellow-300 font-black py-3 rounded-xl text-xs transition"
+            className="flex-1 bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold py-3 rounded-xl text-xs transition flex items-center justify-center gap-2"
           >
-            🖨️ สั่งพิมพ์ใบปะหน้ากล่อง
+            <Printer className="w-4 h-4" />
+            <span>สั่งพิมพ์ใบปะหน้ากล่อง</span>
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs"
+            className="px-5 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl text-xs"
           >
             ปิด
           </button>
