@@ -15,6 +15,8 @@
  * ============================================================
  */
 
+const SPREADSHEET_ID = "1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8";
+
 const SHEET_NAMES = {
   PRODUCTS: "Products",
   ROUNDS: "Rounds",
@@ -25,11 +27,18 @@ const SHEET_NAMES = {
   SUMMARY: "Summary",
 };
 
+function getTargetSpreadsheet() {
+  return (
+    SpreadsheetApp.getActiveSpreadsheet() ||
+    SpreadsheetApp.openById(SPREADSHEET_ID)
+  );
+}
+
 /**
- * 1-Click Auto Setup: สร้างโครงสร้าง 6 แท็บ + สีหัวตาราง + สูตรคำนวณกำไร
+ * 1-Click Auto Setup: สร้างโครงสร้างแท็บ + สีหัวตาราง + สูตรคำนวณกำไร
  */
 function setupDurianWinkinSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getTargetSpreadsheet();
 
   const definitions = [
     {
@@ -274,7 +283,7 @@ function jsonResponse(obj) {
 }
 
 function getSheetOrInit(name) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getTargetSpreadsheet();
   let sheet = ss.getSheetByName(name);
   if (!sheet) {
     setupDurianWinkinSheets();
