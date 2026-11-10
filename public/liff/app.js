@@ -406,14 +406,47 @@
     }
   });
 
+  function formatOrderSummary(o) {
+    const total = o.totalPrice + o.shippingCost;
+    return `สั่งซื้อทุเรียนวินคิน (${o.id})\nผู้รับ: ${o.customerName} (${o.phone})\nยอดโอนสุทธิ: ฿${total.toLocaleString()}\nความสุก: ${o.ripenessPref}`;
+  }
+
+  function openLineDirect(prefillText) {
+    const lineId = (state.shopInfo && state.shopInfo.lineOA) || "@713imada";
+    const normalized = lineId.startsWith("@") ? lineId : `@${lineId}`;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+    if (isMobile) {
+      const q = prefillText ? `/?${encodeURIComponent(prefillText)}` : "/";
+      window.location.href = `https://line.me/R/oaMessage/${encodeURIComponent(normalized)}${q}`;
+      return;
+    }
+    if (prefillText && navigator.clipboard) {
+      navigator.clipboard.writeText(prefillText).catch(() => {});
+    }
+    window.location.href = `line://ti/p/${normalized}`;
+    setTimeout(() => {
+      if (document.hasFocus()) {
+        showToast(`ค้นหาไอดี ${normalized} ใน LINE ได้เลย`);
+      }
+    }, 1200);
+  }
+
   document.getElementById("btn-copy-summary").addEventListener("click", () => {
     const o = state.lastCreatedOrder;
     if (!o) return;
-    const total = o.totalPrice + o.shippingCost;
-    const msg = `สั่งซื้อทุเรียนวินคิน (${o.id})\nผู้รับ: ${o.customerName} (${o.phone})\nยอดโอนสุทธิ: ฿${total.toLocaleString()}\nความสุก: ${o.ripenessPref}`;
-    navigator.clipboard.writeText(msg);
+    navigator.clipboard.writeText(formatOrderSummary(o));
     showToast("คัดลอกสรุปออเดอร์แล้ว");
   });
+
+  const btnOpenLine = document.getElementById("btn-open-line");
+  if (btnOpenLine) {
+    btnOpenLine.addEventListener("click", () => {
+      const o = state.lastCreatedOrder;
+      openLineDirect(o ? formatOrderSummary(o) : "สวัสดีครับ ขอส่งสลิปโอนเงิน");
+    });
+  }
 
   // Track Form
   el.trackForm.addEventListener("submit", async (e) => {

@@ -6,6 +6,7 @@ import { shopInfo } from "../data/mock";
 import type { Order } from "../types/durian";
 import { PromptPayQR } from "./PromptPayQR";
 import { LineIcon } from "./Icons";
+import { LineDirectLink } from "./LineDirectLink";
 
 export function OrderSuccessModal({
   order,
@@ -101,15 +102,13 @@ export function OrderSuccessModal({
           </button>
 
           <div className="flex gap-2">
-            <a
-              href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
-              target="_blank"
-              rel="noreferrer"
+            <LineDirectLink
+              prefillText={summaryText}
               className="flex-1 py-3 rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
             >
               <LineIcon className="w-4 h-4" />
               <span>เปิด LINE ส่งสลิป</span>
-            </a>
+            </LineDirectLink>
             <a
               href={`/tracking?id=${encodeURIComponent(order.id)}`}
               className="px-4 py-3 rounded-xl bg-[#1B4D31] hover:bg-[#143B25] text-white text-xs font-bold transition flex items-center justify-center gap-1.5"

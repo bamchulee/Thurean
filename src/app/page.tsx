@@ -34,6 +34,7 @@ import { useLiff } from "../lib/use-liff";
 import { OrderSuccessModal } from "../components/OrderSuccessModal";
 import { CartDrawerModal } from "../components/CartDrawerModal";
 import { DurianIcon, LineIcon } from "../components/Icons";
+import { LineDirectLink } from "../components/LineDirectLink";
 
 // ===================== NAVBAR =====================
 function Navbar({
@@ -143,15 +144,13 @@ function Navbar({
                 </span>
               )}
             </button>
-            <a
-              href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
-              target="_blank"
-              rel="noreferrer"
+            <LineDirectLink
+              prefillText="สวัสดีครับ สนใจสั่งซื้อทุเรียนวินคินรอบนี้ครับ"
               className="hidden sm:flex px-4 py-2 rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white font-bold text-sm transition shadow-xs items-center gap-2"
             >
               <LineIcon className="w-4 h-4" />
               <span>สั่งผ่าน LINE</span>
-            </a>
+            </LineDirectLink>
 
             {/* Mobile hamburger */}
             <button
@@ -219,6 +218,14 @@ function Navbar({
               <Phone className="w-4 h-4" />
               <span>โทรสั่งซื้อทันที {shopInfo.phone}</span>
             </a>
+            <LineDirectLink
+              prefillText="สวัสดีครับ สนใจสั่งซื้อทุเรียนวินคินรอบนี้ครับ"
+              onAfterClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-center gap-2 bg-[#06C755] text-white py-3 rounded-xl font-bold text-sm"
+            >
+              <LineIcon className="w-4 h-4" />
+              <span>แชทสั่งทาง LINE ทันที</span>
+            </LineDirectLink>
           </div>
         )}
       </header>
@@ -308,15 +315,13 @@ function HeroBanner({ round }: { round: Round }) {
                 <ShoppingBasket className="w-4 h-4" />
                 <span>ดูรายการทุเรียน &amp; สั่งซื้อ</span>
               </a>
-              <a
-                href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
-                target="_blank"
-                rel="noreferrer"
+              <LineDirectLink
+                prefillText="สวัสดีครับ สอบถาม / สั่งซื้อทุเรียนวินคินครับ"
                 className="px-7 py-3.5 rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white font-bold text-sm sm:text-base transition shadow-lg inline-flex items-center justify-center gap-2"
               >
                 <LineIcon className="w-5 h-5" />
                 <span>สั่งทาง LINE แอดมินตอบไว</span>
-              </a>
+              </LineDirectLink>
             </div>
           </div>
 
@@ -1112,9 +1117,12 @@ function Footer() {
             </p>
             <p>
               LINE OA:{" "}
-              <strong className="text-amber-300 font-mono">
+              <LineDirectLink
+                prefillText="สวัสดีครับ สอบถามทุเรียนวินคินครับ"
+                className="text-amber-300 hover:text-amber-200 underline underline-offset-4 font-bold font-mono"
+              >
                 {shopInfo.lineOA}
-              </strong>
+              </LineDirectLink>
             </p>
             <p>เวลาทำการ: ทุกวัน 08:00 - 21:00 น.</p>
           </div>
@@ -1203,16 +1211,14 @@ function FloatingActionButtons({
           <span>ตะกร้า ({totalCartItems})</span>
         </button>
       )}
-      <a
-        href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
-        target="_blank"
-        rel="noreferrer"
+      <LineDirectLink
+        prefillText="สวัสดีครับ สนใจสั่งซื้อทุเรียนวินคินครับ"
         className="bg-[#06C755] hover:bg-[#05b34c] text-white p-3.5 sm:px-5 sm:py-3 rounded-full shadow-xl flex items-center gap-2 hover:scale-105 transition-all"
-        aria-label="Contact LINE"
+        ariaLabel="Contact LINE"
       >
         <LineIcon className="w-5 h-5" />
         <span className="hidden sm:inline font-bold text-xs">สั่งผ่าน LINE</span>
-      </a>
+      </LineDirectLink>
       <a
         href={`tel:${shopInfo.phone.replace(/-/g, "")}`}
         className="bg-white hover:bg-stone-50 text-[#1B4D31] p-3.5 sm:px-5 sm:py-3 rounded-full shadow-xl border border-stone-200 flex items-center gap-2 hover:scale-105 transition-all text-xs font-bold"
