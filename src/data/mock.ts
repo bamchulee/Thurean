@@ -1,36 +1,24 @@
 // ============================================================
-// Data Model & Mock Data: ร้าน "ทุเรียนวินคิน" (082-282-4238)
+// Seed / Initial Data: ร้าน "ทุเรียนวินคิน" (082-282-4238)
 // ============================================================
+import type {
+  Product,
+  Round,
+  Order,
+  LotCost,
+  Claim,
+  DatabaseState,
+} from "../types/durian";
 
-export interface Product {
-  id: string;
-  name: string;
-  variety: string;
-  type: "whole" | "flesh";
-  ripeness: string;
-  weight: string;
-  price: number;
-  marketPrice?: number;
-  unit: string;
-  origin: string;
-  brix: string;
-  image: string;
-  badge?: string;
-  isAvailable: boolean;
-  description: string;
-  specs: {
-    maturity: string;
-    texture: string;
-    flavor: string;
-  };
-}
+export type { Product, Round, Order, LotCost, Claim, DatabaseState };
 
 export const shopInfo = {
   name: "ทุเรียนวินคิน",
   englishName: "WINKIN DURIAN",
   logo: "/logo.jpg",
   tagline: "คัดสดจากสวน วิ่งรถกระบะส่งตรงถึงบ้านคุณ การันตีเคลม 100%",
-  description: "ทุเรียนวินคิน คัดสรรทุเรียนคุณภาพเยี่ยม วิ่งรับตรงจากสวนระยองและจันทบุรี คัดเฉพาะผลแก่จัด 85%+ ไม่ป้ายยาเร่งสุก บริการส่งด่วนถึงหน้าบ้าน รับประกันเนื้อทุกลูก พบปัญหาเปลี่ยนใหม่หรือคืนเงินทันที",
+  description:
+    "ทุเรียนวินคิน คัดสรรทุเรียนคุณภาพเยี่ยม วิ่งรับตรงจากสวนระยองและจันทบุรี คัดเฉพาะผลแก่จัด 85%+ ไม่ป้ายยาเร่งสุก บริการส่งด่วนถึงหน้าบ้าน รับประกันเนื้อทุกลูก พบปัญหาเปลี่ยนใหม่หรือคืนเงินทันที",
   phone: "082-282-4238",
   phoneFormatted: "082-282-4238",
   lineOA: "@durianwinkin",
@@ -41,9 +29,21 @@ export const shopInfo = {
     promptPay: "082-282-4238",
   },
   shippingMethods: [
-    { name: "รถกระบะ / รถห้องเย็นส่งด่วน (คุมความเย็น 4°C)", price: 120, note: "รักษาความสด ไม่คายน้ำ แนะนำสำหรับเนื้อแกะ" },
-    { name: "Flash Express พัสดุด่วน กล่องล็อกขั้วเจาะรู", price: 80, note: "ส่งด่วน 1-2 วัน สำหรับทุเรียนทั้งลูก" },
-    { name: "นัดรับสินค้าหน้าร้าน / จุดนัดพบ", price: 0, note: "ไม่มีค่าใช้จ่าย" },
+    {
+      name: "รถกระบะ / รถห้องเย็นส่งด่วน (คุมความเย็น 4°C)",
+      price: 120,
+      note: "รักษาความสด ไม่คายน้ำ แนะนำสำหรับเนื้อแกะ",
+    },
+    {
+      name: "Flash Express พัสดุด่วน กล่องล็อกขั้วเจาะรู",
+      price: 80,
+      note: "ส่งด่วน 1-2 วัน สำหรับทุเรียนทั้งลูก",
+    },
+    {
+      name: "นัดรับสินค้าหน้าร้าน / จุดนัดพบ",
+      price: 0,
+      note: "ไม่มีค่าใช้จ่าย",
+    },
   ],
 };
 
@@ -60,10 +60,12 @@ export const products: Product[] = [
     unit: "ลูก",
     origin: "สวนระยองแท้ (วิ่งรับตรงจากสวน)",
     brix: "32° - 34° Brix",
-    image: "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80",
+    image:
+      "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80",
     badge: "ยอดนิยม",
     isAvailable: true,
-    description: "หมอนทองคัดผลแก่จัด 85%+ เปลือกบาง หนามแห้ง ทรงสวย พูใหญ่ เนื้อสีเหลืองทองเนียนละเอียด หวานมันกลมกล่อม เม็ดลีบ",
+    description:
+      "หมอนทองคัดผลแก่จัด 85%+ เปลือกบาง หนามแห้ง ทรงสวย พูใหญ่ เนื้อสีเหลืองทองเนียนละเอียด หวานมันกลมกล่อม เม็ดลีบ",
     specs: {
       maturity: "แก่จัด 85%+",
       texture: "กรอบนอก นุ่มใน เนื้อไก่ฉีก ไม่เละ",
@@ -82,10 +84,12 @@ export const products: Product[] = [
     unit: "กล่อง",
     origin: "สวนจันทบุรี คัดเกรดพรีเมียม",
     brix: "33° Brix",
-    image: "https://images.unsplash.com/photo-1587132137056-bfbf0166836e?auto=format&fit=crop&w=800&q=80",
+    image:
+      "https://images.unsplash.com/photo-1587132137056-bfbf0166836e?auto=format&fit=crop&w=800&q=80",
     badge: "พร้อมทาน",
     isAvailable: true,
-    description: "แกะสดใหม่วันต่อวัน คัดเฉพาะพูใหญ่เกรดสวย แพ็กใส่กล่องล็อกสุญญากาศอย่างดี ส่งรถเย็นถึงบ้านพร้อมเปิดทานทันที",
+    description:
+      "แกะสดใหม่วันต่อวัน คัดเฉพาะพูใหญ่เกรดสวย แพ็กใส่กล่องล็อกสุญญากาศอย่างดี ส่งรถเย็นถึงบ้านพร้อมเปิดทานทันที",
     specs: {
       maturity: "สุกธรรมชาติ 100%",
       texture: "เนียนนุ่ม สัมผัสเหมือนคัสตาร์ด",
@@ -104,10 +108,12 @@ export const products: Product[] = [
     unit: "ลูก",
     origin: "สวนจันทบุรี ดั้งเดิม",
     brix: "34° - 36° Brix",
-    image: "https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=800&q=80",
+    image:
+      "https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=800&q=80",
     badge: "หายาก",
     isAvailable: true,
-    description: "ก้านยาวแท้ ก้านใหญ่สมบูรณ์ เนื้อเนียนละเอียด ไร้เสี้ยน กลิ่นหอมสะอาด รสชาติหวานมันลึก สำหรับคนรักก้านยาวตัวจริง",
+    description:
+      "ก้านยาวแท้ ก้านใหญ่สมบูรณ์ เนื้อเนียนละเอียด ไร้เสี้ยน กลิ่นหอมสะอาด รสชาติหวานมันลึก สำหรับคนรักก้านยาวตัวจริง",
     specs: {
       maturity: "แก่จัด 88%",
       texture: "เนื้อเนียนละเอียด ละมุนลิ้น",
@@ -126,10 +132,12 @@ export const products: Product[] = [
     unit: "ลูก",
     origin: "สวนระยอง",
     brix: "35° Brix",
-    image: "https://images.unsplash.com/photo-1579613832125-5d34a13ffe0a?auto=format&fit=crop&w=800&q=80",
+    image:
+      "https://images.unsplash.com/photo-1579613832125-5d34a13ffe0a?auto=format&fit=crop&w=800&q=80",
     badge: "หวานจัด",
     isAvailable: true,
-    description: "พวงมณีแท้ เม็ดเล็ก เนื้อสีเหลืองจำปาเข้ม รสหวานฉ่ำสะใจ คนชอบทุเรียนหวานเข้มข้นต้องไม่พลาด",
+    description:
+      "พวงมณีแท้ เม็ดเล็ก เนื้อสีเหลืองจำปาเข้ม รสหวานฉ่ำสะใจ คนชอบทุเรียนหวานเข้มข้นต้องไม่พลาด",
     specs: {
       maturity: "แก่จัด 85%",
       texture: "เนื้อนุ่มละเอียด เม็ดเล็กลีบ",
@@ -148,9 +156,11 @@ export const products: Product[] = [
     unit: "ลูก",
     origin: "สวนระยอง",
     brix: "33° Brix",
-    image: "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80",
+    image:
+      "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80",
     isAvailable: true,
-    description: "ชะนีไข่เนื้อเหลืองทอง กลิ่นหอมเข้ม รสชาติหวานมันลึกสไตล์ทุเรียนแท้ดั้งเดิม คัดเนื้อไม่ให้เละ",
+    description:
+      "ชะนีไข่เนื้อเหลืองทอง กลิ่นหอมเข้ม รสชาติหวานมันลึกสไตล์ทุเรียนแท้ดั้งเดิม คัดเนื้อไม่ให้เละ",
     specs: {
       maturity: "แก่จัด 85%",
       texture: "เหนียวหนึบ รสเข้ม",
@@ -169,10 +179,12 @@ export const products: Product[] = [
     unit: "ลูก",
     origin: "เบตง จ.ยะลา",
     brix: "36° Brix",
-    image: "https://images.unsplash.com/photo-1552623770-3881998abc5f?auto=format&fit=crop&w=800&q=80",
+    image:
+      "https://images.unsplash.com/photo-1552623770-3881998abc5f?auto=format&fit=crop&w=800&q=80",
     badge: "นำเข้าพิเศษ",
     isAvailable: true,
-    description: "มูซานคิงแท้ เนื้อสีทองเข้ม เนื้อเนียนนุ่มละลายในปาก รสชาติหวานมันซับซ้อน อมขมปลายลิ้นนิดๆ",
+    description:
+      "มูซานคิงแท้ เนื้อสีทองเข้ม เนื้อเนียนนุ่มละลายในปาก รสชาติหวานมันซับซ้อน อมขมปลายลิ้นนิดๆ",
     specs: {
       maturity: "สุกธรรมชาติ 100%",
       texture: "เนื้อเนียนละเอียด ละลายในปาก",
@@ -180,18 +192,6 @@ export const products: Product[] = [
     },
   },
 ];
-
-export interface Round {
-  id: string;
-  name: string;
-  truckRoute: string;       // สายวิ่งรถกระบะรับของ
-  harvestDate: string;
-  closeDate: string;
-  deliveryDate: string;
-  status: "open" | "closed" | "shipping" | "done";
-  quotaRemaining: number;
-  totalQuota: number;
-}
 
 export const currentRound: Round = {
   id: "WK-ROUND-46",
@@ -205,36 +205,127 @@ export const currentRound: Round = {
   totalQuota: 120,
 };
 
-export interface Order {
-  id: string;
-  createdAt: string;
-  roundId: string;
-  customerName: string;
-  phone: string;
-  items: { productId: string; productName: string; qty: number; price: number }[];
-  totalPrice: number;
-  shippingMethod: string;
-  shippingCost: number;
-  paymentStatus: "pending" | "confirmed" | "refunded";
-  orderStatus: "received" | "preparing" | "packed" | "shipped" | "delivered" | "claimed";
-  trackingNo?: string;
-}
-
 export const sampleOrders: Order[] = [
   {
     id: "WK-9521",
     createdAt: "2026-11-10T14:30:00",
     roundId: "WK-ROUND-46",
     customerName: "คุณกฤษฎา วัฒนกุล",
-    phone: "081-892-XXXX",
+    phone: "081-892-1122",
+    address: "123/45 ซอยสุขุมวิท 55 แขวงคลองตันเหนือ เขตวัฒนา กรุงเทพฯ 10110",
+    ripenessPref: "กรอบนอกนุ่มใน (ไก่ฉีก)",
     items: [
-      { productId: "WK-01", productName: "หมอนทองระยอง คัดเกรดพรีเมียม A+", qty: 1, price: 890 },
-      { productId: "WK-02", productName: "หมอนทองแกะเนื้อพร้อมทาน 1,000 กรัม", qty: 1, price: 790 },
+      {
+        productId: "WK-01",
+        productName: "หมอนทองระยอง คัดเกรดพรีเมียม A+",
+        qty: 1,
+        price: 890,
+      },
+      {
+        productId: "WK-02",
+        productName: "หมอนทองแกะเนื้อพร้อมทาน 1,000 กรัม",
+        qty: 1,
+        price: 790,
+      },
     ],
     totalPrice: 1680,
     shippingMethod: "รถกระบะ / รถห้องเย็นส่งด่วน (คุมความเย็น 4°C)",
     shippingCost: 120,
     paymentStatus: "confirmed",
     orderStatus: "preparing",
+    lotId: "LOT-RY-01",
+  },
+  {
+    id: "WK-9522",
+    createdAt: "2026-11-10T16:10:00",
+    roundId: "WK-ROUND-46",
+    customerName: "คุณสมหญิง ใจดี",
+    phone: "089-876-5432",
+    address: "88/12 หมู่บ้านพฤกษา ถ.รังสิต-นครนายก ปทุมธานี 12130",
+    ripenessPref: "สุกพอดีกิน (เนื้อเนียน)",
+    items: [
+      {
+        productId: "WK-03",
+        productName: "ก้านยาวจันทบุรี คัดพิเศษต้นเก่าแก่",
+        qty: 1,
+        price: 1390,
+      },
+    ],
+    totalPrice: 1390,
+    shippingMethod: "Flash Express พัสดุด่วน กล่องล็อกขั้วเจาะรู",
+    shippingCost: 80,
+    paymentStatus: "pending",
+    orderStatus: "received",
+  },
+  {
+    id: "WK-9520",
+    createdAt: "2026-11-09T11:20:00",
+    roundId: "WK-ROUND-46",
+    customerName: "คุณวิชัย มั่งมี",
+    phone: "062-111-2222",
+    address: "45/9 ถ.นิมมานเหมินท์ ต.สุเทพ อ.เมือง จ.เชียงใหม่ 50200",
+    ripenessPref: "กรอบนอกนุ่มใน (ไก่ฉีก)",
+    items: [
+      {
+        productId: "WK-01",
+        productName: "หมอนทองระยอง คัดเกรดพรีเมียม A+",
+        qty: 2,
+        price: 890,
+      },
+      {
+        productId: "WK-05",
+        productName: "ชะนีไข่ระยอง สดจากสวน",
+        qty: 1,
+        price: 550,
+      },
+    ],
+    totalPrice: 2330,
+    shippingMethod: "รถกระบะ / รถห้องเย็นส่งด่วน (คุมความเย็น 4°C)",
+    shippingCost: 120,
+    paymentStatus: "confirmed",
+    orderStatus: "shipped",
+    trackingNo: "SCGTH884291823",
+    lotId: "LOT-RY-01",
   },
 ];
+
+export const initialLots: LotCost[] = [
+  {
+    lotId: "LOT-RY-01",
+    roundId: "WK-ROUND-46",
+    date: "2026-11-10",
+    supplierName: "สวนลุงสมชาย อ.แกลง (ระยอง)",
+    supplierPhone: "081-555-7890",
+    variety: "หมอนทอง + ชะนี",
+    weightKg: 65,
+    costPerKg: 135,
+    totalFruitCost: 8775,
+    packagingCost: 450,
+    truckFuelCost: 1200,
+    notes: "ตัดแก่ 85%+ สภาพสวย เนื้อทอง ไร้หนอน",
+  },
+];
+
+export const initialClaims: Claim[] = [
+  {
+    claimId: "CLM-40812",
+    createdAt: "2026-11-09T18:45:00",
+    orderId: "WK-9520",
+    phone: "062-111-2222",
+    reason: "unripe",
+    description: "พูด้านหนึ่งยังแข็งเล็กน้อย อีกพูอร่อยมากครับ",
+    evidenceName: "durian_slice_proof.jpg",
+    status: "pending",
+    lotId: "LOT-RY-01",
+  },
+];
+
+export function createInitialDatabase(): DatabaseState {
+  return {
+    products: JSON.parse(JSON.stringify(products)),
+    rounds: [JSON.parse(JSON.stringify(currentRound))],
+    orders: JSON.parse(JSON.stringify(sampleOrders)),
+    lots: JSON.parse(JSON.stringify(initialLots)),
+    claims: JSON.parse(JSON.stringify(initialClaims)),
+  };
+}

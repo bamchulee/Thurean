@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { products, currentRound, shopInfo } from "../data/mock";
-import type { Product } from "../data/mock";
+import { useEffect, useState } from "react";
+import { products as defaultProducts, currentRound as defaultRound, shopInfo } from "../data/mock";
+import type { Order, Product, Round } from "../types/durian";
 
 // Official LINE SVG Icon
 function LineIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -158,7 +158,7 @@ function Navbar() {
 }
 
 // ===================== HERO SECTION =====================
-function HeroBanner() {
+function HeroBanner({ round }: { round: Round }) {
   return (
     <section className="relative bg-gradient-to-br from-green-800 via-green-700 to-green-900 text-white overflow-hidden py-12 sm:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
@@ -185,17 +185,17 @@ function HeroBanner() {
             {/* Delivery Round Alert Box */}
             <div className="bg-white/10 backdrop-blur-md border-2 border-yellow-400/60 rounded-2xl p-4 sm:p-5 max-w-lg mx-auto lg:mx-0 text-left shadow-lg">
               <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-yellow-300 mb-2">
-                <span>📢 {currentRound.name}</span>
+                <span>📢 {round.name}</span>
                 <span className="bg-yellow-400 text-green-950 px-2 py-0.5 rounded-full font-black text-xs">
-                  เหลือ {currentRound.quotaRemaining} ลูก
+                  เหลือ {round.quotaRemaining} ลูก
                 </span>
               </div>
               <p className="text-xs text-white/90 mb-2">
-                🛣️ {currentRound.truckRoute}
+                🛣️ {round.truckRoute}
               </p>
               <div className="flex items-center justify-between text-xs text-green-200 border-t border-white/15 pt-2">
-                <span>วันวิ่งรับของ: <strong>{currentRound.harvestDate}</strong></span>
-                <span>รอบส่งถึงบ้าน: <strong>{currentRound.deliveryDate}</strong></span>
+                <span>วันวิ่งรับของ: <strong>{round.harvestDate}</strong></span>
+                <span>รอบส่งถึงบ้าน: <strong>{round.deliveryDate}</strong></span>
               </div>
             </div>
 
@@ -401,10 +401,15 @@ function ProductCard({
           </div>
 
           <button
+            disabled={!product.isAvailable}
             onClick={() => onOrder(product)}
-            className="px-6 py-3 rounded-full bg-yellow-400 hover:bg-yellow-300 text-green-950 font-black text-sm shadow-md transition active:scale-95"
+            className={`px-6 py-3 rounded-full font-black text-sm shadow-md transition ${
+              product.isAvailable
+                ? "bg-yellow-400 hover:bg-yellow-300 text-green-950 active:scale-95"
+                : "bg-gray-200 text-gray-500 cursor-not-allowed"
+            }`}
           >
-            🛒 สั่งซื้อทันที
+            {product.isAvailable ? "🛒 สั่งซื้อทันที" : "หมดชั่วคราว"}
           </button>
         </div>
       </div>
@@ -413,7 +418,13 @@ function ProductCard({
 }
 
 // ===================== PRODUCT MENU =====================
-function ProductMenu({ onOrder }: { onOrder: (p: Product) => void }) {
+function ProductMenu({
+  products,
+  onOrder,
+}: {
+  products: Product[];
+  onOrder: (p: Product) => void;
+}) {
   const [filter, setFilter] = useState("all");
   const varieties = ["all", ...new Set(products.map((p) => p.variety))];
 
@@ -521,9 +532,13 @@ function WhyUs() {
 // ===================== ORDER MODAL =====================
 function OrderModal({
   product,
+  roundId,
+  onSuccess,
   onClose,
 }: {
   product: Product;
+  roundId: string;
+  onSuccess: (order: Order) => void;
   onClose: () => void;
 }) {
   const [qty, setQty] = useState(1);
@@ -532,18 +547,53 @@ function OrderModal({
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [shipping, setShipping] = useState(shopInfo.shippingMethods[0].name);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
   const shippingCost =
     shopInfo.shippingMethods.find((s) => s.name === shipping)?.price || 0;
   const totalPrice = product.price * qty + shippingCost;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmitting(true);
+    setErrorMsg("");
+
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: name,
+          phone,
+          address,
+          ripenessPref,
+          shippingMethod: shipping,
+          roundId,
+          items: [{ productId: product.id, qty }],
+        }),
+      });
+      const json = (await res.json()) as {
+        ok: boolean;
+        order?: Order;
+        error?: string;
+      };
+      if (!res.ok || !json.ok || !json.order) {
+        setErrorMsg(json.error || "ไม่สามารถบันทึกคำสั่งซื้อได้ กรุณาลองใหม่");
+      } else {
+        setCreatedOrder(json.order);
+        onSuccess(json.order);
+      }
+    } catch {
+      setErrorMsg("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (submitted) {
+  if (createdOrder) {
+    const grandTotal = createdOrder.totalPrice + createdOrder.shippingCost;
     return (
       <div
         className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
@@ -562,36 +612,68 @@ function OrderModal({
             สั่งจองสำเร็จแล้วครับ! 🎉
           </h4>
           <p className="text-xs text-gray-500 mb-4">
-            รหัสออเดอร์: <strong className="font-mono text-green-900 text-sm">WK-{Math.floor(1000 + Math.random() * 9000)}</strong>
+            รหัสออเดอร์:{" "}
+            <strong className="font-mono text-green-900 text-sm">
+              {createdOrder.id}
+            </strong>
           </p>
 
-          <div className="bg-amber-50 border-2 border-yellow-300 rounded-2xl p-4 text-xs text-gray-800 text-left space-y-1.5 mb-6">
+          <div className="bg-amber-50 border-2 border-yellow-300 rounded-2xl p-4 text-xs text-gray-800 text-left space-y-1.5 mb-5">
             <p className="font-black text-amber-900">📌 รายละเอียดการชำระเงิน:</p>
-            <p>ยอดชำระสุทธิ: <strong className="text-green-800 font-black text-base">฿{totalPrice.toLocaleString()}</strong></p>
-            <p>ธนาคาร: <strong>{shopInfo.bankAccount.bank}</strong></p>
-            <p>เลขบัญชี: <strong className="font-mono text-gray-900 text-sm">{shopInfo.bankAccount.number}</strong></p>
-            <p>พร้อมเพย์: <strong className="font-mono text-green-700 text-sm">{shopInfo.bankAccount.promptPay}</strong></p>
-            <p>ชื่อบัญชี: <strong>{shopInfo.bankAccount.name}</strong></p>
+            <p>
+              ยอดชำระสุทธิ:{" "}
+              <strong className="text-green-800 font-black text-base">
+                ฿{grandTotal.toLocaleString()}
+              </strong>
+            </p>
+            <p>
+              ธนาคาร: <strong>{shopInfo.bankAccount.bank}</strong>
+            </p>
+            <p>
+              เลขบัญชี:{" "}
+              <strong className="font-mono text-gray-900 text-sm">
+                {shopInfo.bankAccount.number}
+              </strong>
+            </p>
+            <p>
+              พร้อมเพย์:{" "}
+              <strong className="font-mono text-green-700 text-sm">
+                {shopInfo.bankAccount.promptPay}
+              </strong>
+            </p>
+            <p>
+              ชื่อบัญชี: <strong>{shopInfo.bankAccount.name}</strong>
+            </p>
             <p className="text-[11px] text-gray-500 pt-1 border-t border-amber-200">
-              *เมื่อโอนแล้ว กรุณาส่งสลิปผ่านทาง LINE OA <strong>{shopInfo.lineOA}</strong> หรือโทร <strong>{shopInfo.phone}</strong> เพื่อให้แอดมินล็อกคิวส่งของทันที
+              *เมื่อโอนแล้ว กรุณาส่งสลิปผ่านทาง LINE OA{" "}
+              <strong>{shopInfo.lineOA}</strong> หรือโทร{" "}
+              <strong>{shopInfo.phone}</strong> เพื่อให้แอดมินล็อกคิวส่งของทันที
             </p>
           </div>
 
-          <div className="flex gap-2">
-            <a
-              href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex-1 py-3.5 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white text-xs font-black transition flex items-center justify-center gap-1.5 shadow"
-            >
-              <LineIcon className="w-5 h-5" />
-              <span>ส่งสลิปผ่าน LINE</span>
-            </a>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <a
+                href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 py-3.5 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white text-xs font-black transition flex items-center justify-center gap-1.5 shadow"
+              >
+                <LineIcon className="w-5 h-5" />
+                <span>ส่งสลิปผ่าน LINE</span>
+              </a>
+              <a
+                href={`/tracking?id=${encodeURIComponent(createdOrder.id)}`}
+                className="px-4 py-3.5 rounded-full bg-yellow-400 hover:bg-yellow-300 text-green-950 text-xs font-black transition flex items-center justify-center"
+              >
+                📦 เช็กสถานะ
+              </a>
+            </div>
             <button
               onClick={onClose}
-              className="px-5 py-3.5 rounded-full bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 transition"
+              className="w-full py-2.5 rounded-full bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 transition"
             >
-              ปิด
+              ปิดหน้าต่าง
             </button>
           </div>
         </div>
@@ -792,11 +874,20 @@ function OrderModal({
             </span>
           </div>
 
+          {errorMsg && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-bold p-3 rounded-xl">
+              ⚠️ {errorMsg}
+            </div>
+          )}
+
           <button
             type="submit"
-            className="w-full bg-yellow-400 hover:bg-yellow-300 text-green-950 py-4 rounded-full text-base font-black shadow-lg transition active:scale-98"
+            disabled={submitting}
+            className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-green-950 py-4 rounded-full text-base font-black shadow-lg transition active:scale-98"
           >
-            ✓ ยืนยันการสั่งซื้อ ฿{totalPrice.toLocaleString()}
+            {submitting
+              ? "⏳ กำลังบันทึกคำสั่งจอง..."
+              : `✓ ยืนยันการสั่งซื้อ ฿${totalPrice.toLocaleString()}`}
           </button>
         </form>
       </div>
@@ -903,14 +994,32 @@ function FloatingActionButtons() {
 
 // ===================== MAIN PAGE =====================
 export default function Home() {
+  const [products, setProducts] = useState<Product[]>(defaultProducts);
+  const [round, setRound] = useState<Round>(defaultRound);
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    fetch("/api/shop")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.ok) {
+          if (Array.isArray(json.products) && json.products.length > 0) {
+            setProducts(json.products);
+          }
+          if (json.currentRound) {
+            setRound(json.currentRound);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <main className="min-h-screen bg-[#faf6eb]">
       <Navbar />
-      <HeroBanner />
+      <HeroBanner round={round} />
       <RipenessGuide />
-      <ProductMenu onOrder={setOrderProduct} />
+      <ProductMenu products={products} onOrder={setOrderProduct} />
       <WhyUs />
       <Footer />
       <FloatingActionButtons />
@@ -918,6 +1027,14 @@ export default function Home() {
       {orderProduct && (
         <OrderModal
           product={orderProduct}
+          roundId={round.id}
+          onSuccess={(createdOrder) => {
+            const qtyOrdered = createdOrder.items.reduce((s, it) => s + it.qty, 0);
+            setRound((prev) => ({
+              ...prev,
+              quotaRemaining: Math.max(0, prev.quotaRemaining - qtyOrdered),
+            }));
+          }}
           onClose={() => setOrderProduct(null)}
         />
       )}
