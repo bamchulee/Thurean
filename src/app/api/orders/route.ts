@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       lineUserId?: string;
       roundId?: string;
       notes?: string;
-      items?: { productId: string; qty: number }[];
+      items?: { productId: string; qty: number; ripenessPref?: string }[];
     };
 
     if (!body.customerName?.trim() || !body.phone?.trim() || !body.address?.trim()) {
@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
 
     // Server-side price lookup & calculation (prevent client tampering)
     const verifiedItems: OrderItem[] = [];
+    const ripenessSummarySet: string[] = [];
     let totalPrice = 0;
 
     for (const reqItem of body.items) {
@@ -83,9 +84,15 @@ export async function POST(req: NextRequest) {
         );
       }
       const qty = Math.max(1, Math.floor(Number(reqItem.qty) || 1));
+      const itemLabel = reqItem.ripenessPref
+        ? `${prod.name} (${reqItem.ripenessPref})`
+        : prod.name;
+      if (reqItem.ripenessPref) {
+        ripenessSummarySet.push(`${prod.variety}: ${reqItem.ripenessPref} x${qty}`);
+      }
       verifiedItems.push({
         productId: prod.id,
-        productName: prod.name,
+        productName: itemLabel,
         qty,
         price: prod.price,
       });
@@ -109,7 +116,11 @@ export async function POST(req: NextRequest) {
       phone: body.phone.trim(),
       address: body.address.trim(),
       lineUserId: body.lineUserId?.trim() || undefined,
-      ripenessPref: body.ripenessPref || "กรอบนอกนุ่มใน (ไก่ฉีก)",
+      ripenessPref:
+        body.ripenessPref ||
+        (ripenessSummarySet.length > 0
+          ? ripenessSummarySet.join(" | ")
+          : "กรอบนอกนุ่มใน (ไก่ฉีก)"),
       items: verifiedItems,
       totalPrice,
       shippingMethod: shipMethod.name,

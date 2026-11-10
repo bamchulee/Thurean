@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
       hasLineToken: Boolean(cfg.lineChannelAccessToken),
       lineTokenMasked: maskSecret(cfg.lineChannelAccessToken),
       lineAdminUserId: cfg.lineAdminUserId || "",
+      lineLiffId: cfg.lineLiffId || "",
       lastSyncedAt: cfg.lastSyncedAt || null,
     },
     appsScriptCode,
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
       googleSheetViewUrl?: string;
       lineChannelAccessToken?: string;
       lineAdminUserId?: string;
+      lineLiffId?: string;
       adminPin?: string;
     };
 
@@ -135,6 +137,7 @@ export async function POST(req: NextRequest) {
           ? body.lineChannelAccessToken
           : undefined,
       lineAdminUserId: body.lineAdminUserId,
+      lineLiffId: body.lineLiffId,
       adminPin: body.adminPin,
     });
 

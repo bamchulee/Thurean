@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { products as defaultProducts, currentRound as defaultRound, shopInfo } from "../data/mock";
 import type { Order, Product, Round } from "../types/durian";
+import { useCart } from "../context/CartContext";
+import { useLiff } from "../lib/use-liff";
+import { OrderSuccessModal } from "../components/OrderSuccessModal";
+import { CartDrawerModal } from "../components/CartDrawerModal";
 
 // Official LINE SVG Icon
 function LineIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -14,7 +18,13 @@ function LineIcon({ className = "w-5 h-5" }: { className?: string }) {
 }
 
 // ===================== NAVBAR =====================
-function Navbar() {
+function Navbar({
+  totalCartItems,
+  onOpenCart,
+}: {
+  totalCartItems: number;
+  onOpenCart: () => void;
+}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -83,12 +93,25 @@ function Navbar() {
           </nav>
 
           {/* Action Button */}
-          <div className="hidden sm:flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={onOpenCart}
+              className="relative px-3.5 py-2 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-950 font-black text-xs sm:text-sm transition flex items-center gap-1.5 border border-yellow-400"
+            >
+              <span>🛒</span>
+              <span className="hidden sm:inline">ตะกร้า</span>
+              {totalCartItems > 0 && (
+                <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                  {totalCartItems}
+                </span>
+              )}
+            </button>
             <a
               href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
               target="_blank"
               rel="noreferrer"
-              className="px-5 py-2.5 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white font-black text-sm transition shadow flex items-center gap-2"
+              className="hidden sm:flex px-4 py-2.5 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white font-black text-sm transition shadow items-center gap-2"
             >
               <LineIcon className="w-5 h-5" />
               <span>สั่งผ่าน LINE</span>
@@ -329,10 +352,20 @@ function RipenessGuide() {
 function ProductCard({
   product,
   onOrder,
+  onAddToCart,
 }: {
   product: Product;
   onOrder: (p: Product) => void;
+  onAddToCart: (p: Product) => void;
 }) {
+  const [justAdded, setJustAdded] = useState(false);
+
+  const handleAdd = () => {
+    onAddToCart(product);
+    setJustAdded(true);
+    setTimeout(() => setJustAdded(false), 1200);
+  };
+
   return (
     <div className="bg-white rounded-2xl overflow-hidden border-2 border-yellow-300 shadow-md hover:shadow-xl transition-all duration-300 food-card flex flex-col justify-between">
       <div>
@@ -385,7 +418,7 @@ function ProductCard({
 
       {/* Footer Price & Buttons */}
       <div className="p-5 pt-0">
-        <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+        <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
           <div>
             {product.marketPrice && (
               <span className="text-xs text-gray-400 line-through block font-mono">
@@ -400,17 +433,34 @@ function ProductCard({
             </div>
           </div>
 
-          <button
-            disabled={!product.isAvailable}
-            onClick={() => onOrder(product)}
-            className={`px-6 py-3 rounded-full font-black text-sm shadow-md transition ${
-              product.isAvailable
-                ? "bg-yellow-400 hover:bg-yellow-300 text-green-950 active:scale-95"
-                : "bg-gray-200 text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            {product.isAvailable ? "🛒 สั่งซื้อทันที" : "หมดชั่วคราว"}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={!product.isAvailable}
+              onClick={handleAdd}
+              className={`px-3 py-2.5 rounded-full font-black text-xs transition border-2 ${
+                product.isAvailable
+                  ? justAdded
+                    ? "bg-green-700 border-green-700 text-white"
+                    : "bg-white border-green-700 text-green-800 hover:bg-green-50 active:scale-95"
+                  : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+              }`}
+            >
+              {justAdded ? "✓ เพิ่มแล้ว" : "+ ตะกร้า"}
+            </button>
+            <button
+              type="button"
+              disabled={!product.isAvailable}
+              onClick={() => onOrder(product)}
+              className={`px-4 py-2.5 rounded-full font-black text-xs shadow-md transition ${
+                product.isAvailable
+                  ? "bg-yellow-400 hover:bg-yellow-300 text-green-950 active:scale-95"
+                  : "bg-gray-200 text-gray-500 cursor-not-allowed"
+              }`}
+            >
+              {product.isAvailable ? "⚡ สั่งทันที" : "หมด"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -421,9 +471,11 @@ function ProductCard({
 function ProductMenu({
   products,
   onOrder,
+  onAddToCart,
 }: {
   products: Product[];
   onOrder: (p: Product) => void;
+  onAddToCart: (p: Product) => void;
 }) {
   const [filter, setFilter] = useState("all");
   const varieties = ["all", ...new Set(products.map((p) => p.variety))];
@@ -465,7 +517,12 @@ function ProductMenu({
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {filtered.map((p) => (
-          <ProductCard key={p.id} product={p} onOrder={onOrder} />
+          <ProductCard
+            key={p.id}
+            product={p}
+            onOrder={onOrder}
+            onAddToCart={onAddToCart}
+          />
         ))}
       </div>
     </section>
@@ -533,17 +590,21 @@ function WhyUs() {
 function OrderModal({
   product,
   roundId,
+  lineProfile,
+  onAddToCart,
   onSuccess,
   onClose,
 }: {
   product: Product;
   roundId: string;
+  lineProfile: { userId: string; displayName: string } | null;
+  onAddToCart: (product: Product, qty: number, ripenessPref: string) => void;
   onSuccess: (order: Order) => void;
   onClose: () => void;
 }) {
   const [qty, setQty] = useState(1);
   const [ripenessPref, setRipenessPref] = useState("กรอบนอกนุ่มใน (ไก่ฉีก)");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(lineProfile?.displayName || "");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [shipping, setShipping] = useState(shopInfo.shippingMethods[0].name);
@@ -571,7 +632,8 @@ function OrderModal({
           ripenessPref,
           shippingMethod: shipping,
           roundId,
-          items: [{ productId: product.id, qty }],
+          lineUserId: lineProfile?.userId,
+          items: [{ productId: product.id, qty, ripenessPref }],
         }),
       });
       const json = (await res.json()) as {
@@ -593,92 +655,7 @@ function OrderModal({
   };
 
   if (createdOrder) {
-    const grandTotal = createdOrder.totalPrice + createdOrder.shippingCost;
-    return (
-      <div
-        className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
-        onClick={onClose}
-      >
-        <div
-          className="bg-white w-full max-w-md rounded-3xl p-6 sm:p-8 text-center shadow-2xl border-4 border-yellow-400 animate-in"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <img
-            src={shopInfo.logo}
-            alt={shopInfo.name}
-            className="w-20 h-20 rounded-full border-2 border-yellow-400 mx-auto mb-3 object-cover shadow-md"
-          />
-          <h4 className="text-2xl font-black text-green-800 mb-1">
-            สั่งจองสำเร็จแล้วครับ! 🎉
-          </h4>
-          <p className="text-xs text-gray-500 mb-4">
-            รหัสออเดอร์:{" "}
-            <strong className="font-mono text-green-900 text-sm">
-              {createdOrder.id}
-            </strong>
-          </p>
-
-          <div className="bg-amber-50 border-2 border-yellow-300 rounded-2xl p-4 text-xs text-gray-800 text-left space-y-1.5 mb-5">
-            <p className="font-black text-amber-900">📌 รายละเอียดการชำระเงิน:</p>
-            <p>
-              ยอดชำระสุทธิ:{" "}
-              <strong className="text-green-800 font-black text-base">
-                ฿{grandTotal.toLocaleString()}
-              </strong>
-            </p>
-            <p>
-              ธนาคาร: <strong>{shopInfo.bankAccount.bank}</strong>
-            </p>
-            <p>
-              เลขบัญชี:{" "}
-              <strong className="font-mono text-gray-900 text-sm">
-                {shopInfo.bankAccount.number}
-              </strong>
-            </p>
-            <p>
-              พร้อมเพย์:{" "}
-              <strong className="font-mono text-green-700 text-sm">
-                {shopInfo.bankAccount.promptPay}
-              </strong>
-            </p>
-            <p>
-              ชื่อบัญชี: <strong>{shopInfo.bankAccount.name}</strong>
-            </p>
-            <p className="text-[11px] text-gray-500 pt-1 border-t border-amber-200">
-              *เมื่อโอนแล้ว กรุณาส่งสลิปผ่านทาง LINE OA{" "}
-              <strong>{shopInfo.lineOA}</strong> หรือโทร{" "}
-              <strong>{shopInfo.phone}</strong> เพื่อให้แอดมินล็อกคิวส่งของทันที
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <a
-                href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 py-3.5 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white text-xs font-black transition flex items-center justify-center gap-1.5 shadow"
-              >
-                <LineIcon className="w-5 h-5" />
-                <span>ส่งสลิปผ่าน LINE</span>
-              </a>
-              <a
-                href={`/tracking?id=${encodeURIComponent(createdOrder.id)}`}
-                className="px-4 py-3.5 rounded-full bg-yellow-400 hover:bg-yellow-300 text-green-950 text-xs font-black transition flex items-center justify-center"
-              >
-                📦 เช็กสถานะ
-              </a>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-full py-2.5 rounded-full bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 transition"
-            >
-              ปิดหน้าต่าง
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <OrderSuccessModal order={createdOrder} onClose={onClose} />;
   }
 
   return (
@@ -880,15 +857,27 @@ function OrderModal({
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-green-950 py-4 rounded-full text-base font-black shadow-lg transition active:scale-98"
-          >
-            {submitting
-              ? "⏳ กำลังบันทึกคำสั่งจอง..."
-              : `✓ ยืนยันการสั่งซื้อ ฿${totalPrice.toLocaleString()}`}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onAddToCart(product, qty, ripenessPref);
+                onClose();
+              }}
+              className="px-4 py-4 rounded-full bg-white border-2 border-green-700 text-green-800 hover:bg-green-50 text-xs font-black transition shrink-0"
+            >
+              + ใส่ตะกร้า
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-green-950 py-4 rounded-full text-sm sm:text-base font-black shadow-lg transition active:scale-98"
+            >
+              {submitting
+                ? "⏳ กำลังบันทึก..."
+                : `✓ สั่งเลย ฿${totalPrice.toLocaleString()}`}
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -966,10 +955,25 @@ function Footer() {
   );
 }
 
-// ===================== FLOATING LINE & CALL =====================
-function FloatingActionButtons() {
+// ===================== FLOATING LINE, CART & CALL =====================
+function FloatingActionButtons({
+  totalCartItems,
+  onOpenCart,
+}: {
+  totalCartItems: number;
+  onOpenCart: () => void;
+}) {
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-2.5">
+    <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-2.5 items-end">
+      {totalCartItems > 0 && (
+        <button
+          type="button"
+          onClick={onOpenCart}
+          className="bg-green-800 hover:bg-green-700 text-yellow-300 px-5 py-3.5 rounded-full shadow-2xl flex items-center gap-2 border-2 border-yellow-400 hover:scale-105 transition-all text-xs font-black"
+        >
+          <span>🛒 ตะกร้า ({totalCartItems})</span>
+        </button>
+      )}
       <a
         href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
         target="_blank"
@@ -996,7 +1000,12 @@ function FloatingActionButtons() {
 export default function Home() {
   const [products, setProducts] = useState<Product[]>(defaultProducts);
   const [round, setRound] = useState<Round>(defaultRound);
+  const [liffId, setLiffId] = useState<string>("");
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+
+  const { addItem, totalItems } = useCart();
+  const { profile: lineProfile } = useLiff(liffId);
 
   useEffect(() => {
     fetch("/api/shop")
@@ -1009,33 +1018,61 @@ export default function Home() {
           if (json.currentRound) {
             setRound(json.currentRound);
           }
+          if (json.lineLiffId) {
+            setLiffId(json.lineLiffId);
+          }
         }
       })
       .catch(() => {});
   }, []);
 
+  const handleOrderCreated = (createdOrder: Order) => {
+    const qtyOrdered = createdOrder.items.reduce((s, it) => s + it.qty, 0);
+    setRound((prev) => ({
+      ...prev,
+      quotaRemaining: Math.max(0, prev.quotaRemaining - qtyOrdered),
+    }));
+  };
+
   return (
     <main className="min-h-screen bg-[#faf6eb]">
-      <Navbar />
+      <Navbar totalCartItems={totalItems} onOpenCart={() => setCartOpen(true)} />
+      {lineProfile && (
+        <div className="bg-green-50 border-b border-green-200 py-1.5 px-4 text-center text-xs font-bold text-green-800">
+          💚 ยินดีต้อนรับคุณ {lineProfile.displayName} (เชื่อมต่อบัญชี LINE พร้อมรับแจ้งเตือนอัตโนมัติ)
+        </div>
+      )}
       <HeroBanner round={round} />
       <RipenessGuide />
-      <ProductMenu products={products} onOrder={setOrderProduct} />
+      <ProductMenu
+        products={products}
+        onOrder={setOrderProduct}
+        onAddToCart={(p) => addItem(p, 1, p.ripeness || "กรอบนอกนุ่มใน (ไก่ฉีก)")}
+      />
       <WhyUs />
       <Footer />
-      <FloatingActionButtons />
+      <FloatingActionButtons
+        totalCartItems={totalItems}
+        onOpenCart={() => setCartOpen(true)}
+      />
 
       {orderProduct && (
         <OrderModal
           product={orderProduct}
           roundId={round.id}
-          onSuccess={(createdOrder) => {
-            const qtyOrdered = createdOrder.items.reduce((s, it) => s + it.qty, 0);
-            setRound((prev) => ({
-              ...prev,
-              quotaRemaining: Math.max(0, prev.quotaRemaining - qtyOrdered),
-            }));
-          }}
+          lineProfile={lineProfile}
+          onAddToCart={(p, q, rip) => addItem(p, q, rip)}
+          onSuccess={handleOrderCreated}
           onClose={() => setOrderProduct(null)}
+        />
+      )}
+
+      {cartOpen && (
+        <CartDrawerModal
+          roundId={round.id}
+          lineProfile={lineProfile}
+          onSuccess={handleOrderCreated}
+          onClose={() => setCartOpen(false)}
         />
       )}
     </main>

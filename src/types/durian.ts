@@ -116,6 +116,7 @@ export interface RuntimeConfig {
   googleSheetViewUrl?: string;
   lineChannelAccessToken?: string;
   lineAdminUserId?: string;
+  lineLiffId?: string;
   adminPin?: string;
   lastSyncedAt?: string;
 }

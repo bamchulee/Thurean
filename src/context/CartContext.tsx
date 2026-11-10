@@ -1,52 +1,88 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import type { Product } from "../data/mock";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import type { Product } from "../types/durian";
 
-// ===================== TYPES =====================
 export interface CartItem {
+  key: string; // `${product.id}__${ripenessPref}`
   product: Product;
   qty: number;
+  ripenessPref: string;
 }
 
 interface CartContextType {
   items: CartItem[];
-  addItem: (product: Product, qty?: number) => void;
-  removeItem: (productId: string) => void;
-  updateQty: (productId: string, qty: number) => void;
+  addItem: (product: Product, qty?: number, ripenessPref?: string) => void;
+  removeItem: (key: string) => void;
+  updateQty: (key: string, qty: number) => void;
   clearCart: () => void;
   totalItems: number;
   totalPrice: number;
 }
 
-// ===================== CONTEXT =====================
 const CartContext = createContext<CartContextType | undefined>(undefined);
+const STORAGE_KEY = "winkin_durian_cart_v1";
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
 
-  const addItem = useCallback((product: Product, qty = 1) => {
-    setItems((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) {
-        return prev.map((i) =>
-          i.product.id === product.id ? { ...i, qty: i.qty + qty } : i
-        );
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setItems(parsed);
       }
-      return [...prev, { product, qty }];
-    });
+    } catch {
+      // Ignore storage error
+    }
   }, []);
 
-  const removeItem = useCallback((productId: string) => {
-    setItems((prev) => prev.filter((i) => i.product.id !== productId));
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch {
+      // Ignore storage error
+    }
+  }, [items]);
+
+  const addItem = useCallback(
+    (
+      product: Product,
+      qty = 1,
+      ripenessPref = "กรอบนอกนุ่มใน (ไก่ฉีก)"
+    ) => {
+      const key = `${product.id}__${ripenessPref}`;
+      setItems((prev) => {
+        const existing = prev.find((i) => i.key === key);
+        if (existing) {
+          return prev.map((i) =>
+            i.key === key ? { ...i, qty: i.qty + qty } : i
+          );
+        }
+        return [...prev, { key, product, qty, ripenessPref }];
+      });
+    },
+    []
+  );
+
+  const removeItem = useCallback((key: string) => {
+    setItems((prev) => prev.filter((i) => i.key !== key));
   }, []);
 
-  const updateQty = useCallback((productId: string, qty: number) => {
+  const updateQty = useCallback((key: string, qty: number) => {
     if (qty <= 0) {
-      setItems((prev) => prev.filter((i) => i.product.id !== productId));
+      setItems((prev) => prev.filter((i) => i.key !== key));
     } else {
       setItems((prev) =>
-        prev.map((i) => (i.product.id === productId ? { ...i, qty } : i))
+        prev.map((i) => (i.key === key ? { ...i, qty } : i))
       );
     }
   }, []);
@@ -58,7 +94,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   return (
     <CartContext.Provider
-      value={{ items, addItem, removeItem, updateQty, clearCart, totalItems, totalPrice }}
+      value={{
+        items,
+        addItem,
+        removeItem,
+        updateQty,
+        clearCart,
+        totalItems,
+        totalPrice,
+      }}
     >
       {children}
     </CartContext.Provider>

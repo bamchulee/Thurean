@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { shopInfo } from "../../data/mock";
+import { ShippingLabelModal } from "../../components/ShippingLabelModal";
 import type {
   Claim,
   ClaimStatus,
@@ -50,6 +51,7 @@ interface ConfigInfo {
   hasLineToken: boolean;
   lineTokenMasked: string;
   lineAdminUserId: string;
+  lineLiffId: string;
   lastSyncedAt: string | null;
 }
 
@@ -496,6 +498,7 @@ function OrdersTab({
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [labelOrder, setLabelOrder] = useState<Order | null>(null);
   const [trackInput, setTrackInput] = useState("");
   const [lotInput, setLotInput] = useState("");
   const [nextStatus, setNextStatus] = useState<OrderStatus>("shipped");
@@ -677,10 +680,23 @@ function OrdersTab({
               >
                 🚚 อัปเดตสถานะ / ใส่ Tracking & ล็อต
               </button>
+              <button
+                onClick={() => setLabelOrder(order)}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition"
+              >
+                🖨️ พิมพ์ใบปะหน้ากล่อง
+              </button>
             </div>
           </div>
         ))}
       </div>
+
+      {labelOrder && (
+        <ShippingLabelModal
+          order={labelOrder}
+          onClose={() => setLabelOrder(null)}
+        />
+      )}
 
       {/* Modal for Updating Order */}
       {editingOrder && (
@@ -1557,6 +1573,7 @@ function SettingsTab({
   const [sheetViewUrl, setSheetViewUrl] = useState("");
   const [lineToken, setLineToken] = useState("");
   const [lineAdminId, setLineAdminId] = useState("");
+  const [lineLiffId, setLineLiffId] = useState("");
   const [newPin, setNewPin] = useState("");
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1571,6 +1588,7 @@ function SettingsTab({
           setWebAppUrl(json.config.googleSheetsWebAppUrl || "");
           setSheetViewUrl(json.config.googleSheetViewUrl || "");
           setLineAdminId(json.config.lineAdminUserId || "");
+          setLineLiffId(json.config.lineLiffId || "");
           setAppsScriptCode(json.appsScriptCode || "");
         }
       });
@@ -1717,10 +1735,10 @@ function SettingsTab({
 
         <hr className="border-gray-100" />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-bold text-gray-700 mb-1">
-              LINE Channel Access Token (สำหรับแจ้งเตือน LINE OA)
+              LINE Channel Access Token
             </label>
             <input
               type="password"
@@ -1729,20 +1747,32 @@ function SettingsTab({
               placeholder={
                 config?.hasLineToken
                   ? `บันทึกแล้ว (${config.lineTokenMasked})`
-                  : "วาง Channel Access Token จาก LINE Developers"
+                  : "วาง Token จาก LINE Developers"
               }
               className="w-full border-2 border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-mono"
             />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-700 mb-1">
-              LINE Admin User ID (สำหรับรับแจ้งเตือนออเดอร์ใหม่)
+              LINE Admin User ID (รับแจ้งเตือน)
             </label>
             <input
               type="text"
               value={lineAdminId}
               onChange={(e) => setLineAdminId(e.target.value)}
-              placeholder="U1234567890abcdef... (พิมพ์ myid ในแชท LINE Bot)"
+              placeholder="U1234... (พิมพ์ myid ในแชท Bot)"
+              className="w-full border-2 border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">
+              LINE LIFF ID (เปิดร้านในแอป LINE)
+            </label>
+            <input
+              type="text"
+              value={lineLiffId}
+              onChange={(e) => setLineLiffId(e.target.value)}
+              placeholder="เช่น 2001234567-AbCdEfGh"
               className="w-full border-2 border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-mono"
             />
           </div>
@@ -1786,6 +1816,7 @@ function SettingsTab({
                 googleSheetViewUrl: sheetViewUrl,
                 lineChannelAccessToken: lineToken || undefined,
                 lineAdminUserId: lineAdminId,
+                lineLiffId: lineLiffId,
                 adminPin: newPin || undefined,
               })
             }

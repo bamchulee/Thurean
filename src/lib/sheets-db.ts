@@ -48,6 +48,8 @@ export function getRuntimeConfig(): RuntimeConfig {
       process.env.LINE_CHANNEL_ACCESS_TOKEN || fileConfig.lineChannelAccessToken || "",
     lineAdminUserId:
       process.env.LINE_ADMIN_USER_ID || fileConfig.lineAdminUserId || "",
+    lineLiffId:
+      process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "",
     adminPin: process.env.ADMIN_PIN || fileConfig.adminPin || "2824",
     lastSyncedAt: fileConfig.lastSyncedAt,
   };
@@ -76,6 +78,9 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
   }
   if (partial.lineAdminUserId !== undefined) {
     next.lineAdminUserId = partial.lineAdminUserId.trim();
+  }
+  if (partial.lineLiffId !== undefined) {
+    next.lineLiffId = partial.lineLiffId.trim();
   }
   if (partial.adminPin !== undefined && partial.adminPin.trim().length >= 4) {
     next.adminPin = partial.adminPin.trim();
