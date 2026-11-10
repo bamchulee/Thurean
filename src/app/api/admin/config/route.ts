@@ -48,6 +48,11 @@ export async function GET(req: NextRequest) {
       lineTokenMasked: maskSecret(cfg.lineChannelAccessToken),
       lineAdminUserId: cfg.lineAdminUserId || "",
       lineLiffId: cfg.lineLiffId || "",
+      publicBaseUrl: cfg.publicBaseUrl || "",
+      liveStreamPlatform: cfg.liveStreamPlatform || "",
+      liveStreamUrl: cfg.liveStreamUrl || "",
+      liveStreamNote: cfg.liveStreamNote || "",
+      isLiveNow: Boolean(cfg.isLiveNow),
       lastSyncedAt: cfg.lastSyncedAt || null,
     },
     appsScriptCode,
@@ -66,6 +71,11 @@ export async function POST(req: NextRequest) {
       lineAdminUserId?: string;
       lineLiffId?: string;
       adminPin?: string;
+      publicBaseUrl?: string;
+      liveStreamPlatform?: string;
+      liveStreamUrl?: string;
+      liveStreamNote?: string;
+      isLiveNow?: boolean;
     };
 
     const action = body.action || "save";
@@ -139,6 +149,11 @@ export async function POST(req: NextRequest) {
       lineAdminUserId: body.lineAdminUserId,
       lineLiffId: body.lineLiffId,
       adminPin: body.adminPin,
+      publicBaseUrl: body.publicBaseUrl,
+      liveStreamPlatform: body.liveStreamPlatform,
+      liveStreamUrl: body.liveStreamUrl,
+      liveStreamNote: body.liveStreamNote,
+      isLiveNow: body.isLiveNow,
     });
 
     const res = NextResponse.json({

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Copy,
+  ExternalLink,
   MapPin,
   Package,
   Search,
@@ -17,6 +18,7 @@ import {
 import { shopInfo } from "../../data/mock";
 import type { Order } from "../../types/durian";
 import { LineIcon } from "../../components/Icons";
+import { resolveCourierInfo } from "../../lib/courier";
 
 const statusSteps = [
   {
@@ -101,6 +103,13 @@ export default function TrackingPage() {
   };
 
   const currentStep = foundOrder ? getStatusIndex(foundOrder.orderStatus) : -1;
+  const courierInfo = foundOrder
+    ? resolveCourierInfo(
+        foundOrder.trackingNo,
+        foundOrder.courier,
+        foundOrder.shippingMethod
+      )
+    : null;
 
   return (
     <div className="min-h-screen bg-[#FBF6E3]">
@@ -265,9 +274,12 @@ export default function TrackingPage() {
                 </div>
                 <div className="bg-stone-50 rounded-xl p-3 border border-stone-100">
                   <span className="text-stone-400 block text-[10px] uppercase font-bold">
-                    บริการจัดส่ง
+                    บริษัทขนส่ง &amp; วิธีจัดส่ง
                   </span>
-                  <p className="font-bold text-stone-900 mt-0.5">
+                  <p className="font-bold text-[#1B4D31] mt-0.5">
+                    {courierInfo?.name || "-"}
+                  </p>
+                  <p className="text-[11px] text-stone-500">
                     {foundOrder.shippingMethod}
                   </p>
                 </div>
@@ -349,36 +361,49 @@ export default function TrackingPage() {
 
             {/* Tracking Number */}
             {foundOrder.trackingNo && (
-              <div className="bg-[#1B4D31] text-white rounded-2xl p-5 border border-emerald-900 flex items-center justify-between shadow-md">
+              <div className="bg-[#1B4D31] text-white rounded-2xl p-5 border border-emerald-900 flex flex-wrap items-center justify-between gap-3 shadow-md">
                 <div>
                   <span className="text-[10px] text-amber-300 font-bold uppercase block tracking-wider">
-                    หมายเลขพัสดุ (Tracking No.)
+                    หมายเลขพัสดุ • {courierInfo?.name}
                   </span>
                   <p className="font-mono text-xl font-black text-white tracking-wider">
                     {foundOrder.trackingNo}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(foundOrder.trackingNo || "");
-                    setCopiedTrack(true);
-                    setTimeout(() => setCopiedTrack(false), 2000);
-                  }}
-                  className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-4 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
-                >
-                  {copiedTrack ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      <span>คัดลอกแล้ว</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>คัดลอก</span>
-                    </>
+                <div className="flex items-center gap-2">
+                  {courierInfo?.trackingUrl && (
+                    <a
+                      href={courierInfo.trackingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="bg-white/15 hover:bg-white/25 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>เปิดเว็บขนส่ง</span>
+                    </a>
                   )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(foundOrder.trackingNo || "");
+                      setCopiedTrack(true);
+                      setTimeout(() => setCopiedTrack(false), 2000);
+                    }}
+                    className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-4 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
+                  >
+                    {copiedTrack ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>คัดลอกแล้ว</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>คัดลอก</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 

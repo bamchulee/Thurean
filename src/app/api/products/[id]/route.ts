@@ -24,6 +24,10 @@ export async function PATCH(
     if (body.weight !== undefined) updates.weight = body.weight;
     if (body.badge !== undefined) updates.badge = body.badge;
     if (body.ripeness !== undefined) updates.ripeness = body.ripeness;
+    if (body.stockUnit !== undefined) updates.stockUnit = body.stockUnit;
+    if (body.stockKg !== undefined) updates.stockKg = Number(body.stockKg);
+    if (body.avgWeightKg !== undefined) updates.avgWeightKg = Number(body.avgWeightKg);
+    if (body.stockQty !== undefined) updates.stockQty = Number(body.stockQty);
 
     const updated = await updateProductRecord(productId, updates);
     if (!updated) {

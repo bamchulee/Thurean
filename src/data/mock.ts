@@ -7,10 +7,11 @@ import type {
   Order,
   LotCost,
   Claim,
+  Promotion,
   DatabaseState,
 } from "../types/durian";
 
-export type { Product, Round, Order, LotCost, Claim, DatabaseState };
+export type { Product, Round, Order, LotCost, Claim, Promotion, DatabaseState };
 
 export const shopInfo = {
   name: "ทุเรียนวินคิน",
@@ -64,6 +65,9 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80",
     badge: "ยอดนิยม",
     isAvailable: true,
+    stockUnit: "kg",
+    stockKg: 48.5,
+    avgWeightKg: 3.7,
     description:
       "หมอนทองคัดผลแก่จัด 85%+ เปลือกบาง หนามแห้ง ทรงสวย พูใหญ่ เนื้อสีเหลืองทองเนียนละเอียด หวานมันกลมกล่อม เม็ดลีบ",
     specs: {
@@ -88,6 +92,10 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&h=600&q=80&crop=focalpoint&fp-z=1.7&fp-x=0.25&fp-y=0.3",
     badge: "พร้อมทาน",
     isAvailable: true,
+    stockUnit: "qty",
+    stockQty: 18,
+    stockKg: 18,
+    avgWeightKg: 1,
     description:
       "แกะสดใหม่วันต่อวัน คัดเฉพาะพูใหญ่เกรดสวย แพ็กใส่กล่องล็อกสุญญากาศอย่างดี ส่งรถเย็นถึงบ้านพร้อมเปิดทานทันที",
     specs: {
@@ -112,6 +120,9 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&h=600&q=80&crop=focalpoint&fp-z=1.7&fp-x=0.75&fp-y=0.3",
     badge: "หายาก",
     isAvailable: true,
+    stockUnit: "kg",
+    stockKg: 22,
+    avgWeightKg: 2.8,
     description:
       "ก้านยาวแท้ ก้านใหญ่สมบูรณ์ เนื้อเนียนละเอียด ไร้เสี้ยน กลิ่นหอมสะอาด รสชาติหวานมันลึก สำหรับคนรักก้านยาวตัวจริง",
     specs: {
@@ -136,6 +147,9 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&h=600&q=80&crop=focalpoint&fp-z=1.7&fp-x=0.3&fp-y=0.75",
     badge: "หวานจัด",
     isAvailable: true,
+    stockUnit: "kg",
+    stockKg: 16.5,
+    avgWeightKg: 2.1,
     description:
       "พวงมณีแท้ เม็ดเล็ก เนื้อสีเหลืองจำปาเข้ม รสหวานฉ่ำสะใจ คนชอบทุเรียนหวานเข้มข้นต้องไม่พลาด",
     specs: {
@@ -159,6 +173,9 @@ export const products: Product[] = [
     image:
       "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80",
     isAvailable: true,
+    stockUnit: "kg",
+    stockKg: 19.5,
+    avgWeightKg: 2.7,
     description:
       "ชะนีไข่เนื้อเหลืองทอง กลิ่นหอมเข้ม รสชาติหวานมันลึกสไตล์ทุเรียนแท้ดั้งเดิม คัดเนื้อไม่ให้เละ",
     specs: {
@@ -183,6 +200,9 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&h=600&q=80&crop=focalpoint&fp-z=1.7&fp-x=0.75&fp-y=0.75",
     badge: "นำเข้าพิเศษ",
     isAvailable: true,
+    stockUnit: "kg",
+    stockKg: 8,
+    avgWeightKg: 2,
     description:
       "มูซานคิงแท้ เนื้อสีทองเข้ม เนื้อเนียนนุ่มละลายในปาก รสชาติหวานมันซับซ้อน อมขมปลายลิ้นนิดๆ",
     specs: {
@@ -233,6 +253,7 @@ export const sampleOrders: Order[] = [
     shippingCost: 120,
     paymentStatus: "confirmed",
     orderStatus: "preparing",
+    courier: "รถกระบะทุเรียนวินคินวิ่งส่งเอง",
     lotId: "LOT-RY-01",
   },
   {
@@ -285,6 +306,7 @@ export const sampleOrders: Order[] = [
     paymentStatus: "confirmed",
     orderStatus: "shipped",
     trackingNo: "SCGTH884291823",
+    courier: "SCG Express (รถห้องเย็น)",
     lotId: "LOT-RY-01",
   },
 ];
@@ -320,6 +342,35 @@ export const initialClaims: Claim[] = [
   },
 ];
 
+export const initialPromotions: Promotion[] = [
+  {
+    id: "PROMO-01",
+    title: "สั่งหมอนทอง 2 ลูกขึ้นไป ฟรีค่าส่งรถเย็น!",
+    badge: "คุ้มสุดประจำรอบ",
+    discountText: "ประหยัดทันที ฿120 ค่าส่งรถควบคุมความเย็น",
+    conditionText: "สั่งซื้อทุเรียนเกรดพรีเมียมตั้งแต่ 2 ลูกขึ้นไปใน 1 ออเดอร์",
+    promoCode: "FREECOOL2",
+    isActive: true,
+  },
+  {
+    id: "PROMO-02",
+    title: "แพ็กคู่เนื้อล้วนพร้อมทาน 2 กก.",
+    badge: "พร้อมเปิดกล่องทาน",
+    discountText: "พิเศษ ฿1,490 จากปกติ ฿1,580",
+    conditionText: "เฉพาะหมอนทองแกะเนื้อพร้อมทาน 1,000 กรัม x2 กล่อง",
+    promoCode: "DUO2KG",
+    isActive: true,
+  },
+  {
+    id: "PROMO-03",
+    title: "การันตีเนื้ออ่อน/เน่า เคลม 100% ฟรี",
+    badge: "รับประกันทุกลูก",
+    discountText: "เคลมเปลี่ยนลูกใหม่หรือคืนเงินเต็มจำนวน",
+    conditionText: "ถ่ายรูปส่งเข้ามาทางแชท LINE ภายใน 24 ชม. หลังได้รับ",
+    isActive: true,
+  },
+];
+
 export function createInitialDatabase(): DatabaseState {
   return {
     products: JSON.parse(JSON.stringify(products)),
@@ -327,5 +378,6 @@ export function createInitialDatabase(): DatabaseState {
     orders: JSON.parse(JSON.stringify(sampleOrders)),
     lots: JSON.parse(JSON.stringify(initialLots)),
     claims: JSON.parse(JSON.stringify(initialClaims)),
+    promotions: JSON.parse(JSON.stringify(initialPromotions)),
   };
 }

@@ -38,6 +38,9 @@ import {
 } from "lucide-react";
 import { shopInfo } from "../../data/mock";
 import { ShippingLabelModal } from "../../components/ShippingLabelModal";
+import { LineIcon } from "../../components/Icons";
+import { COURIER_OPTIONS, resolveCourierInfo } from "../../lib/courier";
+import { formatProductStock } from "../../lib/stock";
 import type {
   Claim,
   ClaimStatus,
@@ -126,6 +129,11 @@ interface ConfigInfo {
   lineTokenMasked: string;
   lineAdminUserId: string;
   lineLiffId: string;
+  publicBaseUrl: string;
+  liveStreamPlatform: string;
+  liveStreamUrl: string;
+  liveStreamNote: string;
+  isLiveNow: boolean;
   lastSyncedAt: string | null;
 }
 
@@ -624,6 +632,7 @@ function OrdersTab({
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [labelOrder, setLabelOrder] = useState<Order | null>(null);
   const [trackInput, setTrackInput] = useState("");
+  const [courierInput, setCourierInput] = useState("");
   const [lotInput, setLotInput] = useState("");
   const [nextStatus, setNextStatus] = useState<OrderStatus>("shipped");
   const [notifyLine, setNotifyLine] = useState(true);
@@ -657,6 +666,7 @@ function OrdersTab({
   const openTrackingModal = (order: Order) => {
     setEditingOrder(order);
     setTrackInput(order.trackingNo || "");
+    setCourierInput(order.courier || "");
     setLotInput(order.lotId || lots[0]?.lotId || "");
     setNextStatus(
       order.orderStatus === "received" || order.orderStatus === "preparing"
@@ -671,6 +681,7 @@ function OrdersTab({
     await patchOrder(editingOrder.id, {
       orderStatus: nextStatus,
       trackingNo: trackInput,
+      courier: courierInput || undefined,
       lotId: lotInput,
       notifyLine,
     });
@@ -785,12 +796,48 @@ function OrdersTab({
               </div>
             </div>
 
-            {order.trackingNo && (
-              <div className="bg-sky-50 border border-sky-200 rounded-xl p-2.5 text-xs text-sky-900 mb-3 flex items-center gap-1.5">
-                <Package className="w-3.5 h-3.5" />
-                <span>
-                  เลขพัสดุ: <strong className="font-mono">{order.trackingNo}</strong>
+            {(order.trackingNo || order.courier) && (
+              <div className="bg-sky-50 border border-sky-200 rounded-xl p-2.5 text-xs text-sky-900 mb-3 flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5" />
+                  <span>
+                    ขนส่ง:{" "}
+                    <strong>
+                      {resolveCourierInfo(order.trackingNo, order.courier, order.shippingMethod).name}
+                    </strong>
+                    {order.trackingNo && (
+                      <>
+                        {" "}
+                        • เลขพัสดุ: <strong className="font-mono">{order.trackingNo}</strong>
+                      </>
+                    )}
+                  </span>
                 </span>
+                {order.slipUrl && (
+                  <a
+                    href={order.slipUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="bg-white border border-sky-300 text-sky-800 px-2.5 py-0.5 rounded-lg font-bold hover:bg-sky-100 inline-flex items-center gap-1"
+                  >
+                    <Receipt className="w-3 h-3" />
+                    <span>ดูสลิป</span>
+                  </a>
+                )}
+              </div>
+            )}
+            {!order.trackingNo && !order.courier && order.slipUrl && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-900 mb-3 flex items-center justify-between">
+                <span>ลูกค้าแนบสลิปทาง LINE แล้ว</span>
+                <a
+                  href={order.slipUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-white border border-emerald-300 text-emerald-800 px-2.5 py-0.5 rounded-lg font-bold hover:bg-emerald-100 inline-flex items-center gap-1"
+                >
+                  <Receipt className="w-3 h-3" />
+                  <span>ดูสลิป</span>
+                </a>
               </div>
             )}
 
@@ -871,13 +918,31 @@ function OrdersTab({
 
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1">
+                บริษัทขนส่ง (เว้นว่างเพื่อให้จับจากเลขพัสดุอัตโนมัติ)
+              </label>
+              <select
+                value={courierInput}
+                onChange={(e) => setCourierInput(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold bg-white"
+              >
+                <option value="">จับอัตโนมัติจากเลขพัสดุ ({resolveCourierInfo(trackInput).name})</option>
+                {COURIER_OPTIONS.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
                 เลขพัสดุ (Tracking No.)
               </label>
               <input
                 type="text"
                 value={trackInput}
                 onChange={(e) => setTrackInput(e.target.value)}
-                placeholder="เช่น FL123456789TH"
+                placeholder="เช่น TH0123456789AB / SCGTH... / EF...TH"
                 className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono"
               />
             </div>
@@ -986,6 +1051,33 @@ function ProductsTab({
     }
   };
 
+  const handleEditStock = async (p: Product) => {
+    const isQty = p.stockUnit === "qty" || p.type === "flesh";
+    const currentVal = isQty ? p.stockQty ?? p.stockKg ?? 0 : p.stockKg ?? 0;
+    const label = isQty ? `จำนวนกล่อง/แพ็กคงเหลือ (${p.unit})` : "น้ำหนักคงเหลือรวม (กิโลกรัม)";
+    const input = window.prompt(
+      `อัปเดตสต็อกของ "${p.name}"\n${label}:`,
+      String(currentVal)
+    );
+    if (input === null) return;
+    const val = Number(input);
+    if (Number.isNaN(val) || val < 0) return;
+
+    const payload: Record<string, unknown> = isQty
+      ? { stockUnit: "qty", stockQty: val, stockKg: val, isAvailable: val > 0 }
+      : { stockUnit: "kg", stockKg: val, isAvailable: val > 0 };
+
+    const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = (await res.json()) as { ok: boolean; product?: Product };
+    if (res.ok && json.ok && json.product) {
+      onProductUpdated(json.product);
+    }
+  };
+
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -1052,9 +1144,25 @@ function ProductsTab({
               <p className="text-xs text-stone-500">
                 {p.variety} • {p.weight} • {p.origin}
               </p>
+              <p className="text-xs font-semibold text-amber-800 mt-0.5">
+                สต็อก: {formatProductStock(p).summary}
+              </p>
             </div>
 
-            <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
+            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+              <button
+                onClick={() => handleEditStock(p)}
+                className="text-right hover:bg-amber-50 px-2.5 py-1 rounded-xl transition border border-amber-200/70"
+                title="คลิกเพื่ออัปเดตน้ำหนัก กก. หรือจำนวนคงเหลือ"
+              >
+                <p className="font-bold text-amber-900 text-xs font-mono">
+                  {p.stockUnit === "qty" || p.type === "flesh"
+                    ? `${p.stockQty ?? p.stockKg ?? 0} ${p.unit}`
+                    : `${p.stockKg ?? 0} กก.`}
+                </p>
+                <p className="text-[10px] text-amber-700 underline">แก้สต็อก</p>
+              </button>
+
               <button
                 onClick={() => handleEditPrice(p)}
                 className="text-right hover:bg-stone-50 px-2.5 py-1 rounded-xl transition"
@@ -1798,6 +1906,11 @@ function SettingsTab({
   const [lineToken, setLineToken] = useState("");
   const [lineAdminId, setLineAdminId] = useState("");
   const [lineLiffId, setLineLiffId] = useState("");
+  const [publicBaseUrl, setPublicBaseUrl] = useState("");
+  const [livePlatform, setLivePlatform] = useState("");
+  const [liveUrl, setLiveUrl] = useState("");
+  const [liveNote, setLiveNote] = useState("");
+  const [isLiveNow, setIsLiveNow] = useState(false);
   const [newPin, setNewPin] = useState("");
   const [statusMsg, setStatusMsg] = useState<{
     ok: boolean;
@@ -1816,6 +1929,11 @@ function SettingsTab({
           setSheetViewUrl(json.config.googleSheetViewUrl || "");
           setLineAdminId(json.config.lineAdminUserId || "");
           setLineLiffId(json.config.lineLiffId || "");
+          setPublicBaseUrl(json.config.publicBaseUrl || "");
+          setLivePlatform(json.config.liveStreamPlatform || "");
+          setLiveUrl(json.config.liveStreamUrl || "");
+          setLiveNote(json.config.liveStreamNote || "");
+          setIsLiveNow(Boolean(json.config.isLiveNow));
           setAppsScriptCode(json.appsScriptCode || "");
         }
       });
@@ -1856,6 +1974,32 @@ function SettingsTab({
     navigator.clipboard.writeText(appsScriptCode);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2500);
+  };
+
+  const handleDeployRichMenu = async () => {
+    setBusy(true);
+    setStatusMsg(null);
+    try {
+      const res = await fetch("/api/line/richmenu", { method: "POST" });
+      const json = (await res.json()) as {
+        ok: boolean;
+        richMenuId?: string;
+        message?: string;
+        error?: string;
+      };
+      if (res.ok && json.ok) {
+        setStatusMsg({
+          ok: true,
+          text: `${json.message || "ติดตั้ง Rich Menu สำเร็จ"} (ID: ${json.richMenuId})`,
+        });
+      } else {
+        setStatusMsg({ ok: false, text: json.error || "ติดตั้ง Rich Menu ไม่สำเร็จ" });
+      }
+    } catch {
+      setStatusMsg({ ok: false, text: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้" });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -2037,6 +2181,73 @@ function SettingsTab({
           </div>
         </div>
 
+        <hr className="border-stone-100" />
+
+        <div className="space-y-3">
+          <h3 className="text-sm font-extrabold text-stone-900">
+            ตั้งค่าเว็บสาธารณะ (QR PromptPay ใน LINE) &amp; ช่องทางไลฟ์สด
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                Public HTTPS Base URL (โดเมนเว็บ / Cloudflare Tunnel)
+              </label>
+              <input
+                type="url"
+                value={publicBaseUrl}
+                onChange={(e) => setPublicBaseUrl(e.target.value)}
+                placeholder="https://xxx.trycloudflare.com หรือโดเมนเว็บจริง"
+                className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                แพลตฟอร์มไลฟ์สด (TikTok / Facebook / YouTube)
+              </label>
+              <input
+                type="text"
+                value={livePlatform}
+                onChange={(e) => setLivePlatform(e.target.value)}
+                placeholder="เช่น TikTok @durianwinkin หรือ Facebook Live"
+                className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                ลิงก์ห้องไลฟ์สด (เว้นว่างไว้ถ้ายังไม่เลือกแพลตฟอร์ม)
+              </label>
+              <input
+                type="url"
+                value={liveUrl}
+                onChange={(e) => setLiveUrl(e.target.value)}
+                placeholder="https://www.tiktok.com/@.../live"
+                className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                ข้อความแจ้งลูกค้าตอนกดปุ่มดูไลฟ์สด
+              </label>
+              <input
+                type="text"
+                value={liveNote}
+                onChange={(e) => setLiveNote(e.target.value)}
+                placeholder="เช่น ไลฟ์คัดทุเรียนหน้าสวนทุกวัน 19:00 น."
+                className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs"
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-xs font-bold text-rose-700">
+            <input
+              type="checkbox"
+              checked={isLiveNow}
+              onChange={(e) => setIsLiveNow(e.target.checked)}
+              className="accent-rose-600"
+            />
+            <span>สถานะกำลังไลฟ์สดตอนนี้ (แสดงป้าย LIVE NOW ใน LINE)</span>
+          </label>
+        </div>
+
         <div>
           <label className="block text-xs font-bold text-stone-700 mb-1">
             เปลี่ยนรหัส PIN เข้าหลังบ้าน (เว้นว่างถ้าไม่เปลี่ยน)
@@ -2080,6 +2291,11 @@ function SettingsTab({
                 lineChannelAccessToken: lineToken || undefined,
                 lineAdminUserId: lineAdminId,
                 lineLiffId: lineLiffId,
+                publicBaseUrl: publicBaseUrl,
+                liveStreamPlatform: livePlatform,
+                liveStreamUrl: liveUrl,
+                liveStreamNote: liveNote,
+                isLiveNow: isLiveNow,
                 adminPin: newPin || undefined,
               })
             }
@@ -2111,6 +2327,16 @@ function SettingsTab({
           >
             <UploadCloud className="w-3.5 h-3.5" />
             <span>ส่งข้อมูลตั้งต้นลงชีต (1-Click Sync)</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={busy || (!config?.hasLineToken && !lineToken)}
+            onClick={handleDeployRichMenu}
+            className="bg-[#06C755] hover:bg-[#05b34c] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+          >
+            <LineIcon className="w-3.5 h-3.5" />
+            <span>ติดตั้งเมนู 6 ปุ่มใน LINE (Rich Menu)</span>
           </button>
 
           {sourceMode === "google-sheets" && (

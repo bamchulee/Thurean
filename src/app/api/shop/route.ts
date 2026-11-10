@@ -17,8 +17,15 @@ export async function GET() {
       warning,
       products: data.products,
       currentRound: activeRound,
+      promotions: (data.promotions || []).filter((pr) => pr.isActive),
       shopInfo,
       lineLiffId: cfg.lineLiffId || "",
+      liveStream: {
+        isLiveNow: Boolean(cfg.isLiveNow),
+        platform: cfg.liveStreamPlatform || "",
+        url: cfg.liveStreamUrl || "",
+        note: cfg.liveStreamNote || "",
+      },
     });
   } catch (err) {
     return NextResponse.json(

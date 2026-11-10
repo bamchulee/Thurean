@@ -10,6 +10,7 @@ import {
   buildCustomerStatusFlex,
   pushLineMessage,
 } from "../../../../lib/line-notify";
+import { resolveCourierInfo } from "../../../../lib/courier";
 import type { OrderStatus, PaymentStatus } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +38,14 @@ export async function GET(
       );
     }
 
+    const courierInfo = resolveCourierInfo(
+      order.trackingNo,
+      order.courier,
+      order.shippingMethod
+    );
+
     if (isAdminRequest(req)) {
-      return NextResponse.json({ ok: true, order, isAdmin: true });
+      return NextResponse.json({ ok: true, order, courierInfo, isAdmin: true });
     }
 
     // Mask phone and omit full street address for public tracking privacy
@@ -54,6 +61,7 @@ export async function GET(
         phone: maskedPhone,
         address: undefined,
       },
+      courierInfo,
     });
   } catch (err) {
     return NextResponse.json(
@@ -77,6 +85,8 @@ export async function PATCH(
       paymentStatus?: PaymentStatus;
       orderStatus?: OrderStatus;
       trackingNo?: string;
+      courier?: string;
+      slipUrl?: string;
       lotId?: string;
       notes?: string;
       notifyLine?: boolean;
@@ -86,6 +96,12 @@ export async function PATCH(
     if (body.paymentStatus !== undefined) updates.paymentStatus = body.paymentStatus;
     if (body.orderStatus !== undefined) updates.orderStatus = body.orderStatus;
     if (body.trackingNo !== undefined) updates.trackingNo = body.trackingNo.trim();
+    if (body.courier !== undefined) {
+      updates.courier = body.courier.trim();
+    } else if (body.trackingNo) {
+      updates.courier = resolveCourierInfo(body.trackingNo.trim()).name;
+    }
+    if (body.slipUrl !== undefined) updates.slipUrl = body.slipUrl.trim();
     if (body.lotId !== undefined) updates.lotId = body.lotId.trim();
     if (body.notes !== undefined) updates.notes = body.notes;
 

@@ -18,6 +18,10 @@ export interface Product {
   badge?: string;
   isAvailable: boolean;
   description: string;
+  stockUnit?: "kg" | "qty";
+  stockKg?: number;
+  avgWeightKg?: number;
+  stockQty?: number;
   specs: {
     maturity: string;
     texture: string;
@@ -69,6 +73,8 @@ export interface Order {
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
   trackingNo?: string;
+  courier?: string;
+  slipUrl?: string;
   lotId?: string;
   notes?: string;
 }
@@ -103,12 +109,23 @@ export interface Claim {
   lotId?: string;
 }
 
+export interface Promotion {
+  id: string;
+  title: string;
+  badge?: string;
+  discountText: string;
+  conditionText: string;
+  promoCode?: string;
+  isActive: boolean;
+}
+
 export interface DatabaseState {
   products: Product[];
   rounds: Round[];
   orders: Order[];
   lots: LotCost[];
   claims: Claim[];
+  promotions?: Promotion[];
 }
 
 export interface RuntimeConfig {
@@ -118,5 +135,10 @@ export interface RuntimeConfig {
   lineAdminUserId?: string;
   lineLiffId?: string;
   adminPin?: string;
+  publicBaseUrl?: string;
+  liveStreamPlatform?: string;
+  liveStreamUrl?: string;
+  liveStreamNote?: string;
+  isLiveNow?: boolean;
   lastSyncedAt?: string;
 }

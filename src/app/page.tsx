@@ -35,6 +35,7 @@ import { OrderSuccessModal } from "../components/OrderSuccessModal";
 import { CartDrawerModal } from "../components/CartDrawerModal";
 import { DurianIcon, LineIcon } from "../components/Icons";
 import { LineDirectLink } from "../components/LineDirectLink";
+import { formatProductStock } from "../lib/stock";
 
 // ===================== NAVBAR =====================
 function Navbar({
@@ -543,6 +544,15 @@ function ProductCard({
                 <span>เนื้อสัมผัส</span>
               </span>
               <span className="font-semibold text-[#1B4D31]">{product.specs.texture}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-stone-400 inline-flex items-center gap-1">
+                <Package className="w-3 h-3" />
+                <span>สต็อกคงเหลือ</span>
+              </span>
+              <span className="font-semibold text-amber-800">
+                {formatProductStock(product).summary}
+              </span>
             </div>
           </div>
         </div>

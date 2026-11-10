@@ -21,6 +21,7 @@ const SHEET_NAMES = {
   ORDERS: "Orders",
   LOTS: "Lots_Cost",
   CLAIMS: "Claims",
+  PROMOTIONS: "Promotions",
   SUMMARY: "Summary",
 };
 
@@ -53,6 +54,10 @@ function setupDurianWinkinSheets() {
         "maturity",
         "texture",
         "flavor",
+        "stockUnit",
+        "stockKg",
+        "avgWeightKg",
+        "stockQty",
       ],
     },
     {
@@ -91,6 +96,8 @@ function setupDurianWinkinSheets() {
         "paymentStatus",
         "orderStatus",
         "trackingNo",
+        "courier",
+        "slipUrl",
         "lotId",
         "notes",
       ],
@@ -127,6 +134,19 @@ function setupDurianWinkinSheets() {
         "status",
         "resolutionNote",
         "lotId",
+      ],
+    },
+    {
+      name: SHEET_NAMES.PROMOTIONS,
+      color: "#b45309",
+      headers: [
+        "id",
+        "title",
+        "badge",
+        "discountText",
+        "conditionText",
+        "promoCode",
+        "isActive",
       ],
     },
   ];
@@ -231,6 +251,10 @@ function doPost(e) {
         return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.CLAIMS, payload) });
       case "updateClaim":
         return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.CLAIMS, "claimId", payload.claimId, payload) });
+      case "createPromotion":
+        return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.PROMOTIONS, payload) });
+      case "updatePromotion":
+        return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.PROMOTIONS, "id", payload.id, payload) });
       default:
         return jsonResponse({ ok: false, error: "Unknown POST action: " + action });
     }
@@ -291,6 +315,10 @@ function readAllDatabase() {
     badge: p.badge ? String(p.badge) : undefined,
     isAvailable: p.isAvailable === true || String(p.isAvailable).toUpperCase() === "TRUE",
     description: String(p.description || ""),
+    stockUnit: p.stockUnit === "qty" ? "qty" : "kg",
+    stockKg: p.stockKg !== "" && p.stockKg !== undefined ? Number(p.stockKg) : undefined,
+    avgWeightKg: p.avgWeightKg !== "" && p.avgWeightKg !== undefined ? Number(p.avgWeightKg) : undefined,
+    stockQty: p.stockQty !== "" && p.stockQty !== undefined ? Number(p.stockQty) : undefined,
     specs: {
       maturity: String(p.maturity || ""),
       texture: String(p.texture || ""),
@@ -335,6 +363,8 @@ function readAllDatabase() {
       paymentStatus: String(o.paymentStatus || "pending"),
       orderStatus: String(o.orderStatus || "received"),
       trackingNo: o.trackingNo ? String(o.trackingNo) : undefined,
+      courier: o.courier ? String(o.courier) : undefined,
+      slipUrl: o.slipUrl ? String(o.slipUrl) : undefined,
       lotId: o.lotId ? String(o.lotId) : undefined,
       notes: o.notes ? String(o.notes) : undefined,
     };
@@ -370,7 +400,18 @@ function readAllDatabase() {
     lotId: c.lotId ? String(c.lotId) : undefined,
   }));
 
-  return { products, rounds, orders, lots, claims };
+  const rawPromos = readSheetObjects(SHEET_NAMES.PROMOTIONS);
+  const promotions = rawPromos.map((pr) => ({
+    id: String(pr.id),
+    title: String(pr.title),
+    badge: pr.badge ? String(pr.badge) : undefined,
+    discountText: String(pr.discountText || ""),
+    conditionText: String(pr.conditionText || ""),
+    promoCode: pr.promoCode ? String(pr.promoCode) : undefined,
+    isActive: pr.isActive === true || String(pr.isActive).toUpperCase() === "TRUE",
+  }));
+
+  return { products, rounds, orders, lots, claims, promotions };
 }
 
 function appendObjectRow(sheetName, obj) {
@@ -401,12 +442,14 @@ function createOrderRow(order) {
     paymentStatus: order.paymentStatus || "pending",
     orderStatus: order.orderStatus || "received",
     trackingNo: order.trackingNo || "",
+    courier: order.courier || "",
+    slipUrl: order.slipUrl || "",
     lotId: order.lotId || "",
     notes: order.notes || "",
   };
   appendObjectRow(SHEET_NAMES.ORDERS, flat);
 
-  // ตัดโควต้าของรอบส่งถ้ามี
+  // ตัดโควต้ารอบส่ง + ตัดสต็อก กก./กล่อง ของสินค้า
   if (order.roundId && order.items) {
     const qtySum = order.items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
     const rounds = readSheetObjects(SHEET_NAMES.ROUNDS);
@@ -415,6 +458,27 @@ function createOrderRow(order) {
       const nextQuota = Math.max(0, (Number(target.quotaRemaining) || 0) - qtySum);
       updateRowById(SHEET_NAMES.ROUNDS, "id", order.roundId, { quotaRemaining: nextQuota });
     }
+  }
+  if (Array.isArray(order.items)) {
+    const prodRows = readSheetObjects(SHEET_NAMES.PRODUCTS);
+    order.items.forEach((it) => {
+      const p = prodRows.find((row) => String(row.id) === String(it.productId));
+      if (!p) return;
+      const updates = {};
+      const qty = Math.max(1, Number(it.qty) || 1);
+      if (p.stockUnit === "qty" && p.stockQty !== "" && p.stockQty !== undefined) {
+        updates.stockQty = Math.max(0, (Number(p.stockQty) || 0) - qty);
+        if (updates.stockQty <= 0) updates.isAvailable = false;
+      }
+      if (p.stockKg !== "" && p.stockKg !== undefined) {
+        const avg = Number(p.avgWeightKg) > 0 ? Number(p.avgWeightKg) : (p.stockUnit === "qty" ? 1 : 3);
+        updates.stockKg = Math.max(0, Number(((Number(p.stockKg) || 0) - qty * avg).toFixed(1)));
+        if (updates.stockKg <= 0) updates.isAvailable = false;
+      }
+      if (Object.keys(updates).length > 0) {
+        updateRowById(SHEET_NAMES.PRODUCTS, "id", p.id, updates);
+      }
+    });
   }
   return order;
 }
@@ -439,6 +503,10 @@ function createProductRow(product) {
     maturity: (product.specs && product.specs.maturity) || "",
     texture: (product.specs && product.specs.texture) || "",
     flavor: (product.specs && product.specs.flavor) || "",
+    stockUnit: product.stockUnit || (product.type === "flesh" ? "qty" : "kg"),
+    stockKg: product.stockKg !== undefined ? product.stockKg : "",
+    avgWeightKg: product.avgWeightKg !== undefined ? product.avgWeightKg : "",
+    stockQty: product.stockQty !== undefined ? product.stockQty : "",
   };
   appendObjectRow(SHEET_NAMES.PRODUCTS, flat);
   return product;
@@ -511,6 +579,12 @@ function syncSeedData(db) {
   if (current.claims.length === 0 && Array.isArray(db.claims)) {
     db.claims.forEach((c) => {
       appendObjectRow(SHEET_NAMES.CLAIMS, c);
+      added++;
+    });
+  }
+  if (current.promotions.length === 0 && Array.isArray(db.promotions)) {
+    db.promotions.forEach((pr) => {
+      appendObjectRow(SHEET_NAMES.PROMOTIONS, pr);
       added++;
     });
   }

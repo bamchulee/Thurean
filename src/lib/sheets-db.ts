@@ -10,10 +10,12 @@ import type {
   LotCost,
   Order,
   Product,
+  Promotion,
   Round,
   RuntimeConfig,
 } from "../types/durian";
 import { createInitialDatabase } from "../data/mock";
+import { deductProductStock } from "./stock";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const LOCAL_DB_PATH = path.join(DATA_DIR, "local-db.json");
@@ -51,6 +53,12 @@ export function getRuntimeConfig(): RuntimeConfig {
     lineLiffId:
       process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "",
     adminPin: process.env.ADMIN_PIN || fileConfig.adminPin || "2824",
+    publicBaseUrl:
+      process.env.NEXT_PUBLIC_BASE_URL || fileConfig.publicBaseUrl || "",
+    liveStreamPlatform: fileConfig.liveStreamPlatform || "",
+    liveStreamUrl: fileConfig.liveStreamUrl || "",
+    liveStreamNote: fileConfig.liveStreamNote || "",
+    isLiveNow: Boolean(fileConfig.isLiveNow),
     lastSyncedAt: fileConfig.lastSyncedAt,
   };
 }
@@ -84,6 +92,21 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
   }
   if (partial.adminPin !== undefined && partial.adminPin.trim().length >= 4) {
     next.adminPin = partial.adminPin.trim();
+  }
+  if (partial.publicBaseUrl !== undefined) {
+    next.publicBaseUrl = partial.publicBaseUrl.trim().replace(/\/+$/, "");
+  }
+  if (partial.liveStreamPlatform !== undefined) {
+    next.liveStreamPlatform = partial.liveStreamPlatform.trim();
+  }
+  if (partial.liveStreamUrl !== undefined) {
+    next.liveStreamUrl = partial.liveStreamUrl.trim();
+  }
+  if (partial.liveStreamNote !== undefined) {
+    next.liveStreamNote = partial.liveStreamNote.trim();
+  }
+  if (partial.isLiveNow !== undefined) {
+    next.isLiveNow = Boolean(partial.isLiveNow);
   }
   if (partial.lastSyncedAt !== undefined) {
     next.lastSyncedAt = partial.lastSyncedAt;
@@ -131,12 +154,25 @@ function readLocalDb(): DatabaseState {
     const raw = fs.readFileSync(LOCAL_DB_PATH, "utf-8");
     const parsed = JSON.parse(raw) as Partial<DatabaseState>;
     const seed = createInitialDatabase();
+    const mergedProducts = (Array.isArray(parsed.products) ? parsed.products : seed.products).map(
+      (prod) => {
+        const seedMatch = seed.products.find((sp) => sp.id === prod.id);
+        return {
+          ...prod,
+          stockUnit: prod.stockUnit ?? seedMatch?.stockUnit ?? (prod.type === "flesh" ? "qty" : "kg"),
+          stockKg: prod.stockKg ?? seedMatch?.stockKg,
+          avgWeightKg: prod.avgWeightKg ?? seedMatch?.avgWeightKg,
+          stockQty: prod.stockQty ?? seedMatch?.stockQty,
+        };
+      }
+    );
     return {
-      products: Array.isArray(parsed.products) ? parsed.products : seed.products,
+      products: mergedProducts,
       rounds: Array.isArray(parsed.rounds) ? parsed.rounds : seed.rounds,
       orders: Array.isArray(parsed.orders) ? parsed.orders : seed.orders,
       lots: Array.isArray(parsed.lots) ? parsed.lots : seed.lots,
       claims: Array.isArray(parsed.claims) ? parsed.claims : seed.claims,
+      promotions: Array.isArray(parsed.promotions) ? parsed.promotions : seed.promotions,
     };
   } catch {
     const seed = createInitialDatabase();
@@ -254,13 +290,19 @@ export async function createOrderRecord(order: Order): Promise<Order> {
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createOrder", order);
   }
-  // Always mirror locally as backup / instant cache
+  // Always mirror locally as backup / instant cache + deduct weight/qty stock
   const db = readLocalDb();
   db.orders.unshift(order);
   const qtySum = order.items.reduce((s, it) => s + it.qty, 0);
   const round = db.rounds.find((r) => r.id === order.roundId);
   if (round) {
     round.quotaRemaining = Math.max(0, round.quotaRemaining - qtySum);
+  }
+  for (const it of order.items) {
+    const prod = db.products.find((p) => p.id === it.productId);
+    if (prod) {
+      deductProductStock(prod, it.qty);
+    }
   }
   writeLocalDb(db);
   return order;
@@ -408,6 +450,42 @@ export async function updateClaimRecord(
   if (cfg.googleSheetsWebAppUrl) {
     const fresh = await getAllDatabase();
     return fresh.data.claims.find((c) => c.claimId === claimId) || null;
+  }
+  return null;
+}
+
+export async function createPromotionRecord(promo: Promotion): Promise<Promotion> {
+  const cfg = getRuntimeConfig();
+  if (cfg.googleSheetsWebAppUrl) {
+    await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createPromotion", promo);
+  }
+  const db = readLocalDb();
+  const list = Array.isArray(db.promotions) ? db.promotions : [];
+  list.unshift(promo);
+  db.promotions = list;
+  writeLocalDb(db);
+  return promo;
+}
+
+export async function updatePromotionRecord(
+  id: string,
+  updates: Partial<Promotion>
+): Promise<Promotion | null> {
+  const cfg = getRuntimeConfig();
+  if (cfg.googleSheetsWebAppUrl) {
+    await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updatePromotion", {
+      id,
+      ...updates,
+    });
+  }
+  const db = readLocalDb();
+  const list = Array.isArray(db.promotions) ? db.promotions : [];
+  const idx = list.findIndex((p) => p.id === id);
+  if (idx !== -1) {
+    list[idx] = { ...list[idx], ...updates };
+    db.promotions = list;
+    writeLocalDb(db);
+    return list[idx];
   }
   return null;
 }
