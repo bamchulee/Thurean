@@ -173,8 +173,11 @@ function setupDurianWinkinSheets() {
   summarySheet.setColumnWidth(1, 280);
   summarySheet.setColumnWidth(2, 180);
 
-  // ลบ Sheet1 เดิมถ้ายังว่างอยู่
-  const defaultSheet = ss.getSheetByName("Sheet1") || ss.getSheetByName("แผ่น1");
+  // ลบ Sheet1 / ชีต1 เดิมถ้ายังว่างอยู่
+  const defaultSheet =
+    ss.getSheetByName("Sheet1") ||
+    ss.getSheetByName("ชีต1") ||
+    ss.getSheetByName("แผ่น1");
   if (defaultSheet && ss.getSheets().length > 1 && defaultSheet.getLastRow() === 0) {
     ss.deleteSheet(defaultSheet);
   }
