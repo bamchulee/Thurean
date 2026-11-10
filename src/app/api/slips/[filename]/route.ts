@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getWritableDataDir } from "../../../../lib/storage-dir";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "Invalid filename" }, { status: 400 });
     }
 
-    const filePath = path.join(process.cwd(), "data", "slips", safeName);
+    const filePath = path.join(getWritableDataDir("slips"), safeName);
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
     }

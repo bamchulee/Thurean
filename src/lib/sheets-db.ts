@@ -16,15 +16,14 @@ import type {
 } from "../types/durian";
 import { createInitialDatabase } from "../data/mock";
 import { deductProductStock } from "./stock";
+import { getWritableDataDir } from "./storage-dir";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const LOCAL_DB_PATH = path.join(DATA_DIR, "local-db.json");
-const RUNTIME_CONFIG_PATH = path.join(DATA_DIR, "runtime-config.json");
+function getLocalDbPath(): string {
+  return path.join(getWritableDataDir(), "local-db.json");
+}
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
+function getRuntimeConfigPath(): string {
+  return path.join(getWritableDataDir(), "runtime-config.json");
 }
 
 // ============================================================
@@ -32,14 +31,21 @@ function ensureDataDir() {
 // ============================================================
 export function getRuntimeConfig(): RuntimeConfig {
   let fileConfig: RuntimeConfig = {};
+  const cfgPath = getRuntimeConfigPath();
   try {
-    if (fs.existsSync(RUNTIME_CONFIG_PATH)) {
-      const raw = fs.readFileSync(RUNTIME_CONFIG_PATH, "utf-8");
+    if (fs.existsSync(cfgPath)) {
+      const raw = fs.readFileSync(cfgPath, "utf-8");
       fileConfig = JSON.parse(raw) as RuntimeConfig;
     }
   } catch {
     fileConfig = {};
   }
+
+  const vercelFallbackUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "";
 
   return {
     googleSheetsWebAppUrl:
@@ -54,21 +60,23 @@ export function getRuntimeConfig(): RuntimeConfig {
       process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "",
     adminPin: process.env.ADMIN_PIN || fileConfig.adminPin || "2824",
     publicBaseUrl:
-      process.env.NEXT_PUBLIC_BASE_URL || fileConfig.publicBaseUrl || "",
-    liveStreamPlatform: fileConfig.liveStreamPlatform || "",
-    liveStreamUrl: fileConfig.liveStreamUrl || "",
-    liveStreamNote: fileConfig.liveStreamNote || "",
-    isLiveNow: Boolean(fileConfig.isLiveNow),
+      process.env.NEXT_PUBLIC_BASE_URL || fileConfig.publicBaseUrl || vercelFallbackUrl,
+    liveStreamPlatform:
+      process.env.LINE_LIVE_PLATFORM || fileConfig.liveStreamPlatform || "",
+    liveStreamUrl: process.env.LINE_LIVE_URL || fileConfig.liveStreamUrl || "",
+    liveStreamNote: process.env.LINE_LIVE_NOTE || fileConfig.liveStreamNote || "",
+    isLiveNow:
+      process.env.LINE_IS_LIVE_NOW === "true" || Boolean(fileConfig.isLiveNow),
     lastSyncedAt: fileConfig.lastSyncedAt,
   };
 }
 
 export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfig {
-  ensureDataDir();
+  const cfgPath = getRuntimeConfigPath();
   let existing: RuntimeConfig = {};
   try {
-    if (fs.existsSync(RUNTIME_CONFIG_PATH)) {
-      existing = JSON.parse(fs.readFileSync(RUNTIME_CONFIG_PATH, "utf-8"));
+    if (fs.existsSync(cfgPath)) {
+      existing = JSON.parse(fs.readFileSync(cfgPath, "utf-8"));
     }
   } catch {
     existing = {};
@@ -112,7 +120,7 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
     next.lastSyncedAt = partial.lastSyncedAt;
   }
 
-  fs.writeFileSync(RUNTIME_CONFIG_PATH, JSON.stringify(next, null, 2), "utf-8");
+  fs.writeFileSync(cfgPath, JSON.stringify(next, null, 2), "utf-8");
   return getRuntimeConfig();
 }
 
@@ -144,14 +152,14 @@ export function verifyAdminSessionToken(token?: string | null): boolean {
 // Local JSON Store Helpers
 // ============================================================
 function readLocalDb(): DatabaseState {
-  ensureDataDir();
-  if (!fs.existsSync(LOCAL_DB_PATH)) {
+  const dbPath = getLocalDbPath();
+  if (!fs.existsSync(dbPath)) {
     const seed = createInitialDatabase();
-    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(seed, null, 2), "utf-8");
+    fs.writeFileSync(dbPath, JSON.stringify(seed, null, 2), "utf-8");
     return seed;
   }
   try {
-    const raw = fs.readFileSync(LOCAL_DB_PATH, "utf-8");
+    const raw = fs.readFileSync(dbPath, "utf-8");
     const parsed = JSON.parse(raw) as Partial<DatabaseState>;
     const seed = createInitialDatabase();
     const mergedProducts = (Array.isArray(parsed.products) ? parsed.products : seed.products).map(
@@ -176,14 +184,13 @@ function readLocalDb(): DatabaseState {
     };
   } catch {
     const seed = createInitialDatabase();
-    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(seed, null, 2), "utf-8");
+    fs.writeFileSync(dbPath, JSON.stringify(seed, null, 2), "utf-8");
     return seed;
   }
 }
 
 function writeLocalDb(db: DatabaseState) {
-  ensureDataDir();
-  fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(db, null, 2), "utf-8");
+  fs.writeFileSync(getLocalDbPath(), JSON.stringify(db, null, 2), "utf-8");
 }
 
 // ============================================================

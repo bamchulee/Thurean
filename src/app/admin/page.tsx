@@ -1916,6 +1916,7 @@ function SettingsTab({
     ok: boolean;
     text: string;
   } | null>(null);
+  const [isCloudServerless, setIsCloudServerless] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -1925,6 +1926,7 @@ function SettingsTab({
       .then((json) => {
         if (json.ok) {
           setConfig(json.config);
+          setIsCloudServerless(Boolean(json.isCloudServerless));
           setWebAppUrl(json.config.googleSheetsWebAppUrl || "");
           setSheetViewUrl(json.config.googleSheetViewUrl || "");
           setLineAdminId(json.config.lineAdminUserId || "");
@@ -2026,6 +2028,19 @@ function SettingsTab({
           </span>
         </p>
       </div>
+
+      {isCloudServerless && sourceMode !== "google-sheets" && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 text-xs text-amber-950 flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold">ตรวจพบว่ากำลังรันบน Cloud Serverless (Vercel)</p>
+            <p className="text-amber-800 leading-relaxed">
+              กรุณา Deploy โค้ด Apps Script ด้านล่างเป็น Web App แล้วนำ URL มาใส่ใน Vercel Environment Variables (
+              <code>GOOGLE_SHEETS_WEBAPP_URL</code>, <code>LINE_CHANNEL_ACCESS_TOKEN</code>, <code>LINE_ADMIN_USER_ID</code>) เพื่อให้ข้อมูลออเดอร์และสต็อกบันทึกลง Google Sheet ถาวรครับ
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Step-by-step Guide */}
       <div className="bg-[#11301F] text-white rounded-2xl p-6 space-y-4 shadow-sm border border-white/10">

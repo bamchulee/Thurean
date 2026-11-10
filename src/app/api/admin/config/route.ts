@@ -15,6 +15,7 @@ import {
   isAdminRequest,
   unauthorizedResponse,
 } from "../../../../lib/admin-auth";
+import { isCloudServerless } from "../../../../lib/storage-dir";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     mode: getDataSourceMode(),
+    isCloudServerless: isCloudServerless(),
     config: {
       googleSheetsWebAppUrl: cfg.googleSheetsWebAppUrl || "",
       googleSheetViewUrl: cfg.googleSheetViewUrl || "",

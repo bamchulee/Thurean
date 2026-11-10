@@ -3,14 +3,7 @@
 // ============================================================
 import fs from "fs";
 import path from "path";
-
-const SLIPS_DIR = path.join(process.cwd(), "data", "slips");
-
-function ensureSlipsDir() {
-  if (!fs.existsSync(SLIPS_DIR)) {
-    fs.mkdirSync(SLIPS_DIR, { recursive: true });
-  }
-}
+import { getWritableDataDir } from "./storage-dir";
 
 export interface DownloadedLineMedia {
   ok: boolean;
@@ -68,8 +61,8 @@ export async function downloadAndVerifyLineImage(
     const safePrefix = prefix.replace(/[^a-zA-Z0-9_-]/g, "");
     const filename = `${safePrefix}-${safeMsgId}.${ext}`;
 
-    ensureSlipsDir();
-    fs.writeFileSync(path.join(SLIPS_DIR, filename), buf);
+    const slipsDir = getWritableDataDir("slips");
+    fs.writeFileSync(path.join(slipsDir, filename), buf);
 
     return {
       ok: true,

@@ -3,6 +3,7 @@
 // ============================================================
 import fs from "fs";
 import path from "path";
+import { getWritableDataDir } from "./storage-dir";
 
 export type LineSessionFlow =
   | {
@@ -41,13 +42,17 @@ export type LineSessionFlow =
       updatedAt: number;
     };
 
-const SESSION_PATH = path.join(process.cwd(), "data", "line-sessions.json");
 const TTL_MS = 30 * 60 * 1000;
+
+function getSessionPath(): string {
+  return path.join(getWritableDataDir(), "line-sessions.json");
+}
 
 function readSessions(): Record<string, LineSessionFlow> {
   try {
-    if (!fs.existsSync(SESSION_PATH)) return {};
-    const parsed = JSON.parse(fs.readFileSync(SESSION_PATH, "utf-8"));
+    const p = getSessionPath();
+    if (!fs.existsSync(p)) return {};
+    const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -55,14 +60,13 @@ function readSessions(): Record<string, LineSessionFlow> {
 }
 
 function writeSessions(map: Record<string, LineSessionFlow>) {
-  const dir = path.dirname(SESSION_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const p = getSessionPath();
   const now = Date.now();
   const pruned: Record<string, LineSessionFlow> = {};
   for (const [k, v] of Object.entries(map)) {
     if (v && now - v.updatedAt < TTL_MS) pruned[k] = v;
   }
-  fs.writeFileSync(SESSION_PATH, JSON.stringify(pruned, null, 2), "utf-8");
+  fs.writeFileSync(p, JSON.stringify(pruned, null, 2), "utf-8");
 }
 
 export function getLineSession(userId: string): LineSessionFlow | null {
