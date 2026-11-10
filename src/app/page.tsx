@@ -3,85 +3,82 @@
 import { useState } from "react";
 import { products, currentRound, shopInfo } from "../data/mock";
 import type { Product } from "../data/mock";
-import {
-  LuxuryQualitySeal,
-  ColdChainBadge,
-  GuaranteeShield,
-} from "../components/DurianGraphics";
 
-// ===================== NAVIGATION =====================
+// Official LINE SVG Icon
+function LineIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
+    </svg>
+  );
+}
+
+// ===================== NAVBAR =====================
 function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <>
-      {/* Top Announcement Bar */}
-      <div className="bg-[#0b1f13] text-[#c5a059] border-b border-[#c5a059]/20 text-[11px] sm:text-xs py-2 px-4 tracking-wider">
+      {/* Top Banner Alert */}
+      <div className="bg-[#14532d] text-yellow-300 text-xs sm:text-sm py-2 px-4 text-center font-bold shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" />
-            <span className="font-semibold text-white">
-              {currentRound.name}
-            </span>
-            <span className="hidden md:inline text-white/40">•</span>
-            <span className="hidden md:inline text-white/80">
-              โทรสั่งด่วน: <strong className="text-[#e6c875] font-mono">{shopInfo.phone}</strong>
+            <span className="text-base">🍈</span>
+            <span>
+              <strong>เปิดจองรอบพิเศษ:</strong> คัดสดจากสวนระยอง-จันทบุรี แก่จัด 85%+ ไม่ป้ายยา การันตีเคลม 100%
             </span>
           </div>
-          <div className="flex items-center gap-4 text-white/80">
-            <span className="hidden sm:inline">การันตีเนื้อ 100% เคลมได้ทุกลูก</span>
-            <a
-              href={`tel:${shopInfo.phone.replace(/-/g, "")}`}
-              className="text-[#e6c875] font-bold font-mono hover:text-white transition"
-            >
-              📞 {shopInfo.phone}
-            </a>
-          </div>
+          <a
+            href={`tel:${shopInfo.phone.replace(/-/g, "")}`}
+            className="hidden sm:flex items-center gap-1.5 bg-yellow-400 text-green-950 px-3 py-0.5 rounded-full font-black text-xs hover:bg-yellow-300 transition"
+          >
+            <span>📞 โทรสั่ง:</span>
+            <span className="font-mono">{shopInfo.phone}</span>
+          </a>
         </div>
       </div>
 
-      {/* Main Nav */}
-      <header className="bg-[#081c10] border-b border-white/10 sticky top-0 z-50 backdrop-blur-md">
+      {/* Main Navbar */}
+      <header className="bg-white border-b-2 border-yellow-400 sticky top-0 z-50 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
-          {/* Brand Logo with Real Image */}
-          <a href="#" className="flex items-center gap-3 group">
+          {/* Logo & Brand */}
+          <a href="#" className="flex items-center gap-3">
             <img
               src={shopInfo.logo}
               alt={shopInfo.name}
-              className="w-14 h-14 rounded-full border-2 border-[#c5a059] object-cover shadow-md group-hover:scale-105 transition-transform bg-white"
+              className="w-14 h-14 rounded-full border-2 border-yellow-400 shadow-sm object-cover bg-white"
             />
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-serif text-xl sm:text-2xl font-black text-white group-hover:text-[#e6c875] transition">
+                <h1 className="text-2xl font-black text-green-800 tracking-tight leading-tight">
                   {shopInfo.name}
-                </span>
-                <span className="hidden sm:inline-block bg-[#166534] text-[#e6c875] text-[10px] font-bold px-2 py-0.5 rounded border border-[#c5a059]/40">
-                  รถกระบะวิ่งตรงจากสวน
+                </h1>
+                <span className="bg-green-700 text-yellow-300 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  ของแท้ 100%
                 </span>
               </div>
-              <p className="text-[11px] text-[#c5a059] font-mono tracking-wider font-semibold">
-                โทร. {shopInfo.phone}
+              <p className="text-xs text-amber-700 font-bold font-mono">
+                🛻 รถกระบะส่งตรงจากสวน • โทร. {shopInfo.phone}
               </p>
             </div>
           </a>
 
           {/* Desktop Menu */}
-          <nav className="hidden lg:flex items-center gap-8 text-xs uppercase tracking-wider font-medium text-white/80">
-            <a href="#collection" className="hover:text-[#c5a059] transition">
-              รายการทุเรียน
+          <nav className="hidden lg:flex items-center gap-6 text-sm font-bold text-gray-700">
+            <a href="#menu" className="hover:text-green-700 transition">
+              🍈 รายการทุเรียน
             </a>
-            <a href="#about-us" className="hover:text-[#c5a059] transition">
-              ทำไมต้องวินคิน
+            <a href="#ripeness" className="hover:text-green-700 transition">
+              🥑 ระดับความสุก
             </a>
-            <a href="#ripeness" className="hover:text-[#c5a059] transition">
-              ระดับความสุก
+            <a href="#why-us" className="hover:text-green-700 transition">
+              ⭐ จุดเด่นร้าน
             </a>
-            <a href="/tracking" className="hover:text-[#c5a059] transition">
-              ตรวจสอบสถานะจัดส่ง
+            <a href="/tracking" className="hover:text-green-700 transition">
+              📦 เช็กพัสดุ
             </a>
-            <a href="/claim" className="text-[#c5a059] hover:text-[#e6c875] transition flex items-center gap-1.5 font-bold">
-              <GuaranteeShield className="w-4 h-4 text-[#c5a059]" />
-              ศูนย์เคลม 100%
+            <a href="/claim" className="text-red-600 hover:text-red-700 transition font-black">
+              🛡️ แจ้งเคลมทุเรียน
             </a>
           </nav>
 
@@ -91,16 +88,17 @@ function Navbar() {
               href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
               target="_blank"
               rel="noreferrer"
-              className="px-5 py-2.5 rounded border border-[#22c55e] bg-[#16a34a] hover:bg-[#15803d] text-white font-bold text-xs tracking-wider transition shadow-sm flex items-center gap-1.5"
+              className="px-5 py-2.5 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white font-black text-sm transition shadow flex items-center gap-2"
             >
-              <span>💬</span> แอด LINE ร้าน
+              <LineIcon className="w-5 h-5" />
+              <span>สั่งผ่าน LINE</span>
             </a>
           </div>
 
           {/* Mobile hamburger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden text-white p-2 text-xl"
+            className="lg:hidden text-green-800 p-2 text-2xl"
             aria-label="Toggle Navigation"
           >
             {mobileMenuOpen ? "✕" : "☰"}
@@ -109,66 +107,48 @@ function Navbar() {
 
         {/* Mobile Dropdown */}
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-[#0a2315] border-t border-white/10 px-5 py-4 space-y-3 text-xs tracking-wider uppercase font-medium text-white/80">
-            <div className="flex items-center gap-3 pb-3 border-b border-white/10">
-              <img
-                src={shopInfo.logo}
-                alt={shopInfo.name}
-                className="w-10 h-10 rounded-full border border-[#c5a059] bg-white object-cover"
-              />
-              <div>
-                <p className="font-bold text-white text-sm">{shopInfo.name}</p>
-                <p className="text-[#c5a059] font-mono text-xs">{shopInfo.phone}</p>
-              </div>
-            </div>
+          <div className="lg:hidden bg-green-900 text-white px-5 py-4 space-y-3 font-bold text-sm border-t border-green-800">
             <a
-              href="#collection"
-              className="block py-2 border-b border-white/5"
+              href="#menu"
+              className="block py-2 border-b border-green-800"
               onClick={() => setMobileMenuOpen(false)}
             >
-              รายการทุเรียนรอบนี้
-            </a>
-            <a
-              href="#about-us"
-              className="block py-2 border-b border-white/5"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              สายวิ่งรถกระบะรับตรงจากสวน
+              🍈 รายการทุเรียนรอบนี้
             </a>
             <a
               href="#ripeness"
-              className="block py-2 border-b border-white/5"
+              className="block py-2 border-b border-green-800"
               onClick={() => setMobileMenuOpen(false)}
             >
-              คู่มือระดับความสุก
+              🥑 เลือกระดับความสุก
             </a>
             <a
               href="/tracking"
-              className="block py-2 border-b border-white/5"
+              className="block py-2 border-b border-green-800"
               onClick={() => setMobileMenuOpen(false)}
             >
-              ตรวจสอบสถานะจัดส่ง
+              📦 ตรวจสอบสถานะจัดส่ง
             </a>
             <a
               href="/claim"
-              className="block py-2 text-[#c5a059] font-bold border-b border-white/5"
+              className="block py-2 text-yellow-300 border-b border-green-800"
               onClick={() => setMobileMenuOpen(false)}
             >
-              ศูนย์รับประกันและเคลม 100%
+              🛡️ ศูนย์แจ้งเคลม 100%
             </a>
             <a
               href="/admin"
-              className="block py-2 text-white/40"
+              className="block py-2 text-green-300"
               onClick={() => setMobileMenuOpen(false)}
             >
-              ระบบหลังบ้าน (Admin)
+              ⚙️ ระบบหลังบ้าน (Admin)
             </a>
             <a
               href={`tel:${shopInfo.phone.replace(/-/g, "")}`}
-              className="block text-center bg-[#c5a059] text-[#081c10] py-2.5 rounded font-bold mt-2"
+              className="block text-center bg-yellow-400 text-green-950 py-3 rounded-full font-black mt-2 text-base"
               onClick={() => setMobileMenuOpen(false)}
             >
-              📞 โทรสั่งเลย {shopInfo.phone}
+              📞 โทรสั่งซื้อทันที {shopInfo.phone}
             </a>
           </div>
         )}
@@ -180,121 +160,86 @@ function Navbar() {
 // ===================== HERO SECTION =====================
 function HeroBanner() {
   return (
-    <section className="relative bg-[#081c10] text-white overflow-hidden py-14 sm:py-20 border-b border-[#c5a059]/20">
-      <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#c5a059_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
-
+    <section className="relative bg-gradient-to-br from-green-800 via-green-700 to-green-900 text-white overflow-hidden py-12 sm:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-          {/* Left Text Column */}
-          <div className="lg:col-span-7 space-y-6">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="px-3 py-1 rounded-full border border-[#22c55e]/60 bg-[#14532d]/60 text-[#86efac] text-[11px] font-semibold tracking-wider flex items-center gap-1.5">
-                <span>🛻</span> รถกระบะวิ่งคัดตรงจากสวนระยอง-จันทบุรี
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          {/* Left Text */}
+          <div className="lg:col-span-7 space-y-5 text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 bg-yellow-400 text-green-950 px-4 py-1.5 rounded-full font-black text-xs sm:text-sm shadow">
+              <span>🛻</span>
+              <span>รถกระบะวิ่งรับตรงจากสวนระยอง - จันทบุรี</span>
+            </div>
+
+            <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-tight">
+              ทุเรียนแก่จัด คัดพูทอง <br />
+              <span className="text-yellow-300 drop-shadow-md">
+                หวานมัน สดใหม่ ส่งถึงบ้าน!
               </span>
-              <ColdChainBadge />
-            </div>
+            </h2>
 
-            <div className="space-y-2">
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-serif font-black tracking-tight text-white leading-[1.15]">
-                {shopInfo.name} <br />
-                <span className="text-[#e6c875] font-normal italic text-2xl sm:text-4xl lg:text-5xl">
-                  คัดสดแก่จัด ส่งตรงถึงหน้าบ้าน
-                </span>
-              </h1>
-            </div>
-
-            <p className="text-white/75 text-sm sm:text-base leading-relaxed max-w-xl font-light">
-              เราวิ่งรถกระบะไปรับทุเรียนจากสวนคุณภาพด้วยตัวเอง คัดเฉพาะผลแก่จัด 85%+ ไม่ป้ายยาเร่งสุก 
-              แกะสดใหม่พร้อมจัดส่งด่วน หรือส่งเหมาลูกทั้งผล การันตีเนื้อทุกลูก พบปัญหาเคลมฟรี 100%
+            <p className="text-green-100 text-sm sm:text-base leading-relaxed max-w-xl mx-auto lg:mx-0 font-medium">
+              หมดปัญหาทุเรียนอ่อน ทุเรียนขาว! ที่ <strong>{shopInfo.name}</strong> เราคัดเฉพาะทุเรียนแก่จัด 85%+ ไม่ป้ายยาเร่งสุก 
+              กรอบนอกนุ่มใน หอมหวานมันกลมกล่อม มีรับประกันเนื้อทุกลูก เคลมฟรี 100%
             </p>
 
-            {/* Current Batch Quota Box */}
-            <div className="bg-[#0f2a1b] border border-[#c5a059]/30 rounded-lg p-4 sm:p-5 max-w-lg shadow-inner">
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="text-[#c5a059] font-bold uppercase tracking-wider">
-                  📢 {currentRound.name}
-                </span>
-                <span className="text-white/70">
-                  เหลือโควตา: <strong className="text-[#e6c875] font-mono text-sm">{currentRound.quotaRemaining}</strong>/{currentRound.totalQuota} ลูก
+            {/* Delivery Round Alert Box */}
+            <div className="bg-white/10 backdrop-blur-md border-2 border-yellow-400/60 rounded-2xl p-4 sm:p-5 max-w-lg mx-auto lg:mx-0 text-left shadow-lg">
+              <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-yellow-300 mb-2">
+                <span>📢 {currentRound.name}</span>
+                <span className="bg-yellow-400 text-green-950 px-2 py-0.5 rounded-full font-black text-xs">
+                  เหลือ {currentRound.quotaRemaining} ลูก
                 </span>
               </div>
-              <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden mb-3">
-                <div
-                  className="bg-gradient-to-r from-[#16a34a] via-[#c5a059] to-[#e6c875] h-full rounded-full transition-all duration-500"
-                  style={{ width: `${((currentRound.totalQuota - currentRound.quotaRemaining) / currentRound.totalQuota) * 100}%` }}
-                />
-              </div>
-              <p className="text-[11px] text-[#86efac] font-mono mb-2">
+              <p className="text-xs text-white/90 mb-2">
                 🛣️ {currentRound.truckRoute}
               </p>
-              <div className="flex items-center justify-between text-[11px] text-white/60 border-t border-white/10 pt-2">
+              <div className="flex items-center justify-between text-xs text-green-200 border-t border-white/15 pt-2">
                 <span>วันวิ่งรับของ: <strong>{currentRound.harvestDate}</strong></span>
                 <span>รอบส่งถึงบ้าน: <strong>{currentRound.deliveryDate}</strong></span>
               </div>
             </div>
 
             {/* CTAs */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-1">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start pt-2">
               <a
-                href="#collection"
-                className="px-8 py-3.5 rounded bg-gradient-to-r from-[#c5a059] via-[#d4af37] to-[#c5a059] text-[#081c10] font-black text-xs uppercase tracking-wider text-center hover:opacity-95 transition shadow-lg"
+                href="#menu"
+                className="px-8 py-4 rounded-full bg-yellow-400 hover:bg-yellow-300 text-green-950 font-black text-base transition shadow-xl transform hover:-translate-y-0.5 text-center"
               >
-                🛒 สั่งจองทุเรียนรอบนี้
+                🛒 ดูรายการทุเรียน & สั่งซื้อ
               </a>
               <a
-                href={`tel:${shopInfo.phone.replace(/-/g, "")}`}
-                className="px-6 py-3.5 rounded border border-white/20 hover:border-[#c5a059] text-white font-bold text-xs uppercase tracking-wider text-center transition flex items-center justify-center gap-2"
+                href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-8 py-4 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white font-black text-base transition shadow-xl text-center flex items-center justify-center gap-2"
               >
-                <span>📞</span> โทร. {shopInfo.phone}
+                <LineIcon className="w-6 h-6" />
+                <span>สั่งทาง LINE แอดมินตอบไว</span>
               </a>
             </div>
           </div>
 
-          {/* Right Visual Image with Real Logo & Real Photo */}
-          <div className="lg:col-span-5 relative flex justify-center">
-            <div className="relative w-full max-w-md rounded-2xl overflow-hidden border-2 border-[#c5a059]/40 shadow-2xl bg-[#0f291a]">
-              {/* Product Hero Image */}
-              <img
-                src="https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=1000&q=85"
-                alt="ทุเรียนวินคิน"
-                className="w-full h-[400px] object-cover object-center filter brightness-95"
-              />
-
-              {/* Subtle Gradient */}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#081c10] via-transparent to-transparent opacity-85" />
-
-              {/* Logo Badge Overlay in the Center Top */}
-              <div className="absolute top-4 left-4 flex items-center gap-3 bg-[#081c10]/90 backdrop-blur px-3 py-2 rounded-xl border border-[#c5a059]/50 shadow-lg">
+          {/* Right Durian Image (เน้นรูปเนื้อทุเรียนเหลืองทองน่ากินเต็มตา!) */}
+          <div className="lg:col-span-5 flex justify-center">
+            <div className="relative w-full max-w-md">
+              <div className="rounded-3xl overflow-hidden border-4 border-yellow-400 shadow-2xl bg-black">
                 <img
-                  src={shopInfo.logo}
-                  alt={shopInfo.name}
-                  className="w-12 h-12 rounded-full border border-[#c5a059] object-cover bg-white"
+                  src="https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=85"
+                  alt="ทุเรียนวินคิน หมอนทองเนื้อทอง"
+                  className="w-full h-80 sm:h-96 object-cover hover:scale-105 transition-transform duration-500"
                 />
-                <div>
-                  <p className="font-bold text-sm text-white">{shopInfo.name}</p>
-                  <p className="text-[10px] text-[#e6c875] font-mono">082-282-4238</p>
-                </div>
               </div>
 
-              {/* Bottom Caption */}
-              <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between">
-                <div>
-                  <span className="text-[10px] uppercase tracking-widest text-[#c5a059] font-bold block mb-0.5">
-                    คัดสรรโดย ทุเรียนวินคิน
-                  </span>
-                  <p className="text-white font-serif text-lg font-bold">
-                    หมอนทองระยอง คัดพูทองเน้นๆ
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-white/70 block">การันตีความหวาน</span>
-                  <span className="text-[#e6c875] font-mono text-base font-bold">34° Brix</span>
-                </div>
+              {/* Floating Quality Stamp */}
+              <div className="absolute -bottom-5 -left-4 sm:left-4 bg-yellow-400 text-green-950 p-4 rounded-2xl shadow-2xl border-2 border-white text-center">
+                <span className="text-2xl block mb-0.5">⭐</span>
+                <p className="font-black text-sm leading-tight">การันตีเนื้อ 100%</p>
+                <p className="text-[10px] font-bold text-green-900">ไม่อ่อน ไม่เละ เคลมได้</p>
               </div>
 
-              {/* Seal */}
-              <div className="absolute top-4 right-4">
-                <LuxuryQualitySeal className="w-20 h-20" />
+              {/* Floating Sweetness Badge */}
+              <div className="absolute top-4 right-4 bg-green-900/90 text-yellow-300 px-3 py-1.5 rounded-full shadow-lg font-black text-xs border border-yellow-400">
+                🍯 หวานมัน 34° Brix
               </div>
             </div>
           </div>
@@ -304,61 +249,74 @@ function HeroBanner() {
   );
 }
 
-// ===================== ABOUT / VALUE PROPOSITION =====================
-function AboutWinkin() {
-  const pillars = [
+// ===================== RIPENESS GUIDE =====================
+function RipenessGuide() {
+  const levels = [
     {
-      no: "01",
-      icon: "🛻",
-      title: "วิ่งรถกระบะรับตรงจากสวน",
-      desc: "ทีมงานทุเรียนวินคินลงพื้นที่เองที่ระยองและจันทบุรี คัดผลต่อผลที่หน้าสวน ไม่ผ่านคนกลางหลายต่อ ได้ของสดใหม่ที่สุด",
+      badge: "ขายดีอันดับ 1 🔥",
+      badgeColor: "bg-red-500 text-white",
+      name: "1. กรอบนอก นุ่มใน (ไก่ฉีก)",
+      desc: "เคี้ยวด้านนอกมีความกรอบสะดุ้งฟัน ด้านในเนื้อนุ่มเนียน หอมละมุน ไม่หวานเลี่ยน กินเพลินมาก!",
+      sweetness: "⭐⭐⭐⭐",
+      creaminess: "⭐⭐⭐⭐",
     },
     {
-      no: "02",
-      icon: "🍈",
-      title: "คัดแก่จัด 85%+ ไม่ป้ายยา",
-      desc: "ไม่ตัดทุเรียนอ่อน ไม่ใช้น้ำยาเร่งสุก ปล่อยให้สุกตามธรรมชาติ เนื้อจึงหวานมัน มีกลิ่นหอมเฉพาะตัว เม็ดลีบ",
+      badge: "สายหวานมัน 🍯",
+      badgeColor: "bg-amber-500 text-white",
+      name: "2. สุกพอดีกิน (เนื้อเนียนครีม)",
+      desc: "เนื้อสีเหลืองทองเข้ม สัมผัสเนียนนุ่มเหมือนคัสตาร์ด หวานมันจัดเต็ม กลิ่นหอมฟุ้งติดปาก",
+      sweetness: "⭐⭐⭐⭐⭐",
+      creaminess: "⭐⭐⭐⭐⭐",
     },
     {
-      no: "03",
-      icon: "❄️",
-      title: "จัดส่งด่วนคุมอุณหภูมิ",
-      desc: "ส่งด้วยรถห้องเย็นหรือบรรจุกล่องล็อกขั้วเจาะรูระบายอากาศอย่างดี ป้องกันเนื้อเละ ช้ำ หรือคายน้ำระหว่างทาง",
-    },
-    {
-      no: "04",
-      icon: "🛡️",
-      title: "รับประกันเคลม 100%",
-      desc: "เจอปัญหาเนื้อขาว อ่อน หนอน แจ้งทางเบอร์ 082-282-4238 หรือหน้าเว็บ เคลมเปลี่ยนลูกใหม่หรือคืนเงินทันที",
+      badge: "หวานฉ่ำสะใจ 🍮",
+      badgeColor: "bg-yellow-500 text-green-950",
+      name: "3. สุกนิ่ม (เนื้อปลาร้าอ่อนๆ)",
+      desc: "เนื้อสุกงอมธรรมชาติ นุ่มเยิ้มละลายในปาก รสหวานจัดลึก เหมาะกับคนชอบทุเรียนหวานฉ่ำ",
+      sweetness: "⭐⭐⭐⭐⭐",
+      creaminess: "⭐⭐⭐",
     },
   ];
 
   return (
-    <section id="about-us" className="py-16 bg-[#faf8f5] border-b border-stone-200">
+    <section id="ripeness" className="py-14 bg-amber-50/80 border-b border-amber-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="border-b border-stone-300 pb-8 mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-bold text-[#997a35] uppercase tracking-widest mb-1">
-              ABOUT WINKIN DURIAN
-            </p>
-            <h2 className="text-2xl sm:text-3xl font-serif text-stone-900 font-bold">
-              ทำไมต้องเลือก &quot;ทุเรียนวินคิน&quot; ?
-            </h2>
-          </div>
-          <div className="text-xs text-stone-600 max-w-md font-light">
-            เราเป็นธุรกิจครอบครัวที่ตั้งใจคัดสรรทุเรียนคุณภาพจริงใจ ตรงไปตรงมา เพื่อให้ลูกค้าได้ทานทุเรียนอร่อยที่สุดทุกลูก
-          </div>
+        <div className="text-center max-w-xl mx-auto mb-10">
+          <span className="bg-yellow-400 text-green-950 text-xs font-black px-3 py-1 rounded-full uppercase">
+            Taste & Texture
+          </span>
+          <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mt-2 mb-2">
+            🥑 ชอบเนื้อแบบไหน? วินคินจัดให้ตรงใจคุณ
+          </h3>
+          <p className="text-sm text-gray-600">
+            ระบุระดับความสุกในขั้นตอนสั่งซื้อ ทีมงานจะใช้ความชำนาญคัดพูตามที่คุณชอบเป๊ะ ๆ
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {pillars.map((p) => (
-            <div key={p.no} className="border-t-2 border-[#c5a059] pt-5 space-y-2 bg-white p-5 rounded-b-lg shadow-sm">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-2xl">{p.icon}</span>
-                <span className="font-mono text-xs text-[#997a35] font-bold">{p.no}</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {levels.map((lvl, idx) => (
+            <div
+              key={idx}
+              className="bg-white rounded-2xl p-6 shadow-md border-2 border-yellow-200 hover:border-yellow-400 transition"
+            >
+              <div className="flex justify-between items-center mb-3">
+                <span className={`text-xs font-black px-3 py-1 rounded-full ${lvl.badgeColor}`}>
+                  {lvl.badge}
+                </span>
+                <span className="text-xl">🍈</span>
               </div>
-              <h3 className="font-bold text-stone-900 text-sm tracking-tight">{p.title}</h3>
-              <p className="text-xs text-stone-600 leading-relaxed font-light">{p.desc}</p>
+              <h4 className="text-lg font-black text-gray-900 mb-2">{lvl.name}</h4>
+              <p className="text-xs text-gray-600 leading-relaxed mb-4">{lvl.desc}</p>
+              <div className="bg-amber-50 rounded-xl p-3 text-xs space-y-1 font-bold text-gray-700">
+                <div className="flex justify-between">
+                  <span>ระดับความหวาน:</span>
+                  <span>{lvl.sweetness}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ความมันครีมมี่:</span>
+                  <span>{lvl.creaminess}</span>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -376,78 +334,77 @@ function ProductCard({
   onOrder: (p: Product) => void;
 }) {
   return (
-    <div className="bg-white border border-stone-200 rounded-lg overflow-hidden flex flex-col justify-between hover:shadow-xl transition-all duration-300 group">
+    <div className="bg-white rounded-2xl overflow-hidden border-2 border-yellow-300 shadow-md hover:shadow-xl transition-all duration-300 food-card flex flex-col justify-between">
       <div>
-        {/* Photo Container */}
-        <div className="relative aspect-[4/3] overflow-hidden bg-stone-100">
+        {/* Real Fruit Photo */}
+        <div className="relative aspect-[4/3] overflow-hidden bg-amber-50">
           <img
             src={product.image}
             alt={product.name}
-            className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 filter brightness-[0.98]"
+            className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
           />
-          <div className="absolute top-3 left-3 flex flex-col gap-1">
-            {product.badge && (
-              <span className="bg-[#081c10] text-[#e6c875] text-[10px] font-bold px-2 py-0.5 rounded tracking-wider uppercase border border-[#c5a059]/40">
-                {product.badge}
-              </span>
-            )}
-          </div>
-          <div className="absolute bottom-3 left-3 bg-[#081c10]/85 backdrop-blur text-white text-[10px] px-2.5 py-1 rounded font-medium">
+          {product.badge && (
+            <span className="absolute top-3 left-3 bg-red-600 text-white text-xs font-black px-3 py-1 rounded-full shadow-md">
+              🔥 {product.badge}
+            </span>
+          )}
+          <span className="absolute bottom-3 left-3 bg-green-900/90 text-yellow-300 text-xs font-bold px-3 py-1 rounded-full backdrop-blur-sm">
             📍 {product.origin}
-          </div>
+          </span>
         </div>
 
-        {/* Details */}
-        <div className="p-5 space-y-3">
-          <div className="flex items-center justify-between text-[11px] text-stone-500">
-            <span>พันธุ์: <strong className="text-stone-800">{product.variety}</strong></span>
-            <span>ความหวาน: <strong className="text-[#997a35] font-mono">{product.brix}</strong></span>
+        {/* Content */}
+        <div className="p-5 space-y-2">
+          <div className="flex items-center justify-between text-xs font-bold text-amber-800">
+            <span>พันธุ์: {product.variety}</span>
+            <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-mono">
+              ความหวาน {product.brix}
+            </span>
           </div>
 
-          <h3 className="font-serif text-base font-bold text-stone-900 group-hover:text-[#081c10] transition leading-snug">
+          <h4 className="font-black text-lg text-gray-900 leading-tight">
             {product.name}
-          </h3>
+          </h4>
 
-          <p className="text-xs text-stone-500 font-light leading-relaxed line-clamp-2">
+          <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
             {product.description}
           </p>
 
-          {/* Specs Table */}
-          <div className="bg-stone-50 rounded border border-stone-200 p-2.5 text-[11px] space-y-1 text-stone-600">
+          <div className="bg-amber-50/70 rounded-xl p-2.5 text-xs text-gray-700 space-y-1 font-medium border border-amber-200">
             <div className="flex justify-between">
-              <span className="text-stone-400">ขนาดผล:</span>
-              <span className="font-medium text-stone-800">{product.weight}</span>
+              <span className="text-gray-500">ขนาดผล:</span>
+              <span className="font-bold text-gray-800">{product.weight}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-stone-400">เนื้อสัมผัส:</span>
-              <span className="font-medium text-stone-800">{product.specs.texture}</span>
+              <span className="text-gray-500">เนื้อสัมผัส:</span>
+              <span className="font-bold text-green-800">{product.specs.texture}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Footer Price & Action */}
+      {/* Footer Price & Buttons */}
       <div className="p-5 pt-0">
-        <div className="pt-3 border-t border-stone-100 flex items-end justify-between">
+        <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
           <div>
             {product.marketPrice && (
-              <span className="text-[11px] text-stone-400 line-through block font-mono">
+              <span className="text-xs text-gray-400 line-through block font-mono">
                 ฿{product.marketPrice.toLocaleString()}
               </span>
             )}
             <div className="flex items-baseline">
-              <span className="text-2xl font-serif font-black text-[#081c10]">
+              <span className="text-2xl font-black text-green-800">
                 ฿{product.price.toLocaleString()}
               </span>
-              <span className="text-xs text-stone-400 ml-1">/{product.unit}</span>
+              <span className="text-xs text-gray-500 ml-1">/{product.unit}</span>
             </div>
           </div>
 
           <button
             onClick={() => onOrder(product)}
-            className="px-5 py-2.5 rounded bg-[#081c10] hover:bg-[#0f291a] text-[#e6c875] text-xs font-bold tracking-wider transition active:scale-95 border border-[#c5a059]/40"
+            className="px-6 py-3 rounded-full bg-yellow-400 hover:bg-yellow-300 text-green-950 font-black text-sm shadow-md transition active:scale-95"
           >
-            สั่งจอง
+            🛒 สั่งซื้อทันที
           </button>
         </div>
       </div>
@@ -455,8 +412,8 @@ function ProductCard({
   );
 }
 
-// ===================== PRODUCT COLLECTION =====================
-function ProductCollection({ onOrder }: { onOrder: (p: Product) => void }) {
+// ===================== PRODUCT MENU =====================
+function ProductMenu({ onOrder }: { onOrder: (p: Product) => void }) {
   const [filter, setFilter] = useState("all");
   const varieties = ["all", ...new Set(products.map((p) => p.variety))];
 
@@ -464,115 +421,95 @@ function ProductCollection({ onOrder }: { onOrder: (p: Product) => void }) {
     filter === "all" ? products : products.filter((p) => p.variety === filter);
 
   return (
-    <section id="collection" className="py-20 bg-stone-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="text-center max-w-2xl mx-auto mb-10">
-          <p className="text-[11px] font-bold text-[#997a35] uppercase tracking-widest mb-1">
-            WINKIN FRESH SELECTION
-          </p>
-          <h2 className="text-3xl font-serif text-stone-900 font-bold mb-3">
-            รายการทุเรียนรอบวิ่งรถกระบะสัปดาห์นี้
-          </h2>
-          <p className="text-xs sm:text-sm text-stone-600 font-light leading-relaxed">
-            จองล่วงหน้าเพื่อล็อกสิทธิ์ทุเรียนแก่จัดจากสวน รับประกันเนื้อทุกลูก พบปัญหาเปลี่ยนใหม่ทันที
-          </p>
+    <section id="menu" className="py-16 max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="text-center max-w-2xl mx-auto mb-10">
+        <span className="bg-green-700 text-yellow-300 text-xs font-black px-3 py-1 rounded-full uppercase">
+          Fresh Durian Menu
+        </span>
+        <h3 className="text-3xl font-black text-gray-900 mt-2 mb-2">
+          🍈 เมนูทุเรียนคัดสดพร้อมส่งรอบนี้
+        </h3>
+        <p className="text-sm text-gray-600">
+          คัดพูทองเน้น ๆ ส่งตรงจากสวนระยองและจันทบุรี มีทั้งแบบชั่งทั้งลูกและแกะเนื้อพร้อมทาน
+        </p>
 
-          {/* Filter Pills */}
-          <div className="flex flex-wrap justify-center gap-2 mt-6">
-            {varieties.map((v) => (
-              <button
-                key={v}
-                onClick={() => setFilter(v)}
-                className={`px-4 py-1.5 rounded text-xs tracking-wider transition font-medium ${
-                  filter === v
-                    ? "bg-[#081c10] text-[#e6c875] border border-[#c5a059]"
-                    : "bg-white text-stone-600 border border-stone-200 hover:border-stone-300"
-                }`}
-              >
-                {v === "all" ? "ทั้งหมด" : `สายพันธุ์ ${v}`}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filtered.map((p) => (
-            <ProductCard key={p.id} product={p} onOrder={onOrder} />
+        {/* Filter Tabs */}
+        <div className="flex flex-wrap justify-center gap-2 mt-6">
+          {varieties.map((v) => (
+            <button
+              key={v}
+              onClick={() => setFilter(v)}
+              className={`px-4 py-2 rounded-full text-xs font-black transition ${
+                filter === v
+                  ? "bg-green-800 text-yellow-300 shadow-md"
+                  : "bg-white text-gray-700 border-2 border-yellow-300 hover:bg-amber-50"
+              }`}
+            >
+              {v === "all" ? "ทั้งหมดทุกลูก" : `พันธุ์ ${v}`}
+            </button>
           ))}
         </div>
+      </div>
+
+      {/* Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {filtered.map((p) => (
+          <ProductCard key={p.id} product={p} onOrder={onOrder} />
+        ))}
       </div>
     </section>
   );
 }
 
-// ===================== RIPENESS PROFILES =====================
-function RipenessGuide() {
-  const profiles = [
+// ===================== WHY CHOOSE US =====================
+function WhyUs() {
+  const points = [
     {
-      level: "ระดับ 1",
-      name: "กรอบนอกนุ่มใน (ไก่ฉีก)",
-      recommend: "คัดยอดนิยมอันดับหนึ่ง",
-      desc: "ด้านนอกมีความกรอบแน่น เมื่อเคี้ยวจะได้รสสัมผัสเนื้อที่นุ่มละมุน ไร้กลิ่นฉุน ไม่หวานเลี่ยน เหมาะสำหรับผู้ที่ชื่นชอบความสดใหม่",
-      brix: "32° Brix",
-      notes: "กลิ่นหอมสะอาด • เคี้ยวมันหนึบ",
+      icon: "🛻",
+      title: "รถกระบะวิ่งรับตรงจากสวน",
+      desc: "ทีมงานทุเรียนวินคินวิ่งรถไปคัดเองที่หน้าสวนระยองและจันทบุรี ไม่ผ่านพ่อค้าคนกลาง ได้ทุเรียนสดใหม่ที่สุด",
     },
     {
-      level: "ระดับ 2",
-      name: "สุกพอดีรับประทาน (เนื้อเนียนครีม)",
-      recommend: "รสชาติเข้มข้นกลมกล่อม",
-      desc: "เนื้อสีเหลืองทองเข้ม ละเอียดเหมือนเนื้อคัสตาร์ด หวานมันเต็มพิกัด กลิ่นหอมฟุ้งลึก เป็นระดับสุกที่คนชอบทุเรียนหวานมันต้องหลงรัก",
-      brix: "34° Brix",
-      notes: "หวานมันเข้มข้น • สัมผัสครีมมี่",
+      icon: "🍈",
+      title: "แก่จัด 85%+ ไม่ป้ายยา",
+      desc: "ไม่ตัดทุเรียนอ่อนเด็ดขาด ไม่ใช้น้ำยาเร่งสุก สุกหวานมันตามธรรมชาติ กลิ่นหอมละมุน เม็ดลีบ",
     },
     {
-      level: "ระดับ 3",
-      name: "สุกนิ่ม (หวานฉ่ำละลายในปาก)",
-      recommend: "สำหรับผู้ชอบเนื้อนุ่มหวานจัด",
-      desc: "เนื้อสุกงอมธรรมชาติ สัมผัสนุ่มฉ่ำ รสหวานเข้มข้นที่สุด ละลายในปาก เหมาะสำหรับรับประทานทันทีในวันที่จัดส่งถึง",
-      brix: "36° Brix",
-      notes: "หวานจัดจ้าน • เนื้อฉ่ำเยิ้ม",
+      icon: "❄️",
+      title: "จัดส่งด่วนคุมอุณหภูมิ",
+      desc: "ส่งด้วยรถห้องเย็นหรือกล่องล็อกขั้วเจาะรูระบายอากาศ ป้องกันเนื้อเละ ช้ำ หรือเน่าเสียระหว่างทาง",
+    },
+    {
+      icon: "🛡️",
+      title: "รับประกันเคลม 100%",
+      desc: "เจอปัญหาเนื้อขาว อ่อน หนอน ถ่ายรูปส่งมาทาง LINE หรือหน้าเว็บ เคลมเปลี่ยนลูกใหม่หรือคืนเงินทันที",
     },
   ];
 
   return (
-    <section id="ripeness" className="py-20 bg-[#081c10] text-white border-t border-[#c5a059]/20">
+    <section id="why-us" className="py-16 bg-gradient-to-br from-green-900 to-green-800 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="max-w-2xl mb-12">
-          <p className="text-[11px] font-bold text-[#c5a059] uppercase tracking-widest mb-1">
-            TASTE & TEXTURE GUIDE
-          </p>
-          <h2 className="text-3xl font-serif text-white font-bold mb-3">
-            ชอบเนื้อแบบไหน วินคินจัดให้ตรงใจคุณ
-          </h2>
-          <p className="text-xs sm:text-sm text-white/70 font-light leading-relaxed">
-            ระบุระดับความสุกในแบบฟอร์มสั่งซื้อ ทีมงานจะคัดพูตามความต้องการของคุณอย่างประณีต
+        <div className="text-center max-w-xl mx-auto mb-12">
+          <span className="bg-yellow-400 text-green-950 text-xs font-black px-3 py-1 rounded-full uppercase">
+            Quality Guarantee
+          </span>
+          <h3 className="text-2xl sm:text-3xl font-black mt-2 mb-2">
+            ⭐ 4 เหตุผลที่ต้องสั่งกับ &quot;ทุเรียนวินคิน&quot;
+          </h3>
+          <p className="text-sm text-green-100">
+            เราคัดสรรด้วยความจริงใจ ให้คุณได้กินทุเรียนอร่อยสมราคา ไม่ต้องเสี่ยงดวง
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {profiles.map((pf) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {points.map((pt, i) => (
             <div
-              key={pf.level}
-              className="bg-[#0f291a] border border-[#c5a059]/30 rounded-lg p-6 flex flex-col justify-between space-y-6"
+              key={i}
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border-2 border-yellow-400/40 text-center hover:bg-white/15 transition"
             >
-              <div>
-                <div className="flex justify-between items-center text-[11px] text-[#c5a059] font-mono tracking-widest mb-2">
-                  <span>{pf.level}</span>
-                  <span className="uppercase">{pf.recommend}</span>
-                </div>
-                <h3 className="font-serif text-lg font-bold text-white mb-3">
-                  {pf.name}
-                </h3>
-                <p className="text-xs text-white/70 font-light leading-relaxed">
-                  {pf.desc}
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-white/10 flex justify-between items-center text-[11px]">
-                <span className="text-white/40">{pf.notes}</span>
-                <span className="font-mono font-bold text-[#e6c875]">{pf.brix}</span>
-              </div>
+              <div className="text-4xl mb-3">{pt.icon}</div>
+              <h4 className="text-base font-black text-yellow-300 mb-2">{pt.title}</h4>
+              <p className="text-xs text-green-100 leading-relaxed">{pt.desc}</p>
             </div>
           ))}
         </div>
@@ -613,45 +550,48 @@ function OrderModal({
         onClick={onClose}
       >
         <div
-          className="bg-white w-full max-w-md rounded-lg p-8 text-center shadow-2xl border border-[#c5a059]"
+          className="bg-white w-full max-w-md rounded-3xl p-6 sm:p-8 text-center shadow-2xl border-4 border-yellow-400 animate-in"
           onClick={(e) => e.stopPropagation()}
         >
           <img
             src={shopInfo.logo}
             alt={shopInfo.name}
-            className="w-16 h-16 rounded-full border-2 border-[#c5a059] mx-auto mb-3 object-cover shadow"
+            className="w-20 h-20 rounded-full border-2 border-yellow-400 mx-auto mb-3 object-cover shadow-md"
           />
-          <h3 className="font-serif text-xl font-bold text-stone-900 mb-1">
-            บันทึกการสั่งจองเรียบร้อย!
-          </h3>
-          <p className="text-xs text-stone-500 mb-4">
-            รหัสคำสั่งซื้อ: <strong className="font-mono text-stone-900">WK-{Math.floor(1000 + Math.random() * 9000)}</strong>
+          <h4 className="text-2xl font-black text-green-800 mb-1">
+            สั่งจองสำเร็จแล้วครับ! 🎉
+          </h4>
+          <p className="text-xs text-gray-500 mb-4">
+            รหัสออเดอร์: <strong className="font-mono text-green-900 text-sm">WK-{Math.floor(1000 + Math.random() * 9000)}</strong>
           </p>
 
-          <div className="bg-stone-50 border border-stone-200 rounded p-4 text-xs text-stone-700 text-left space-y-1.5 mb-6">
-            <p className="font-bold text-stone-900">ข้อมูลการชำระเงิน:</p>
-            <p>ยอดชำระสุทธิ: <strong className="text-stone-900 font-mono text-sm">฿{totalPrice.toLocaleString()}</strong></p>
+          <div className="bg-amber-50 border-2 border-yellow-300 rounded-2xl p-4 text-xs text-gray-800 text-left space-y-1.5 mb-6">
+            <p className="font-black text-amber-900">📌 รายละเอียดการชำระเงิน:</p>
+            <p>ยอดชำระสุทธิ: <strong className="text-green-800 font-black text-base">฿{totalPrice.toLocaleString()}</strong></p>
             <p>ธนาคาร: <strong>{shopInfo.bankAccount.bank}</strong></p>
-            <p>เลขบัญชี: <strong className="font-mono text-stone-900 text-sm">{shopInfo.bankAccount.number}</strong></p>
-            <p>พร้อมเพย์: <strong className="font-mono text-[#166534] text-sm">{shopInfo.bankAccount.promptPay}</strong></p>
+            <p>เลขบัญชี: <strong className="font-mono text-gray-900 text-sm">{shopInfo.bankAccount.number}</strong></p>
+            <p>พร้อมเพย์: <strong className="font-mono text-green-700 text-sm">{shopInfo.bankAccount.promptPay}</strong></p>
             <p>ชื่อบัญชี: <strong>{shopInfo.bankAccount.name}</strong></p>
-            <p className="text-[11px] text-stone-500 pt-1">
-              *เมื่อโอนเงินแล้ว กรุณาส่งสลิปผ่านทาง LINE OA <strong>{shopInfo.lineOA}</strong> หรือโทร <strong>{shopInfo.phone}</strong> เพื่อให้เจ้าหน้าที่ล็อกคิวส่งของทันที
+            <p className="text-[11px] text-gray-500 pt-1 border-t border-amber-200">
+              *เมื่อโอนแล้ว กรุณาส่งสลิปผ่านทาง LINE OA <strong>{shopInfo.lineOA}</strong> หรือโทร <strong>{shopInfo.phone}</strong> เพื่อให้แอดมินล็อกคิวส่งของทันที
             </p>
           </div>
 
           <div className="flex gap-2">
             <a
-              href="#"
-              className="flex-1 py-3 rounded bg-[#16a34a] text-white text-xs uppercase tracking-wider font-bold hover:bg-[#15803d] transition flex items-center justify-center gap-1.5"
+              href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 py-3.5 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white text-xs font-black transition flex items-center justify-center gap-1.5 shadow"
             >
-              <span>💬</span> ส่งสลิปผ่าน LINE
+              <LineIcon className="w-5 h-5" />
+              <span>ส่งสลิปผ่าน LINE</span>
             </a>
             <button
               onClick={onClose}
-              className="px-5 py-3 rounded border border-stone-200 text-stone-600 text-xs hover:bg-stone-50 transition"
+              className="px-5 py-3.5 rounded-full bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 transition"
             >
-              ปิดหน้าต่าง
+              ปิด
             </button>
           </div>
         </div>
@@ -665,41 +605,39 @@ function OrderModal({
       onClick={onClose}
     >
       <div
-        className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg shadow-2xl border border-stone-200"
+        className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border-2 border-yellow-400"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Header */}
-        <div className="bg-[#081c10] text-white px-6 py-4 flex items-center justify-between border-b border-[#c5a059]/30">
+        {/* Header */}
+        <div className="bg-green-800 text-white px-6 py-4 flex items-center justify-between border-b-2 border-yellow-400 rounded-t-3xl sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <img
               src={shopInfo.logo}
               alt={shopInfo.name}
-              className="w-9 h-9 rounded-full border border-[#c5a059] object-cover bg-white"
+              className="w-10 h-10 rounded-full border border-yellow-400 object-cover bg-white"
             />
             <div>
-              <h3 className="font-serif text-base font-bold">สั่งจองกับ {shopInfo.name}</h3>
-              <p className="text-[10px] text-[#c5a059] font-mono">
-                โทร. {shopInfo.phone}
-              </p>
+              <h4 className="font-black text-base text-yellow-300">สั่งจองกับ {shopInfo.name}</h4>
+              <p className="text-[11px] text-green-200 font-mono">โทร. {shopInfo.phone}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/60 hover:text-white text-lg">
+          <button onClick={onClose} className="text-white hover:text-yellow-300 text-xl font-bold">
             ✕
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Product Mini Spec */}
-          <div className="flex gap-4 p-3 bg-stone-50 border border-stone-200 rounded">
+          <div className="flex gap-4 p-3 bg-amber-50/70 border border-yellow-200 rounded-2xl items-center">
             <img
               src={product.image}
               alt={product.name}
-              className="w-16 h-16 object-cover rounded"
+              className="w-16 h-16 object-cover rounded-xl border border-yellow-300"
             />
             <div className="flex-1 min-w-0">
-              <h4 className="font-serif font-bold text-stone-900 text-sm truncate">{product.name}</h4>
-              <p className="text-[11px] text-stone-500">{product.origin} • {product.weight}</p>
-              <p className="font-serif font-bold text-stone-900 text-sm mt-1">
+              <h5 className="font-black text-gray-900 text-sm truncate">{product.name}</h5>
+              <p className="text-xs text-amber-900 font-bold">{product.origin} • {product.weight}</p>
+              <p className="font-black text-green-800 text-base mt-0.5">
                 ฿{product.price.toLocaleString()} /{product.unit}
               </p>
             </div>
@@ -707,8 +645,8 @@ function OrderModal({
 
           {/* ระดับความสุก */}
           <div>
-            <label className="block text-xs font-semibold text-stone-800 mb-1.5">
-              เลือกระดับความสุกที่ต้องการ *
+            <label className="block text-xs font-black text-gray-800 mb-1.5">
+              เลือกระดับความสุกที่ชอบ (เราจะคัดตามนี้) *
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
@@ -718,10 +656,10 @@ function OrderModal({
               ].map((rf) => (
                 <label
                   key={rf}
-                  className={`p-2.5 rounded border text-center cursor-pointer transition text-xs ${
+                  className={`p-2.5 rounded-xl border-2 text-center cursor-pointer transition text-xs font-bold ${
                     ripenessPref === rf
-                      ? "border-[#081c10] bg-[#081c10] text-[#e6c875] font-semibold"
-                      : "border-stone-200 text-stone-600 hover:border-stone-300"
+                      ? "border-green-700 bg-green-50 text-green-900 shadow-sm"
+                      : "border-gray-200 text-gray-600 hover:border-gray-300"
                   }`}
                 >
                   <input
@@ -739,32 +677,32 @@ function OrderModal({
           </div>
 
           {/* จำนวน */}
-          <div className="flex items-center justify-between p-3 bg-stone-50 rounded border border-stone-200">
-            <span className="text-xs font-semibold text-stone-700">จำนวนที่ต้องการสั่งซื้อ</span>
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-200">
+            <span className="text-xs font-black text-gray-700">จำนวนที่ต้องการสั่ง</span>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setQty(Math.max(1, qty - 1))}
-                className="w-7 h-7 bg-white border border-stone-300 rounded text-xs font-bold hover:bg-stone-100"
+                className="w-8 h-8 bg-white border border-gray-300 rounded-full text-sm font-black hover:bg-gray-100 shadow-sm"
               >
                 −
               </button>
-              <span className="font-mono font-bold text-sm w-6 text-center">{qty}</span>
+              <span className="font-black text-base w-6 text-center">{qty}</span>
               <button
                 type="button"
                 onClick={() => setQty(qty + 1)}
-                className="w-7 h-7 bg-[#081c10] text-[#e6c875] rounded text-xs font-bold hover:bg-[#0f291a]"
+                className="w-8 h-8 bg-green-700 text-white rounded-full text-sm font-black hover:bg-green-600 shadow-sm"
               >
                 +
               </button>
-              <span className="text-xs text-stone-500">{product.unit}</span>
+              <span className="text-xs text-gray-500 font-bold">{product.unit}</span>
             </div>
           </div>
 
           {/* ข้อมูลจัดส่ง */}
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1">
+              <label className="block text-xs font-black text-gray-700 mb-1">
                 ชื่อ-นามสกุล ผู้รับ *
               </label>
               <input
@@ -772,13 +710,13 @@ function OrderModal({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="เช่น คุณกฤษฎา วัฒนกุล"
-                className="w-full border border-stone-300 rounded px-3 py-2 text-xs focus:border-[#081c10] focus:outline-none"
+                placeholder="เช่น คุณสมชาย ใจดี"
+                className="w-full border-2 border-gray-200 rounded-xl px-3.5 py-2 text-xs focus:border-green-700 focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1">
+              <label className="block text-xs font-black text-gray-700 mb-1">
                 เบอร์โทรศัพท์ (สำหรับขนส่งโทรส่งของ) *
               </label>
               <input
@@ -787,12 +725,12 @@ function OrderModal({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="08X-XXX-XXXX"
-                className="w-full border border-stone-300 rounded px-3 py-2 text-xs focus:border-[#081c10] focus:outline-none"
+                className="w-full border-2 border-gray-200 rounded-xl px-3.5 py-2 text-xs focus:border-green-700 focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1">
+              <label className="block text-xs font-black text-gray-700 mb-1">
                 ที่อยู่จัดส่งละเอียด *
               </label>
               <textarea
@@ -801,24 +739,24 @@ function OrderModal({
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="บ้านเลขที่ ถนน แขวง/ตำบล เขต/อำเภอ จังหวัด รหัสไปรษณีย์"
-                className="w-full border border-stone-300 rounded px-3 py-2 text-xs focus:border-[#081c10] focus:outline-none resize-none"
+                className="w-full border-2 border-gray-200 rounded-xl px-3.5 py-2 text-xs focus:border-green-700 focus:outline-none resize-none"
               />
             </div>
           </div>
 
-          {/* รูปแบบจัดส่ง */}
+          {/* วิธีจัดส่ง */}
           <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+            <label className="block text-xs font-black text-gray-700 mb-1.5">
               วิธีการจัดส่ง
             </label>
             <div className="space-y-1.5">
               {shopInfo.shippingMethods.map((s) => (
                 <label
                   key={s.name}
-                  className={`flex items-start justify-between p-2.5 rounded border cursor-pointer text-xs ${
+                  className={`flex items-start justify-between p-2.5 rounded-xl border-2 cursor-pointer text-xs ${
                     shipping === s.name
-                      ? "border-[#081c10] bg-stone-50 font-semibold text-stone-900"
-                      : "border-stone-200 text-stone-600 hover:border-stone-300"
+                      ? "border-green-700 bg-green-50 font-bold text-green-950"
+                      : "border-gray-200 text-gray-600 hover:border-gray-300"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -828,37 +766,37 @@ function OrderModal({
                       value={s.name}
                       checked={shipping === s.name}
                       onChange={() => setShipping(s.name)}
-                      className="accent-[#081c10] mt-0.5"
+                      className="accent-green-700 mt-0.5"
                     />
                     <div>
                       <span>{s.name}</span>
-                      <p className="text-[10px] text-stone-400 font-normal">{s.note}</p>
+                      <p className="text-[10px] text-gray-400 font-normal">{s.note}</p>
                     </div>
                   </div>
-                  <span className="font-mono">{s.price === 0 ? "ฟรี" : `฿${s.price}`}</span>
+                  <span className="font-bold">{s.price === 0 ? "ฟรี" : `฿${s.price}`}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* สรุปยอด */}
-          <div className="bg-stone-100 rounded p-4 flex items-center justify-between border border-stone-200">
+          {/* ยอดรวม */}
+          <div className="bg-yellow-50 rounded-2xl p-4 flex items-center justify-between border-2 border-yellow-300">
             <div>
-              <span className="text-[10px] text-stone-400 uppercase tracking-wider block">ยอดรวมสุทธิ (รวมค่าจัดส่ง)</span>
-              <span className="font-serif text-2xl font-black text-stone-900">
+              <span className="text-[10px] text-amber-800 font-bold uppercase block">ยอดรวมทั้งสิ้น (รวมค่าส่ง)</span>
+              <span className="text-2xl font-black text-green-800">
                 ฿{totalPrice.toLocaleString()}
               </span>
             </div>
-            <span className="text-[10px] uppercase font-bold tracking-widest text-[#166534] bg-emerald-100 px-2 py-1 rounded border border-emerald-200">
-              รับประกันเคลม 100%
+            <span className="text-xs uppercase font-black text-green-800 bg-green-100 px-3 py-1 rounded-full border border-green-300">
+              🛡️ การันตีเคลม 100%
             </span>
           </div>
 
           <button
             type="submit"
-            className="w-full bg-[#081c10] hover:bg-[#0f291a] text-[#e6c875] py-3.5 rounded text-xs font-bold uppercase tracking-wider transition"
+            className="w-full bg-yellow-400 hover:bg-yellow-300 text-green-950 py-4 rounded-full text-base font-black shadow-lg transition active:scale-98"
           >
-            ยืนยันคำสั่งจอง ฿{totalPrice.toLocaleString()}
+            ✓ ยืนยันการสั่งซื้อ ฿{totalPrice.toLocaleString()}
           </button>
         </form>
       </div>
@@ -869,92 +807,95 @@ function OrderModal({
 // ===================== FOOTER =====================
 function Footer() {
   return (
-    <footer id="contact" className="bg-[#05140b] text-white/70 py-16 border-t border-[#c5a059]/20 text-xs">
+    <footer id="contact" className="bg-green-950 text-white/80 py-14 border-t-4 border-yellow-400 text-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 pb-12 border-b border-white/10">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-10 border-b border-green-800">
           {/* Brand Col */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <img
                 src={shopInfo.logo}
                 alt={shopInfo.name}
-                className="w-12 h-12 rounded-full border border-[#c5a059] bg-white object-cover"
+                className="w-12 h-12 rounded-full border-2 border-yellow-400 bg-white object-cover"
               />
               <div>
-                <h3 className="font-serif text-lg font-bold text-white tracking-wider">
-                  {shopInfo.name}
-                </h3>
-                <p className="text-[11px] text-[#c5a059] font-mono">
-                  โทร. {shopInfo.phone}
-                </p>
+                <h4 className="text-lg font-black text-white">{shopInfo.name}</h4>
+                <p className="text-xs text-yellow-300 font-mono">โทร. {shopInfo.phone}</p>
               </div>
             </div>
-            <p className="text-white/60 font-light leading-relaxed text-xs">
+            <p className="text-green-100 text-xs leading-relaxed font-light">
               {shopInfo.description}
             </p>
           </div>
 
           {/* Contact Col */}
           <div className="space-y-2">
-            <h4 className="font-semibold text-white tracking-wider uppercase text-[11px] mb-3">
-              ติดต่อสอบถาม & สั่งจอง
-            </h4>
+            <h5 className="font-black text-yellow-300 uppercase text-xs mb-3">
+              ติดต่อสอบถาม & สั่งซื้อ
+            </h5>
             <p>เบอร์โทรศัพท์: <strong className="text-white font-mono text-sm">{shopInfo.phone}</strong></p>
-            <p>LINE OA: <strong className="text-[#e6c875] font-mono">{shopInfo.lineOA}</strong></p>
+            <p>LINE OA: <strong className="text-yellow-300 font-mono">{shopInfo.lineOA}</strong></p>
             <p>เวลาทำการ: ทุกวัน 08:00 - 21:00 น.</p>
           </div>
 
           {/* Menu Col */}
           <div className="space-y-2">
-            <h4 className="font-semibold text-white tracking-wider uppercase text-[11px] mb-3">
+            <h5 className="font-black text-yellow-300 uppercase text-xs mb-3">
               ระบบและบริการ
-            </h4>
+            </h5>
             <a href="/tracking" className="block hover:text-white transition">
-              ตรวจสอบสถานะจัดส่ง (Tracking)
+              📦 เช็กสถานะพัสดุ (Tracking)
             </a>
-            <a href="/claim" className="block text-[#c5a059] hover:text-[#e6c875] transition font-bold">
-              ศูนย์รับประกันและแจ้งเคลม 100%
+            <a href="/claim" className="block text-yellow-300 hover:text-yellow-200 transition font-bold">
+              🛡️ ศูนย์รับประกันและแจ้งเคลม 100%
             </a>
             <a href="/admin" className="block hover:text-white transition">
-              เข้าสู่ระบบหลังบ้าน (Admin)
+              ⚙️ เข้าสู่ระบบหลังบ้าน (Admin)
             </a>
           </div>
 
           {/* Bank Info */}
-          <div className="space-y-2 bg-white/5 border border-white/10 p-4 rounded">
-            <h4 className="font-semibold text-[#e6c875] tracking-wider uppercase text-[11px]">
+          <div className="bg-white/10 rounded-2xl p-4 border border-yellow-400/40 space-y-1.5">
+            <h5 className="font-black text-yellow-300 uppercase text-xs">
               บัญชีชำระเงินทางการ
-            </h4>
-            <p className="text-white font-medium">{shopInfo.bankAccount.bank}</p>
-            <p className="font-mono text-white text-sm font-bold tracking-wider">
-              {shopInfo.bankAccount.number}
-            </p>
-            <p className="text-[#86efac] text-xs font-mono">
-              พร้อมเพย์: {shopInfo.bankAccount.promptPay}
-            </p>
-            <p className="text-white/60 text-[10px]">{shopInfo.bankAccount.name}</p>
+            </h5>
+            <p className="text-white font-bold">{shopInfo.bankAccount.bank}</p>
+            <p className="font-mono text-white text-sm font-black">{shopInfo.bankAccount.number}</p>
+            <p className="text-yellow-300 text-xs font-mono">พร้อมเพย์: {shopInfo.bankAccount.promptPay}</p>
+            <p className="text-green-200 text-[10px]">{shopInfo.bankAccount.name}</p>
           </div>
         </div>
 
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-white/40">
+        <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-green-300 text-[11px]">
           <p>© 2026 {shopInfo.name}. All rights reserved.</p>
-          <p>คัดสดแก่จัด วิ่งรถกระบะส่งตรงจากสวนถึงหน้าบ้าน</p>
+          <p>คัดสดจากสวน วิ่งส่งตรงถึงบ้านคุณ การันตีคุณภาพ 100%</p>
         </div>
       </div>
     </footer>
   );
 }
 
-// ===================== FLOATING CONTACT =====================
-function FloatingContact() {
+// ===================== FLOATING LINE & CALL =====================
+function FloatingActionButtons() {
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-2">
+    <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-2.5">
+      <a
+        href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
+        target="_blank"
+        rel="noreferrer"
+        className="bg-[#06C755] hover:bg-[#05b34c] text-white p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 transition-all"
+        aria-label="Contact LINE"
+      >
+        <LineIcon className="w-6 h-6" />
+        <span className="hidden sm:inline font-black text-xs">สั่งผ่าน LINE</span>
+      </a>
       <a
         href={`tel:${shopInfo.phone.replace(/-/g, "")}`}
-        className="bg-[#081c10] hover:bg-[#0f291a] text-[#e6c875] px-4 py-3 rounded-full shadow-2xl flex items-center gap-2 border border-[#c5a059] hover:scale-105 transition-all text-xs font-bold"
+        className="bg-yellow-400 hover:bg-yellow-300 text-green-950 p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 transition-all text-xs font-black"
+        aria-label="Call phone"
       >
         <span>📞</span>
-        <span className="font-mono">{shopInfo.phone}</span>
+        <span className="hidden sm:inline font-mono">{shopInfo.phone}</span>
       </a>
     </div>
   );
@@ -965,14 +906,14 @@ export default function Home() {
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
 
   return (
-    <main className="min-h-screen bg-[#faf8f5]">
+    <main className="min-h-screen bg-[#faf6eb]">
       <Navbar />
       <HeroBanner />
-      <AboutWinkin />
-      <ProductCollection onOrder={setOrderProduct} />
       <RipenessGuide />
+      <ProductMenu onOrder={setOrderProduct} />
+      <WhyUs />
       <Footer />
-      <FloatingContact />
+      <FloatingActionButtons />
 
       {orderProduct && (
         <OrderModal
