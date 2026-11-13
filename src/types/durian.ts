@@ -122,6 +122,7 @@ export interface Promotion {
 export interface User {
   id: string;
   username: string;
+  lineUserId?: string;
   passwordHash?: string;
   firstName: string;
   lastName: string;

@@ -14,6 +14,8 @@ declare global {
       init: (opts: { liffId: string }) => Promise<void>;
       isLoggedIn: () => boolean;
       isInClient: () => boolean;
+      login: (opts?: { redirectUri?: string }) => void;
+      logout: () => void;
       getProfile: () => Promise<LiffProfile>;
     };
   }
@@ -22,6 +24,7 @@ declare global {
 export function useLiff(liffId?: string) {
   const [profile, setProfile] = useState<LiffProfile | null>(null);
   const [inLineApp, setInLineApp] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const resolvedId = liffId || process.env.NEXT_PUBLIC_LINE_LIFF_ID || "";
@@ -34,6 +37,7 @@ export function useLiff(liffId?: string) {
         if (!window.liff) return;
         await window.liff.init({ liffId: resolvedId });
         if (cancelled) return;
+        setIsReady(true);
         setInLineApp(window.liff.isInClient());
         if (window.liff.isLoggedIn()) {
           const p = await window.liff.getProfile();
@@ -62,5 +66,13 @@ export function useLiff(liffId?: string) {
     };
   }, [liffId]);
 
-  return { profile, inLineApp };
+  const login = () => {
+    if (typeof window !== "undefined" && window.liff) {
+      if (!window.liff.isLoggedIn()) {
+        window.liff.login();
+      }
+    }
+  };
+
+  return { profile, inLineApp, isReady, login };
 }

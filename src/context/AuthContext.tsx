@@ -21,18 +21,28 @@ interface RegisterPayload {
   avatarUrl?: string;
 }
 
+export interface LineLoginPayload {
+  lineUserId: string;
+  displayName: string;
+  pictureUrl?: string;
+  phone?: string;
+  address?: string;
+  postalCode?: string;
+}
+
 interface AuthContextType {
   user: SafeUser | null;
   loading: boolean;
   isAuthModalOpen: boolean;
-  authModalMode: "login" | "register";
+  authModalMode: "login" | "register" | "line";
   login: (username: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   register: (payload: RegisterPayload) => Promise<{ ok: boolean; error?: string }>;
+  loginWithLine: (payload: LineLoginPayload) => Promise<{ ok: boolean; error?: string; user?: SafeUser; isNew?: boolean }>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<SafeUser>) => Promise<{ ok: boolean; error?: string }>;
-  openAuthModal: (mode?: "login" | "register") => void;
+  openAuthModal: (mode?: "login" | "register" | "line") => void;
   closeAuthModal: () => void;
-  setAuthModalMode: (mode: "login" | "register") => void;
+  setAuthModalMode: (mode: "login" | "register" | "line") => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SafeUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<"login" | "register">("login");
+  const [authModalMode, setAuthModalMode] = useState<"login" | "register" | "line">("line");
 
   // Load from local cache first for instant UI response
   useEffect(() => {
@@ -113,6 +123,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loginWithLine = useCallback(async (payload: LineLoginPayload) => {
+    try {
+      const res = await fetch("/api/auth/line", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok || !json.user) {
+        return { ok: false, error: json.error || "เข้าสู่ระบบด้วย LINE ไม่สำเร็จ" };
+      }
+      setUser(json.user);
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(json.user));
+      setIsAuthModalOpen(false);
+      return { ok: true, user: json.user, isNew: json.isNew };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
@@ -142,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const openAuthModal = useCallback((mode: "login" | "register" = "login") => {
+  const openAuthModal = useCallback((mode: "login" | "register" | "line" = "line") => {
     setAuthModalMode(mode);
     setIsAuthModalOpen(true);
   }, []);
@@ -160,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authModalMode,
         login,
         register,
+        loginWithLine,
         logout,
         updateProfile,
         openAuthModal,
