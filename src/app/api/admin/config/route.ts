@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
     config: {
       googleSheetsWebAppUrl: cfg.googleSheetsWebAppUrl || "",
       googleSheetViewUrl: cfg.googleSheetViewUrl || "",
+      userSheetViewUrl: cfg.userSheetViewUrl || "",
+      thureanSheetViewUrl: cfg.thureanSheetViewUrl || "",
       hasLineToken: Boolean(cfg.lineChannelAccessToken),
       lineTokenMasked: maskSecret(cfg.lineChannelAccessToken),
       lineAdminUserId: cfg.lineAdminUserId || "",
@@ -144,6 +146,8 @@ export async function POST(req: NextRequest) {
     const updated = saveRuntimeConfig({
       googleSheetsWebAppUrl: body.googleSheetsWebAppUrl,
       googleSheetViewUrl: body.googleSheetViewUrl,
+      userSheetViewUrl: (body as any).userSheetViewUrl,
+      thureanSheetViewUrl: (body as any).thureanSheetViewUrl,
       lineChannelAccessToken:
         body.lineChannelAccessToken && !body.lineChannelAccessToken.includes("••••")
           ? body.lineChannelAccessToken

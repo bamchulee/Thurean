@@ -61,6 +61,7 @@ export interface Order {
   id: string;
   createdAt: string;
   roundId: string;
+  userId?: string;
   customerName: string;
   phone: string;
   address?: string;
@@ -100,6 +101,7 @@ export interface Claim {
   claimId: string;
   createdAt: string;
   orderId: string;
+  userId?: string;
   phone: string;
   reason: string;
   description: string;
@@ -121,6 +123,7 @@ export interface Promotion {
 
 export interface User {
   id: string;
+  userId?: string;
   username: string;
   lineUserId?: string;
   displayName?: string;
@@ -134,6 +137,8 @@ export interface User {
   role: "user" | "admin";
   source?: "line-login" | "line-chat" | "web" | string;
   notes?: string;
+  orderCount?: number;
+  totalSpent?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -153,6 +158,8 @@ export interface DatabaseState {
 export interface RuntimeConfig {
   googleSheetsWebAppUrl?: string;
   googleSheetViewUrl?: string;
+  userSheetViewUrl?: string;
+  thureanSheetViewUrl?: string;
   lineChannelAccessToken?: string;
   lineAdminUserId?: string;
   lineLiffId?: string;

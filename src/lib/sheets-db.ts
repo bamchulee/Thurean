@@ -52,7 +52,17 @@ export function getRuntimeConfig(): RuntimeConfig {
     googleSheetsWebAppUrl:
       process.env.GOOGLE_SHEETS_WEBAPP_URL || fileConfig.googleSheetsWebAppUrl || "",
     googleSheetViewUrl:
-      process.env.GOOGLE_SHEET_VIEW_URL || fileConfig.googleSheetViewUrl || "",
+      process.env.GOOGLE_SHEET_VIEW_URL ||
+      fileConfig.googleSheetViewUrl ||
+      "https://docs.google.com/spreadsheets/d/1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8/edit?usp=sharing",
+    userSheetViewUrl:
+      process.env.USER_SHEET_VIEW_URL ||
+      fileConfig.userSheetViewUrl ||
+      "https://docs.google.com/spreadsheets/d/16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ/edit?usp=sharing",
+    thureanSheetViewUrl:
+      process.env.THUREAN_SHEET_VIEW_URL ||
+      fileConfig.thureanSheetViewUrl ||
+      "https://docs.google.com/spreadsheets/d/1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8/edit?usp=sharing",
     lineChannelAccessToken:
       process.env.LINE_CHANNEL_ACCESS_TOKEN || fileConfig.lineChannelAccessToken || "",
     lineAdminUserId:
@@ -89,6 +99,12 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
   }
   if (partial.googleSheetViewUrl !== undefined) {
     next.googleSheetViewUrl = partial.googleSheetViewUrl.trim();
+  }
+  if (partial.userSheetViewUrl !== undefined) {
+    next.userSheetViewUrl = partial.userSheetViewUrl.trim();
+  }
+  if (partial.thureanSheetViewUrl !== undefined) {
+    next.thureanSheetViewUrl = partial.thureanSheetViewUrl.trim();
   }
   if (partial.lineChannelAccessToken !== undefined) {
     next.lineChannelAccessToken = partial.lineChannelAccessToken.trim();
@@ -266,6 +282,65 @@ export async function syncLocalDataToGoogleSheet(webAppUrl: string) {
   return res;
 }
 
+function applyDatabaseJoins(db: DatabaseState): DatabaseState {
+  const users = Array.isArray(db.users) ? db.users : [];
+  const orders = Array.isArray(db.orders) ? db.orders : [];
+  const claims = Array.isArray(db.claims) ? db.claims : [];
+
+  const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
+
+  // 1. Join Order -> User
+  const joinedOrders = orders.map((o) => {
+    if (o.userId) return o;
+    const matched = users.find(
+      (u) =>
+        (o.lineUserId && u.lineUserId === o.lineUserId) ||
+        (o.phone && u.phone && cleanPhone(u.phone) === cleanPhone(o.phone))
+    );
+    return {
+      ...o,
+      userId: matched?.id || matched?.userId || (o.lineUserId ? `usr_${o.lineUserId.slice(-8)}` : undefined),
+    };
+  });
+
+  // 2. Join Claim -> User & Order
+  const joinedClaims = claims.map((c) => {
+    if (c.userId) return c;
+    const matchedOrder = joinedOrders.find((o) => o.id === c.orderId);
+    const matchedUser = users.find(
+      (u) => c.phone && u.phone && cleanPhone(u.phone) === cleanPhone(c.phone)
+    );
+    return {
+      ...c,
+      userId: matchedOrder?.userId || matchedUser?.id || undefined,
+    };
+  });
+
+  // 3. User stats from Orders (relational aggregate)
+  const joinedUsers = users.map((u) => {
+    const userOrders = joinedOrders.filter(
+      (o) =>
+        (o.userId && (o.userId === u.id || o.userId === u.userId)) ||
+        (u.lineUserId && o.lineUserId === u.lineUserId) ||
+        (u.phone && o.phone && cleanPhone(u.phone) === cleanPhone(o.phone))
+    );
+    const totalSpent = userOrders.reduce((sum, o) => sum + (o.totalPrice + o.shippingCost), 0);
+    return {
+      ...u,
+      userId: u.userId || u.id,
+      orderCount: userOrders.length,
+      totalSpent,
+    };
+  });
+
+  return {
+    ...db,
+    orders: joinedOrders,
+    claims: joinedClaims,
+    users: joinedUsers,
+  };
+}
+
 // ============================================================
 // Public Unified CRUD Operations
 // ============================================================
@@ -281,20 +356,36 @@ export async function getAllDatabase(): Promise<{
         cfg.googleSheetsWebAppUrl,
         "getAll"
       );
-      return { data: sheetData, source: "google-sheets" };
+      return { data: applyDatabaseJoins(sheetData), source: "google-sheets" };
     } catch (err) {
       // Fallback to local if sheet endpoint fails temporarily
       return {
-        data: readLocalDb(),
+        data: applyDatabaseJoins(readLocalDb()),
         source: "local",
         warning: `เชื่อมต่อ Google Sheet ไม่สำเร็จ (${String(err)}) — กำลังแสดงข้อมูลสำรองในเครื่อง`,
       };
     }
   }
-  return { data: readLocalDb(), source: "local" };
+  return { data: applyDatabaseJoins(readLocalDb()), source: "local" };
 }
 
 export async function createOrderRecord(order: Order): Promise<Order> {
+  // Ensure order has a valid userId linking to User sheet
+  if (!order.userId) {
+    const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
+    const local = readLocalDb();
+    const existing = (local.users || []).find(
+      (u) =>
+        (order.lineUserId && u.lineUserId === order.lineUserId) ||
+        (order.phone && u.phone && cleanPhone(u.phone) === cleanPhone(order.phone))
+    );
+    if (existing) {
+      order.userId = existing.id || existing.userId;
+    } else {
+      order.userId = `usr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    }
+  }
+
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createOrder", order);

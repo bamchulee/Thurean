@@ -27,6 +27,7 @@ import {
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
   Sprout,
   TrendingUp,
@@ -757,12 +758,25 @@ function OrdersTab({
 
             <div className="bg-stone-50 rounded-xl p-3.5 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-stone-100">
               <div>
-                <p className="font-bold text-sm text-stone-900 flex items-center gap-1.5">
+                <p className="font-bold text-sm text-stone-900 flex items-center gap-1.5 flex-wrap">
                   <User className="w-3.5 h-3.5 text-stone-400" />
                   <span>{order.customerName}</span>
                   <span className="text-xs font-mono text-stone-500">
                     ({order.phone})
                   </span>
+                  {order.userId && (
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 font-mono font-bold"
+                      title="User ID เชื่อมโยงกับแท็บ User Sheet"
+                    >
+                      User ID: {order.userId}
+                    </span>
+                  )}
+                  {order.lineUserId && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#06C755]/10 text-[#06C755] border border-[#06C755]/30 font-bold">
+                      LINE
+                    </span>
+                  )}
                 </p>
                 {order.address && (
                   <p className="text-xs text-stone-500 mt-1 flex items-start gap-1.5">
@@ -1907,6 +1921,8 @@ function SettingsTab({
   const [appsScriptCode, setAppsScriptCode] = useState("");
   const [webAppUrl, setWebAppUrl] = useState("");
   const [sheetViewUrl, setSheetViewUrl] = useState("");
+  const [userSheetUrl, setUserSheetUrl] = useState("https://docs.google.com/spreadsheets/d/16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ/edit?usp=sharing");
+  const [thureanSheetUrl, setThureanSheetUrl] = useState("https://docs.google.com/spreadsheets/d/1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8/edit?usp=sharing");
   const [lineToken, setLineToken] = useState("");
   const [lineAdminId, setLineAdminId] = useState("");
   const [lineLiffId, setLineLiffId] = useState("");
@@ -1933,6 +1949,8 @@ function SettingsTab({
           setIsCloudServerless(Boolean(json.isCloudServerless));
           setWebAppUrl(json.config.googleSheetsWebAppUrl || "");
           setSheetViewUrl(json.config.googleSheetViewUrl || "");
+          if (json.config.userSheetViewUrl) setUserSheetUrl(json.config.userSheetViewUrl);
+          if (json.config.thureanSheetViewUrl) setThureanSheetUrl(json.config.thureanSheetViewUrl);
           setLineAdminId(json.config.lineAdminUserId || "");
           setLineLiffId(json.config.lineLiffId || "");
           setPublicBaseUrl(json.config.publicBaseUrl || "");
@@ -2129,29 +2147,61 @@ function SettingsTab({
           />
         </div>
 
-        <div>
-          <label className="block text-xs font-bold text-stone-700 mb-1">
-            ลิงก์ Google Sheet (เผื่อไว้กดเปิดดูตารางเร็ว ๆ)
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="url"
-              value={sheetViewUrl}
-              onChange={(e) => setSheetViewUrl(e.target.value)}
-              placeholder="https://docs.google.com/spreadsheets/d/..."
-              className="flex-1 border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
-            />
-            {sheetViewUrl && (
+        {/* Dual Google Sheet Links */}
+        <div className="space-y-3 bg-stone-50 p-4 rounded-2xl border border-stone-200">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="w-4 h-4 text-[#1B4D31]" />
+            <span className="text-xs font-black text-stone-900">
+              ฐานข้อมูล 2 Google Sheets (Relational DB เชื่อมโยงผ่าน User ID)
+            </span>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-stone-700 mb-1">
+              🍈 1. THUREAN Sheet (สต็อกสินค้า, คำสั่งซื้อ Orders, แจ้งเคลม Claims, รอบส่ง)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={thureanSheetUrl}
+                onChange={(e) => setThureanSheetUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8/..."
+                className="flex-1 border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono bg-white"
+              />
               <a
-                href={sheetViewUrl}
+                href={thureanSheetUrl || "https://docs.google.com/spreadsheets/d/1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8/edit?usp=sharing"}
                 target="_blank"
                 rel="noreferrer"
-                className="bg-emerald-50 text-[#1B4D31] border border-emerald-200 px-4 py-2.5 rounded-xl text-xs font-bold shrink-0 inline-flex items-center gap-1"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 inline-flex items-center gap-1.5 transition"
               >
-                <span>เปิดชีต</span>
+                <span>เปิดชีต THUREAN</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
-            )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-stone-700 mb-1">
+              📘 2. User Sheet (สมาชิก, ข้อมูลคนลงทะเบียน, LINE User ID, ชื่อ-สกุล, ที่อยู่)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={userSheetUrl}
+                onChange={(e) => setUserSheetUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ/..."
+                className="flex-1 border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono bg-white"
+              />
+              <a
+                href={userSheetUrl || "https://docs.google.com/spreadsheets/d/16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ/edit?usp=sharing"}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 inline-flex items-center gap-1.5 transition"
+              >
+                <span>เปิดชีต User</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
           </div>
         </div>
 
@@ -2306,7 +2356,9 @@ function SettingsTab({
               callConfigApi({
                 action: "save",
                 googleSheetsWebAppUrl: webAppUrl,
-                googleSheetViewUrl: sheetViewUrl,
+                googleSheetViewUrl: thureanSheetUrl || sheetViewUrl,
+                thureanSheetViewUrl: thureanSheetUrl,
+                userSheetViewUrl: userSheetUrl,
                 lineChannelAccessToken: lineToken || undefined,
                 lineAdminUserId: lineAdminId,
                 lineLiffId: lineLiffId,
@@ -2477,10 +2529,10 @@ function UsersTab({
             <thead className="bg-[#1B4D31] text-white">
               <tr>
                 <th className="py-3 px-4 font-bold">โปรไฟล์</th>
-                <th className="py-3 px-4 font-bold">Username</th>
-                <th className="py-3 px-4 font-bold">ชื่อ - นามสกุล</th>
+                <th className="py-3 px-4 font-bold">User ID &amp; ชื่อ</th>
                 <th className="py-3 px-4 font-bold">เบอร์โทรศัพท์</th>
-                <th className="py-3 px-4 font-bold">ที่อยู่จัดส่ง & รหัสไปรษณีย์</th>
+                <th className="py-3 px-4 font-bold">ที่อยู่จัดส่ง &amp; รหัสไปรษณีย์</th>
+                <th className="py-3 px-4 font-bold text-center">ออเดอร์ที่สั่ง (JOIN)</th>
                 <th className="py-3 px-4 font-bold">วันที่สมัคร</th>
               </tr>
             </thead>
@@ -2518,12 +2570,20 @@ function UsersTab({
                             LINE
                           </span>
                         ) : null}
-                        <span className="font-mono font-bold text-stone-800">
-                          {u.displayName ? u.displayName : `@${u.username}`}
+                        <span className="font-mono font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 text-[11px]">
+                          {(u as any).userId || u.id}
                         </span>
                         {u.role === "admin" && (
                           <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-1.5 py-0.5 rounded">
                             ADMIN
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-bold text-stone-900 mt-1">
+                        {u.firstName} {u.lastName}
+                        {u.displayName && u.displayName !== u.firstName && (
+                          <span className="text-[11px] text-stone-400 font-normal ml-1">
+                            ({u.displayName})
                           </span>
                         )}
                       </div>
@@ -2537,14 +2597,22 @@ function UsersTab({
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 font-bold text-stone-900">
-                      {u.firstName} {u.lastName}
-                    </td>
                     <td className="py-3 px-4 font-mono font-semibold text-emerald-800">
                       {u.phone}
                     </td>
                     <td className="py-3 px-4 text-stone-600 max-w-xs truncate" title={`${u.address} ${u.postalCode}`}>
                       {u.address} <span className="font-mono font-bold text-stone-800">{u.postalCode}</span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="inline-flex items-center gap-1 bg-emerald-50 text-[#1B4D31] font-bold text-xs px-2.5 py-1 rounded-full border border-emerald-200">
+                        <ShoppingBag className="w-3 h-3 text-emerald-600" />
+                        <span>{(u as any).orderCount || 0} รายการ</span>
+                      </span>
+                      {Number((u as any).totalSpent || 0) > 0 && (
+                        <span className="block text-[10px] text-stone-500 font-mono mt-0.5">
+                          ฿{((u as any).totalSpent || 0).toLocaleString()}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-stone-500 font-mono text-[11px]">
                       {u.createdAt ? new Date(u.createdAt).toLocaleDateString("th-TH") : "-"}

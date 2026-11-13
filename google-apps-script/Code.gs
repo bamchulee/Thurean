@@ -2,20 +2,17 @@
  * ============================================================
  * Google Apps Script สำหรับระบบหลังบ้าน "ทุเรียนวินคิน" (โมเดลรับมาขายออก)
  * ============================================================
- * วิธีใช้งาน:
- * 1. สร้าง Google Sheet เปล่า 1 ไฟล์
- * 2. ไปที่เมนู ส่วนขยาย (Extensions) > Apps Script
- * 3. ลบโค้ดเดิมออก แล้ววางโค้ดนี้ทั้งหมดลงไป กด Save
- * 4. เลือกฟังก์ชัน "setupDurianWinkinSheets" ด้านบนแล้วกด "Run" (1 ครั้ง)
- *    -> ระบบจะสร้างแท็บทั้ง 6 แท็บ + หัวตาราง + สูตรสรุปกำไรให้อัตโนมัติ!
- * 5. กด "Deploy" > "New deployment" > Type: "Web app"
- *    - Execute as: Me
- *    - Who has access: Anyone
- * 6. คัดลอก Web App URL มาใส่ในหน้า Admin ของเว็บไซต์ (แท็บ เชื่อมต่อ Google Sheet)
+ * ระบบฐานข้อมูล 2 ลิงก์เชื่อมโยง (Relational Join):
+ * 1. USER Sheet (16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ)
+ *    - จัดเก็บข้อมูลสมาชิก / ผู้ลงทะเบียนผ่าน LINE (userId, ที่อยู่, เบอร์โทร, ชื่อ-สกุล)
+ * 2. THUREAN Sheet (1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8)
+ *    - จัดเก็บข้อมูลสินค้า, สต็อก, ออเดอร์ (Orders), แจ้งเคลม (Claims), รอบส่ง (Rounds)
+ *    - ทุก Order และ Claim มี foreign key "userId" เชื่อมกลับไปหา User Sheet
  * ============================================================
  */
 
-const SPREADSHEET_ID = "16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ";
+const USER_SPREADSHEET_ID = "16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ";
+const THUREAN_SPREADSHEET_ID = "1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8";
 
 const SHEET_NAMES = {
   PRODUCTS: "Products",
@@ -28,20 +25,58 @@ const SHEET_NAMES = {
   SUMMARY: "Summary",
 };
 
-function getTargetSpreadsheet() {
-  return (
-    SpreadsheetApp.getActiveSpreadsheet() ||
-    SpreadsheetApp.openById(SPREADSHEET_ID)
-  );
+function getUserSpreadsheet() {
+  return SpreadsheetApp.openById(USER_SPREADSHEET_ID);
+}
+
+function getThureanSpreadsheet() {
+  try {
+    return (
+      SpreadsheetApp.getActiveSpreadsheet() ||
+      SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID)
+    );
+  } catch (e) {
+    return SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID);
+  }
+}
+
+function getTargetSpreadsheetForSheet(sheetName) {
+  if (sheetName === SHEET_NAMES.USERS) {
+    return getUserSpreadsheet();
+  }
+  return getThureanSpreadsheet();
 }
 
 /**
- * 1-Click Auto Setup: สร้างโครงสร้างแท็บ + สีหัวตาราง + สูตรคำนวณกำไร
+ * 1-Click Auto Setup: สร้างโครงสร้างแท็บ + สีหัวตาราง + สูตรคำนวณกำไรของทั้ง 2 ชีต
  */
 function setupDurianWinkinSheets() {
-  const ss = getTargetSpreadsheet();
+  const userSs = getUserSpreadsheet();
+  const thureanSs = getThureanSpreadsheet();
 
-  const definitions = [
+  const userDefinitions = [
+    {
+      name: SHEET_NAMES.USERS,
+      color: "#1e3a8a",
+      headers: [
+        "userId",
+        "lineUserId",
+        "displayName",
+        "firstName",
+        "lastName",
+        "phone",
+        "address",
+        "postalCode",
+        "avatarUrl",
+        "source",
+        "notes",
+        "createdAt",
+        "updatedAt",
+      ],
+    },
+  ];
+
+  const thureanDefinitions = [
     {
       name: SHEET_NAMES.PRODUCTS,
       color: "#15803d",
@@ -92,6 +127,7 @@ function setupDurianWinkinSheets() {
         "id",
         "createdAt",
         "roundId",
+        "userId",
         "customerName",
         "phone",
         "address",
@@ -106,10 +142,10 @@ function setupDurianWinkinSheets() {
         "paymentStatus",
         "orderStatus",
         "trackingNo",
-        "courier",
-        "slipUrl",
         "lotId",
         "notes",
+        "courier",
+        "slipUrl",
       ],
     },
     {
@@ -137,6 +173,7 @@ function setupDurianWinkinSheets() {
         "claimId",
         "createdAt",
         "orderId",
+        "userId",
         "phone",
         "reason",
         "description",
@@ -159,79 +196,33 @@ function setupDurianWinkinSheets() {
         "isActive",
       ],
     },
-    {
-      name: SHEET_NAMES.USERS,
-      color: "#1e3a8a",
-      headers: [
-        "id",
-        "lineUserId",
-        "displayName",
-        "firstName",
-        "lastName",
-        "phone",
-        "address",
-        "postalCode",
-        "avatarUrl",
-        "source",
-        "notes",
-        "createdAt",
-        "updatedAt",
-      ],
-    },
   ];
 
-  definitions.forEach((def) => {
-    let sheet = ss.getSheetByName(def.name);
-    if (!sheet) {
-      sheet = ss.insertSheet(def.name);
-    }
+  // Setup User Sheet
+  userDefinitions.forEach((def) => {
+    let sheet = userSs.getSheetByName(def.name);
+    if (!sheet) sheet = userSs.insertSheet(def.name);
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(def.headers);
       const headerRange = sheet.getRange(1, 1, 1, def.headers.length);
-      headerRange.setBackground(def.color);
-      headerRange.setFontColor("#ffffff");
-      headerRange.setFontWeight("bold");
+      headerRange.setBackground(def.color).setFontColor("#ffffff").setFontWeight("bold");
       sheet.setFrozenRows(1);
-      sheet.autoResizeColumns(1, def.headers.length);
     }
   });
 
-  // สร้างแท็บ Summary พร้อมสูตรคำนวณอัตโนมัติ
-  let summarySheet = ss.getSheetByName(SHEET_NAMES.SUMMARY);
-  if (!summarySheet) {
-    summarySheet = ss.insertSheet(SHEET_NAMES.SUMMARY);
-  }
-  summarySheet.clear();
-  summarySheet.getRange("A1:B1").setValues([["รายงานสรุปยอด ทุเรียนวินคิน", "มูลค่า / จำนวน"]]);
-  summarySheet.getRange("A1:B1").setBackground("#14532d").setFontColor("#fde047").setFontWeight("bold");
+  // Setup THUREAN Sheet
+  thureanDefinitions.forEach((def) => {
+    let sheet = thureanSs.getSheetByName(def.name);
+    if (!sheet) sheet = thureanSs.insertSheet(def.name);
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(def.headers);
+      const headerRange = sheet.getRange(1, 1, 1, def.headers.length);
+      headerRange.setBackground(def.color).setFontColor("#ffffff").setFontWeight("bold");
+      sheet.setFrozenRows(1);
+    }
+  });
 
-  const summaryRows = [
-    ["จำนวนออเดอร์ทั้งหมด (Orders)", "=COUNTA(Orders!A2:A)"],
-    ["ออเดอร์ที่ชำระเงินแล้ว", '=COUNTIF(Orders!O2:O, "confirmed")'],
-    ["ยอดขายค่าสินค้าทั้งหมด (บาท)", "=SUM(Orders!K2:K)"],
-    ["ค่าจัดส่งที่เก็บจากลูกค้า (บาท)", "=SUM(Orders!M2:M)"],
-    ["ต้นทุนทุเรียนรับมาจากล้ง/สวน (บาท)", "=SUM(Lots_Cost!I2:I)"],
-    ["ค่ากล่อง/อุปกรณ์แพ็ก (บาท)", "=SUM(Lots_Cost!J2:J)"],
-    ["ค่าน้ำมันรถกระบะ/วิ่งรับของ (บาท)", "=SUM(Lots_Cost!K2:K)"],
-    ["กำไรสุทธิโดยประมาณ (บาท)", "=B4-(B6+B7+B8)"],
-    ["จำนวนคำร้องแจ้งเคลมทั้งหมด", "=COUNTA(Claims!A2:A)"],
-  ];
-  summarySheet.getRange(2, 1, summaryRows.length, 2).setValues(summaryRows);
-  summarySheet.getRange("B4:B9").setNumberFormat("#,##0");
-  summarySheet.getRange("A9:B9").setBackground("#dcfce7").setFontWeight("bold");
-  summarySheet.setColumnWidth(1, 280);
-  summarySheet.setColumnWidth(2, 180);
-
-  // ลบ Sheet1 / ชีต1 เดิมถ้ายังว่างอยู่
-  const defaultSheet =
-    ss.getSheetByName("Sheet1") ||
-    ss.getSheetByName("ชีต1") ||
-    ss.getSheetByName("แผ่น1");
-  if (defaultSheet && ss.getSheets().length > 1 && defaultSheet.getLastRow() === 0) {
-    ss.deleteSheet(defaultSheet);
-  }
-
-  return "Setup Complete!";
+  return "Dual-Sheet Setup Complete!";
 }
 
 // ============================================================
@@ -242,7 +233,12 @@ function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) || "getAll";
   try {
     if (action === "ping") {
-      return jsonResponse({ ok: true, message: "Durian Winkin Google Sheet API is ready!" });
+      return jsonResponse({
+        ok: true,
+        message: "Durian Winkin Dual-Sheet Relational API is ready!",
+        userSpreadsheetId: USER_SPREADSHEET_ID,
+        thureanSpreadsheetId: THUREAN_SPREADSHEET_ID,
+      });
     }
     if (action === "getAll") {
       return jsonResponse({ ok: true, data: readAllDatabase() });
@@ -287,7 +283,15 @@ function doPost(e) {
       case "createUser":
         return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.USERS, payload) });
       case "updateUser":
-        return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.USERS, "id", payload.id, payload) });
+        return jsonResponse({
+          ok: true,
+          data: updateRowById(
+            SHEET_NAMES.USERS,
+            "userId",
+            payload.userId || payload.id,
+            payload
+          ),
+        });
       default:
         return jsonResponse({ ok: false, error: "Unknown POST action: " + action });
     }
@@ -307,7 +311,7 @@ function jsonResponse(obj) {
 }
 
 function getSheetOrInit(name) {
-  const ss = getTargetSpreadsheet();
+  const ss = getTargetSpreadsheetForSheet(name);
   let sheet = ss.getSheetByName(name);
   if (!sheet) {
     setupDurianWinkinSheets();
@@ -328,6 +332,10 @@ function readSheetObjects(sheetName) {
     });
     return obj;
   });
+}
+
+function cleanDigits(val) {
+  return String(val || "").replace(/[^\d]/g, "");
 }
 
 function readAllDatabase() {
@@ -372,6 +380,31 @@ function readAllDatabase() {
     totalQuota: Number(r.totalQuota) || 0,
   }));
 
+  // 1. Read Users from USER Sheet
+  const rawUsers = readSheetObjects(SHEET_NAMES.USERS);
+  const users = rawUsers.map((u) => {
+    const idVal = String(u.userId || u.id || "");
+    return {
+      id: idVal,
+      userId: idVal,
+      username: String(u.username || (u.lineUserId ? `line_${u.lineUserId}` : idVal)),
+      lineUserId: u.lineUserId ? String(u.lineUserId) : undefined,
+      displayName: u.displayName ? String(u.displayName) : undefined,
+      firstName: String(u.firstName || ""),
+      lastName: String(u.lastName || ""),
+      phone: String(u.phone || ""),
+      address: String(u.address || ""),
+      postalCode: String(u.postalCode || ""),
+      avatarUrl: u.avatarUrl ? String(u.avatarUrl) : undefined,
+      role: String(u.role || "user"),
+      source: u.source ? String(u.source) : undefined,
+      notes: u.notes ? String(u.notes) : undefined,
+      createdAt: String(u.createdAt || ""),
+      updatedAt: String(u.updatedAt || ""),
+    };
+  });
+
+  // 2. Read Orders from THUREAN Sheet and JOIN with Users
   const rawOrders = readSheetObjects(SHEET_NAMES.ORDERS);
   const orders = rawOrders.map((o) => {
     let items = [];
@@ -380,14 +413,26 @@ function readAllDatabase() {
     } catch (e) {
       items = [];
     }
+
+    // Relational Join to Users sheet
+    const orderPhoneClean = cleanDigits(o.phone);
+    const matchedUser = users.find(
+      (u) =>
+        (o.userId && (u.id === String(o.userId) || u.userId === String(o.userId))) ||
+        (o.lineUserId && u.lineUserId === String(o.lineUserId)) ||
+        (orderPhoneClean && u.phone && cleanDigits(u.phone) === orderPhoneClean)
+    );
+    const userId = o.userId ? String(o.userId) : (matchedUser ? matchedUser.id : undefined);
+
     return {
       id: String(o.id),
       createdAt: String(o.createdAt),
       roundId: String(o.roundId),
+      userId: userId,
       customerName: String(o.customerName),
       phone: String(o.phone),
       address: String(o.address || ""),
-      lineUserId: o.lineUserId ? String(o.lineUserId) : undefined,
+      lineUserId: o.lineUserId ? String(o.lineUserId) : (matchedUser ? matchedUser.lineUserId : undefined),
       ripenessPref: o.ripenessPref ? String(o.ripenessPref) : undefined,
       items: items,
       totalPrice: Number(o.totalPrice) || 0,
@@ -400,6 +445,51 @@ function readAllDatabase() {
       slipUrl: o.slipUrl ? String(o.slipUrl) : undefined,
       lotId: o.lotId ? String(o.lotId) : undefined,
       notes: o.notes ? String(o.notes) : undefined,
+    };
+  });
+
+  // 3. Read Claims and JOIN with Orders & Users
+  const rawClaims = readSheetObjects(SHEET_NAMES.CLAIMS);
+  const claims = rawClaims.map((c) => {
+    const claimPhoneClean = cleanDigits(c.phone);
+    const matchedOrder = orders.find((o) => o.id === String(c.orderId));
+    const matchedUser = users.find(
+      (u) =>
+        (c.userId && (u.id === String(c.userId) || u.userId === String(c.userId))) ||
+        (claimPhoneClean && u.phone && cleanDigits(u.phone) === claimPhoneClean)
+    );
+    const userId = c.userId
+      ? String(c.userId)
+      : (matchedOrder?.userId || matchedUser?.id || undefined);
+
+    return {
+      claimId: String(c.claimId),
+      createdAt: String(c.createdAt),
+      orderId: String(c.orderId),
+      userId: userId,
+      phone: String(c.phone),
+      reason: String(c.reason),
+      description: String(c.description || ""),
+      evidenceName: c.evidenceName ? String(c.evidenceName) : undefined,
+      status: String(c.status || "pending"),
+      resolutionNote: c.resolutionNote ? String(c.resolutionNote) : undefined,
+      lotId: c.lotId ? String(c.lotId) : undefined,
+    };
+  });
+
+  // 4. Calculate Aggregate Stats on Users (Order count & total spent)
+  const usersWithStats = users.map((u) => {
+    const userOrders = orders.filter(
+      (o) =>
+        (o.userId && (o.userId === u.id || o.userId === u.userId)) ||
+        (u.lineUserId && o.lineUserId === u.lineUserId) ||
+        (u.phone && cleanDigits(u.phone) === cleanDigits(o.phone))
+    );
+    const totalSpent = userOrders.reduce((sum, o) => sum + (Number(o.totalPrice) || 0) + (Number(o.shippingCost) || 0), 0);
+    return {
+      ...u,
+      orderCount: userOrders.length,
+      totalSpent: totalSpent,
     };
   });
 
@@ -419,20 +509,6 @@ function readAllDatabase() {
     notes: l.notes ? String(l.notes) : undefined,
   }));
 
-  const rawClaims = readSheetObjects(SHEET_NAMES.CLAIMS);
-  const claims = rawClaims.map((c) => ({
-    claimId: String(c.claimId),
-    createdAt: String(c.createdAt),
-    orderId: String(c.orderId),
-    phone: String(c.phone),
-    reason: String(c.reason),
-    description: String(c.description || ""),
-    evidenceName: c.evidenceName ? String(c.evidenceName) : undefined,
-    status: String(c.status || "pending"),
-    resolutionNote: c.resolutionNote ? String(c.resolutionNote) : undefined,
-    lotId: c.lotId ? String(c.lotId) : undefined,
-  }));
-
   const rawPromos = readSheetObjects(SHEET_NAMES.PROMOTIONS);
   const promotions = rawPromos.map((pr) => ({
     id: String(pr.id),
@@ -444,27 +520,15 @@ function readAllDatabase() {
     isActive: pr.isActive === true || String(pr.isActive).toUpperCase() === "TRUE",
   }));
 
-  const rawUsers = readSheetObjects(SHEET_NAMES.USERS);
-  const users = rawUsers.map((u) => ({
-    id: String(u.id),
-    username: String(u.username || u.lineUserId || u.displayName || u.id),
-    lineUserId: u.lineUserId ? String(u.lineUserId) : undefined,
-    displayName: u.displayName ? String(u.displayName) : undefined,
-    passwordHash: String(u.passwordHash || ""),
-    firstName: String(u.firstName || ""),
-    lastName: String(u.lastName || ""),
-    phone: String(u.phone || ""),
-    address: String(u.address || ""),
-    postalCode: String(u.postalCode || ""),
-    avatarUrl: u.avatarUrl ? String(u.avatarUrl) : undefined,
-    role: String(u.role || "user"),
-    source: u.source ? String(u.source) : undefined,
-    notes: u.notes ? String(u.notes) : undefined,
-    createdAt: String(u.createdAt || ""),
-    updatedAt: String(u.updatedAt || ""),
-  }));
-
-  return { products, rounds, orders, lots, claims, promotions, users };
+  return {
+    products,
+    rounds,
+    orders,
+    lots,
+    claims,
+    promotions,
+    users: usersWithStats,
+  };
 }
 
 function appendObjectRow(sheetName, obj) {
@@ -481,6 +545,7 @@ function createOrderRow(order) {
     id: order.id,
     createdAt: order.createdAt,
     roundId: order.roundId,
+    userId: order.userId || "",
     customerName: order.customerName,
     phone: "'" + String(order.phone || ""),
     address: order.address || "",
@@ -495,11 +560,12 @@ function createOrderRow(order) {
     paymentStatus: order.paymentStatus || "pending",
     orderStatus: order.orderStatus || "received",
     trackingNo: order.trackingNo || "",
-    courier: order.courier || "",
-    slipUrl: order.slipUrl || "",
     lotId: order.lotId || "",
     notes: order.notes || "",
+    courier: order.courier || "",
+    slipUrl: order.slipUrl || "",
   };
+
   appendObjectRow(SHEET_NAMES.ORDERS, flat);
 
   // ตัดโควต้ารอบส่ง + ตัดสต็อก กก./กล่อง ของสินค้า
@@ -542,105 +608,112 @@ function createProductRow(product) {
     name: product.name,
     variety: product.variety,
     type: product.type,
-    ripeness: product.ripeness,
-    weight: product.weight,
     price: Number(product.price) || 0,
     marketPrice: product.marketPrice || "",
     unit: product.unit,
+    isAvailable: product.isAvailable === true,
+    stockQty: product.stockQty || "",
+    stockKg: product.stockKg || "",
+    stockUnit: product.stockUnit || (product.type === "flesh" ? "qty" : "kg"),
+    avgWeightKg: product.avgWeightKg || "",
+    ripeness: product.ripeness,
+    weight: product.weight,
     origin: product.origin,
     brix: product.brix,
     image: product.image,
     badge: product.badge || "",
-    isAvailable: Boolean(product.isAvailable),
     description: product.description,
-    maturity: (product.specs && product.specs.maturity) || "",
-    texture: (product.specs && product.specs.texture) || "",
-    flavor: (product.specs && product.specs.flavor) || "",
-    stockUnit: product.stockUnit || (product.type === "flesh" ? "qty" : "kg"),
-    stockKg: product.stockKg !== undefined ? product.stockKg : "",
-    avgWeightKg: product.avgWeightKg !== undefined ? product.avgWeightKg : "",
-    stockQty: product.stockQty !== undefined ? product.stockQty : "",
+    maturity: product.specs ? product.specs.maturity : "",
+    texture: product.specs ? product.specs.texture : "",
+    flavor: product.specs ? product.specs.flavor : "",
   };
-  appendObjectRow(SHEET_NAMES.PRODUCTS, flat);
-  return product;
+  return appendObjectRow(SHEET_NAMES.PRODUCTS, flat);
 }
 
 function createRoundRow(round) {
-  return appendObjectRow(SHEET_NAMES.ROUNDS, round);
+  const flat = {
+    id: round.id,
+    name: round.name,
+    truckRoute: round.truckRoute,
+    harvestDate: round.harvestDate,
+    closeDate: round.closeDate,
+    deliveryDate: round.deliveryDate,
+    status: round.status || "open",
+    quotaRemaining: Number(round.quotaRemaining) || 0,
+    totalQuota: Number(round.totalQuota) || 0,
+  };
+  return appendObjectRow(SHEET_NAMES.ROUNDS, flat);
 }
 
-function updateRowById(sheetName, idKey, idValue, updates) {
+function updateRowById(sheetName, idColName, idValue, updates) {
   const sheet = getSheetOrInit(sheetName);
   const data = sheet.getDataRange().getValues();
   if (data.length <= 1) return null;
   const headers = data[0];
-  const idIdx = headers.indexOf(idKey);
+  let idIdx = headers.indexOf(idColName);
+  if (idIdx === -1 && idColName === "userId") {
+    idIdx = headers.indexOf("id");
+  }
   if (idIdx === -1) return null;
 
   for (let r = 1; r < data.length; r++) {
     if (String(data[r][idIdx]) === String(idValue)) {
-      const flatUpdates = Object.assign({}, updates);
-      if (updates.specs) {
-        flatUpdates.maturity = updates.specs.maturity;
-        flatUpdates.texture = updates.specs.texture;
-        flatUpdates.flavor = updates.specs.flavor;
-      }
-      if (updates.items) {
-        flatUpdates.itemsJson = JSON.stringify(updates.items);
-        flatUpdates.itemSummary = updates.items.map((it) => `${it.productName} x${it.qty}`).join(", ");
-      }
       headers.forEach((h, c) => {
-        if (flatUpdates[h] !== undefined && h !== idKey) {
-          sheet.getRange(r + 1, c + 1).setValue(flatUpdates[h]);
+        if (updates[h] !== undefined) {
+          let val = updates[h];
+          if (h === "phone") val = "'" + String(val);
+          sheet.getRange(r + 1, c + 1).setValue(val);
         }
       });
-      return true;
+      return updates;
     }
   }
-  return false;
+  return null;
 }
 
-function syncSeedData(db) {
-  setupDurianWinkinSheets();
-  const current = readAllDatabase();
-  let added = 0;
-
-  if (current.products.length === 0 && Array.isArray(db.products)) {
-    db.products.forEach((p) => {
+function syncSeedData(seed) {
+  let count = 0;
+  if (seed.products) {
+    seed.products.forEach((p) => {
       createProductRow(p);
-      added++;
+      count++;
     });
   }
-  if (current.rounds.length === 0 && Array.isArray(db.rounds)) {
-    db.rounds.forEach((r) => {
+  if (seed.rounds) {
+    seed.rounds.forEach((r) => {
       createRoundRow(r);
-      added++;
+      count++;
     });
   }
-  if (current.orders.length === 0 && Array.isArray(db.orders)) {
-    db.orders.forEach((o) => {
+  if (seed.orders) {
+    seed.orders.forEach((o) => {
       createOrderRow(o);
-      added++;
+      count++;
     });
   }
-  if (current.lots.length === 0 && Array.isArray(db.lots)) {
-    db.lots.forEach((l) => {
+  if (seed.lots) {
+    seed.lots.forEach((l) => {
       appendObjectRow(SHEET_NAMES.LOTS, l);
-      added++;
+      count++;
     });
   }
-  if (current.claims.length === 0 && Array.isArray(db.claims)) {
-    db.claims.forEach((c) => {
+  if (seed.claims) {
+    seed.claims.forEach((c) => {
       appendObjectRow(SHEET_NAMES.CLAIMS, c);
-      added++;
+      count++;
     });
   }
-  if (current.promotions.length === 0 && Array.isArray(db.promotions)) {
-    db.promotions.forEach((pr) => {
+  if (seed.promotions) {
+    seed.promotions.forEach((pr) => {
       appendObjectRow(SHEET_NAMES.PROMOTIONS, pr);
-      added++;
+      count++;
     });
   }
-
-  return { syncedItems: added };
+  if (seed.users) {
+    seed.users.forEach((u) => {
+      appendObjectRow(SHEET_NAMES.USERS, u);
+      count++;
+    });
+  }
+  return { syncedItems: count };
 }

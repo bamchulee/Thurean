@@ -19,6 +19,7 @@ import { resolveCourierInfo } from "./courier";
 import type { Claim, Order, OrderItem } from "../types/durian";
 
 export interface SubmitOrderInput {
+  userId?: string;
   customerName?: string;
   phone?: string;
   address?: string;
@@ -106,10 +107,29 @@ export async function submitNewOrder(
     data.rounds.find((r) => r.status === "open") ||
     data.rounds[0];
 
+  // 1. Ensure user is registered/upserted in Users table and retrieve their userId
+  let finalUserId = body.userId?.trim();
+  try {
+    const user = await upsertLineUser({
+      lineUserId: body.lineUserId?.trim(),
+      customerName: body.customerName.trim(),
+      phone: body.phone.trim(),
+      address: body.address.trim(),
+      source: body.lineUserId ? "line-chat" : "web",
+      notes: "ลูกค้าสั่งซื้อทุเรียน",
+    });
+    if (user && user.id) {
+      finalUserId = user.id;
+    }
+  } catch (err) {
+    console.warn("Auto-sync user from order failed:", err);
+  }
+
   const newOrder: Order = {
     id: `WK-${Math.floor(1000 + Math.random() * 9000)}`,
     createdAt: new Date().toISOString(),
     roundId: activeRound?.id || "WK-ROUND-46",
+    userId: finalUserId,
     customerName: body.customerName.trim(),
     phone: body.phone.trim(),
     address: body.address.trim(),
@@ -134,20 +154,6 @@ export async function submitNewOrder(
 
   const created = await createOrderRecord(newOrder);
 
-  // Auto-sync customer to Users table (Google Sheet Users tab)
-  try {
-    await upsertLineUser({
-      lineUserId: newOrder.lineUserId,
-      customerName: newOrder.customerName,
-      phone: newOrder.phone,
-      address: newOrder.address,
-      source: newOrder.lineUserId ? "line-chat" : "web",
-      notes: `ออเดอร์ ${newOrder.id} (${newOrder.shippingMethod})`,
-    });
-  } catch (err) {
-    console.warn("Auto-sync user from order failed:", err);
-  }
-
   const cfg = getRuntimeConfig();
   if (cfg.lineChannelAccessToken && cfg.lineAdminUserId) {
     const messages = buildOrderAlertForAdmin(created);
@@ -171,6 +177,7 @@ export async function submitNewOrder(
 
 export interface SubmitClaimInput {
   orderId?: string;
+  userId?: string;
   phone?: string;
   reason?: string;
   description?: string;
@@ -202,6 +209,7 @@ export async function submitNewClaim(
     claimId: `CLM-${Math.floor(10000 + Math.random() * 89999)}`,
     createdAt: new Date().toISOString(),
     orderId: orderIdClean,
+    userId: body.userId?.trim() || matchedOrder?.userId || undefined,
     phone: body.phone.trim(),
     reason: body.reason.trim(),
     description: body.description?.trim() || "",
