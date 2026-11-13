@@ -76,7 +76,9 @@ export function getRuntimeConfig(): RuntimeConfig {
     lineLoginChannelId:
       process.env.LINE_LOGIN_CHANNEL_ID || fileConfig.lineLoginChannelId || "2012605985",
     lineLoginChannelSecret:
-      process.env.LINE_LOGIN_CHANNEL_SECRET || fileConfig.lineLoginChannelSecret || "",
+      process.env.LINE_LOGIN_CHANNEL_SECRET ||
+      fileConfig.lineLoginChannelSecret ||
+      "fb9820565092fab2f74ab9a24a43151a",
     adminPin: process.env.ADMIN_PIN || fileConfig.adminPin || "2824",
     publicBaseUrl:
       process.env.NEXT_PUBLIC_BASE_URL || fileConfig.publicBaseUrl || vercelFallbackUrl,
