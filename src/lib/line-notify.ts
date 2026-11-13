@@ -449,41 +449,296 @@ export function buildWelcomeFlex(round?: Round): unknown[] {
 export function buildStockOverviewMessages(
   round: Round | undefined,
   products: Product[],
-  mode: "stock" | "order" = "stock"
+  mode: "stock" | "order" = "stock",
+  publicBaseUrl?: string
 ): unknown[] {
-  const availableProducts = products.filter((p) => {
+  // กรองเฉพาะรายการที่เปิดใช้งาน (isActive !== 0)
+  const activeProducts = products.filter(
+    (p) => p.isActive !== 0 && (p.isActive as any) !== "0" && p.isActive !== false
+  );
+
+  const availableProducts = activeProducts.filter((p) => {
     const info = formatProductStock(p);
     return p.isAvailable && !info.isOutOfStock;
   });
-  const totalKg = products.reduce(
+
+  const totalKg = activeProducts.reduce(
     (sum, p) => sum + (p.stockUnit === "kg" && typeof p.stockKg === "number" ? p.stockKg : 0),
     0
   );
   const isClosed = round?.status === "closed" || (round?.quotaRemaining ?? 1) <= 0;
+  const isLowQuota = !isClosed && (round?.quotaRemaining ?? 0) <= 5 && (round?.quotaRemaining ?? 0) > 0;
+  const statusColor = isClosed ? "#DC2626" : isLowQuota ? "#D97706" : "#15803D";
+  const statusText = isClosed ? "🔴 ปิดรับรอบส่งแล้ว" : isLowQuota ? "🟠 โควต้าใกล้เต็ม" : "🟢 กำลังเปิดรับออเดอร์";
 
-  const stockLines = products.map((p) => {
+  // สร้างแถวรายการสต็อกย่อสำหรับใส่ในการ์ด Dashboard
+  const miniStockRows = activeProducts.slice(0, 6).map((p) => {
     const st = formatProductStock(p);
-    return `• ${p.variety} (${p.badge || p.weight}): ${st.summary} | ฿${p.price.toLocaleString()}/${p.unit}`;
+    const isOut = p.isAvailable === false || st.isOutOfStock;
+    return {
+      type: "box",
+      layout: "horizontal",
+      alignItems: "center",
+      contents: [
+        {
+          type: "text",
+          text: isOut ? "⚪" : st.isLowStock ? "🟠" : "🟢",
+          size: "xxs",
+          flex: 1,
+        },
+        {
+          type: "text",
+          text: p.name,
+          size: "xxs",
+          color: isOut ? "#9CA3AF" : "#1F2937",
+          weight: "bold",
+          flex: 6,
+          wrap: false,
+        },
+        {
+          type: "text",
+          text: isOut ? "หมดรอบนี้" : st.summary,
+          size: "xxs",
+          color: isOut ? "#EF4444" : st.isLowStock ? "#D97706" : "#059669",
+          weight: "bold",
+          align: "end",
+          flex: 4,
+        },
+      ],
+    };
   });
 
-  const summaryText = [
-    `📦 สต็อกทุเรียนจริงหน้าสวน — ${shopInfo.name}`,
-    round
-      ? `🚚 รอบส่ง: ${round.name}\n📅 ตัดสด: ${round.harvestDate} | ถึงบ้าน: ${round.deliveryDate}\n⚖️ ทุเรียนทั้งลูกรวม: ${totalKg.toFixed(1)} กก. • โควต้าจัดส่ง: ${round.quotaRemaining}/${round.totalQuota} กล่อง`
-      : `⚖️ สต็อกรวมพร้อมขาย: ${availableProducts.length} รายการ`,
-    stockLines.join("\n"),
-    mode === "order"
-      ? "👇 เลือกรายการที่ต้องการ แล้วกดปุ่ม \"สั่งรายการนี้\" ได้เลย (ระบบจะส่ง QR พร้อมเพย์ให้สแกนครับ)"
-      : "👇 กดปุ่ม \"สั่งรายการนี้\" ในการ์ดเพื่อสั่งจองทันทีครับ",
-  ].join("\n\n");
+  // การ์ดที่ 1: สรุปสต็อกและรอบจัดส่งแบบ Dashboard กราฟิกหรูหรา (แทน Plain Text เดิม)
+  const overviewBubble = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#11301F",
+      paddingAll: "lg",
+      contents: [
+        {
+          type: "box",
+          layout: "horizontal",
+          alignItems: "center",
+          contents: [
+            {
+              type: "text",
+              text: "🍈 สต็อกสดหน้าสวน",
+              color: "#FDE047",
+              weight: "bold",
+              size: "sm",
+              flex: 4,
+            },
+            {
+              type: "text",
+              text: statusText,
+              color: "#FFFFFF",
+              size: "xxs",
+              weight: "bold",
+              align: "end",
+              flex: 4,
+            },
+          ],
+        },
+        {
+          type: "text",
+          text: `${shopInfo.name} — คัดแก่จัด 85%+ วิ่งตรงถึงบ้านคุณ`,
+          color: "#E7E5E4",
+          size: "xs",
+          margin: "xs",
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      paddingAll: "lg",
+      contents: [
+        // Round info banner
+        {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#F0FDF4",
+          cornerRadius: "md",
+          paddingAll: "md",
+          borderColor: "#BBF7D0",
+          borderWidth: "1px",
+          contents: [
+            {
+              type: "text",
+              text: `🚚 รอบส่ง: ${round?.name || "รอบจัดส่งปัจจุบัน"}`,
+              weight: "bold",
+              size: "xs",
+              color: "#166534",
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              margin: "sm",
+              contents: [
+                {
+                  type: "text",
+                  text: `✂️ ตัดสด: ${round?.harvestDate || "ตามคิว"}`,
+                  size: "xxs",
+                  color: "#374151",
+                  flex: 1,
+                },
+                {
+                  type: "text",
+                  text: `🏡 ส่งถึงบ้าน: ${round?.deliveryDate || "1-2 วัน"}`,
+                  size: "xxs",
+                  color: "#374151",
+                  align: "end",
+                  flex: 1,
+                },
+              ],
+            },
+          ],
+        },
+        // 3-column stats metrics
+        {
+          type: "box",
+          layout: "horizontal",
+          spacing: "xs",
+          contents: [
+            {
+              type: "box",
+              layout: "vertical",
+              backgroundColor: "#FEF3C7",
+              cornerRadius: "md",
+              paddingAll: "sm",
+              alignItems: "center",
+              flex: 1,
+              contents: [
+                { type: "text", text: "สต็อกรวม", size: "xxs", color: "#92400E" },
+                {
+                  type: "text",
+                  text: `${totalKg.toFixed(1)} กก.`,
+                  size: "xs",
+                  weight: "bold",
+                  color: "#78350F",
+                  margin: "xs",
+                },
+              ],
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              backgroundColor: "#ECFDF5",
+              cornerRadius: "md",
+              paddingAll: "sm",
+              alignItems: "center",
+              flex: 1,
+              contents: [
+                { type: "text", text: "โควต้ากล่อง", size: "xxs", color: "#065F46" },
+                {
+                  type: "text",
+                  text: `${round?.quotaRemaining ?? 0}/${round?.totalQuota ?? 0}`,
+                  size: "xs",
+                  weight: "bold",
+                  color: "#047857",
+                  margin: "xs",
+                },
+              ],
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              backgroundColor: "#EFF6FF",
+              cornerRadius: "md",
+              paddingAll: "sm",
+              alignItems: "center",
+              flex: 1,
+              contents: [
+                { type: "text", text: "พร้อมส่ง", size: "xxs", color: "#1E40AF" },
+                {
+                  type: "text",
+                  text: `${availableProducts.length} ชนิด`,
+                  size: "xs",
+                  weight: "bold",
+                  color: "#1D4ED8",
+                  margin: "xs",
+                },
+              ],
+            },
+          ],
+        },
+        // Mini checklist
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          contents: [
+            {
+              type: "text",
+              text: "📋 สรุปสต็อกคงเหลือแต่ละสายพันธุ์:",
+              weight: "bold",
+              size: "xs",
+              color: "#1C1917",
+            },
+            ...miniStockRows,
+          ],
+        },
+        {
+          type: "text",
+          text: "👉 เลื่อนดูการ์ดรูปภาพทุเรียนจริงด้านล่าง แล้วกด \"สั่งรายการนี้\" ได้เลยครับ",
+          size: "xxs",
+          weight: "bold",
+          color: "#B45309",
+          align: "center",
+          margin: "xs",
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "horizontal",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#1B4D31",
+          height: "sm",
+          flex: 1,
+          action: {
+            type: "message",
+            label: "🛒 สั่งซื้อทุเรียน",
+            text: "สั่งซื้อ",
+          },
+        },
+        ...(publicBaseUrl
+          ? [
+              {
+                type: "button",
+                style: "secondary",
+                height: "sm",
+                flex: 1,
+                action: {
+                  type: "uri",
+                  label: "🌐 ดูหน้าร้านเว็บ",
+                  uri: publicBaseUrl,
+                },
+              },
+            ]
+          : []),
+      ],
+    },
+  };
 
-  const sorted = [...products]
+  // การ์ดสินค้าแต่ละตัวใน Carousel
+  const sorted = [...activeProducts]
     .sort((a, b) => Number(b.isAvailable) - Number(a.isAvailable))
     .slice(0, 10);
 
   const bubbles = sorted.map((p) => {
     const stockInfo = formatProductStock(p);
     const canBuy = p.isAvailable && !stockInfo.isOutOfStock && !isClosed;
+    const isLow = stockInfo.isLowStock;
+    const isOut = p.isAvailable === false || stockInfo.isOutOfStock;
 
     return {
       type: "bubble",
@@ -499,15 +754,33 @@ export function buildStockOverviewMessages(
         type: "box",
         layout: "vertical",
         spacing: "xs",
+        paddingAll: "md",
         contents: [
+          // Header tag row
           {
-            type: "text",
-            text: canBuy ? `${p.variety} • ${stockInfo.summary}` : `${p.variety} • หมดชั่วคราว`,
-            size: "xxs",
-            weight: "bold",
-            color: canBuy ? (stockInfo.isLowStock ? "#B45309" : "#15803D") : "#B91C1C",
-            wrap: true,
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "text",
+                text: `${p.variety}`,
+                size: "xxs",
+                weight: "bold",
+                color: "#15803D",
+                flex: 1,
+              },
+              {
+                type: "text",
+                text: p.badge || (p.type === "flesh" ? "เนื้อล้วน" : "ทั้งลูก"),
+                size: "xxs",
+                weight: "bold",
+                color: "#B45309",
+                align: "end",
+                flex: 1,
+              },
+            ],
           },
+          // Product name
           {
             type: "text",
             text: p.name,
@@ -517,26 +790,55 @@ export function buildStockOverviewMessages(
             maxLines: 2,
             color: "#1C1917",
           },
+          // Price
           {
             type: "text",
-            text: `฿${p.price.toLocaleString()} / ${p.unit} • ${p.weight}`,
+            text: `฿${p.price.toLocaleString()} / ${p.unit}`,
             weight: "bold",
-            size: "sm",
+            size: "md",
             color: "#B45309",
+          },
+          // Stock badge pill
+          {
+            type: "box",
+            layout: "horizontal",
+            backgroundColor: isOut ? "#F3F4F6" : isLow ? "#FEF3C7" : "#DCFCE7",
+            cornerRadius: "md",
+            paddingHorizontal: "sm",
+            paddingVertical: "xs",
+            alignItems: "center",
+            contents: [
+              {
+                type: "text",
+                text: isOut ? "⚪ หมดชั่วคราวรอบนี้" : isLow ? `🟠 ด่วน! ${stockInfo.summary}` : `🟢 ${stockInfo.summary}`,
+                size: "xxs",
+                weight: "bold",
+                color: isOut ? "#6B7280" : isLow ? "#92400E" : "#166534",
+              },
+            ],
+          },
+          // Spec line
+          {
+            type: "text",
+            text: `⚖️ ${p.weight} • 🍯 ${p.brix || "32°+ Brix"}`,
+            size: "xxs",
+            color: "#57534E",
+            wrap: true,
+            margin: "xs",
           },
           {
             type: "text",
-            text: `${p.specs?.maturity || ""} • ${p.brix}`.replace(/^ • /, ""),
-            size: "xs",
-            color: "#57534E",
+            text: `🥑 ${p.specs?.texture || p.ripeness || "กรอบนอกนุ่มใน"}`,
+            size: "xxs",
+            color: "#059669",
             wrap: true,
-            maxLines: 2,
           },
         ],
       },
       footer: {
         type: "box",
         layout: "vertical",
+        paddingAll: "md",
         contents: [
           canBuy
             ? {
@@ -546,7 +848,7 @@ export function buildStockOverviewMessages(
                 height: "sm",
                 action: {
                   type: "postback",
-                  label: `สั่งรายการนี้ (฿${p.price})`,
+                  label: `🍈 สั่งรายการนี้ (฿${p.price.toLocaleString()})`,
                   data: `action=order_pick&productId=${encodeURIComponent(p.id)}`,
                   displayText: `เลือกสั่ง ${p.name}`,
                 },
@@ -567,10 +869,14 @@ export function buildStockOverviewMessages(
   });
 
   return [
-    { type: "text", text: summaryText },
     {
       type: "flex",
-      altText: `เมนูและสต็อกทุเรียน ${shopInfo.name}`,
+      altText: `📦 รายงานสต็อกทุเรียนสดหน้าสวน — ${shopInfo.name}`,
+      contents: overviewBubble,
+    },
+    {
+      type: "flex",
+      altText: `🍈 รายการทุเรียนพร้อมส่ง — ${shopInfo.name}`,
       quickReply: buildMainQuickReply(),
       contents: {
         type: "carousel",

@@ -178,7 +178,8 @@ export async function POST(req: NextRequest) {
             buildStockOverviewMessages(
               activeRound,
               data.products,
-              action === "order" ? "order" : "stock"
+              action === "order" ? "order" : "stock",
+              publicBaseUrl
             ),
             token
           );
@@ -467,7 +468,8 @@ export async function POST(req: NextRequest) {
               buildStockOverviewMessages(
                 activeRound,
                 data.products,
-                isOrderMenuCmd ? "order" : "stock"
+                isOrderMenuCmd ? "order" : "stock",
+                publicBaseUrl
               ),
               token
             );
