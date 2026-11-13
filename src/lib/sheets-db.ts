@@ -72,7 +72,7 @@ export function getRuntimeConfig(): RuntimeConfig {
     lineAdminUserId:
       process.env.LINE_ADMIN_USER_ID || fileConfig.lineAdminUserId || "",
     lineLiffId:
-      process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "",
+      process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "2012605985-l0IfXrhJ",
     lineLoginChannelId:
       process.env.LINE_LOGIN_CHANNEL_ID || fileConfig.lineLoginChannelId || "2012605985",
     lineLoginChannelSecret:

@@ -27,7 +27,8 @@ export function useLiff(liffId?: string) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    const resolvedId = liffId || process.env.NEXT_PUBLIC_LINE_LIFF_ID || "";
+    const resolvedId =
+      liffId || process.env.NEXT_PUBLIC_LINE_LIFF_ID || "2012605985-l0IfXrhJ";
     if (!resolvedId || typeof window === "undefined") return;
 
     let cancelled = false;
