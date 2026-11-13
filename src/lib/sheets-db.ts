@@ -361,13 +361,28 @@ function applyDatabaseJoins(db: DatabaseState): DatabaseState {
 }
 
 // ============================================================
-// Public Unified CRUD Operations
+// Public Unified CRUD Operations & In-Memory Fast Cache
 // ============================================================
-export async function getAllDatabase(): Promise<{
+let memoryCache: {
+  data: DatabaseState;
+  source: "google-sheets" | "local";
+  timestamp: number;
+} | null = null;
+const CACHE_TTL_MS = 25_000; // 25 seconds TTL for sub-second responses
+
+export function invalidateDatabaseCache() {
+  memoryCache = null;
+}
+
+export async function getAllDatabase(forceRefresh = false): Promise<{
   data: DatabaseState;
   source: "google-sheets" | "local";
   warning?: string;
 }> {
+  if (!forceRefresh && memoryCache && Date.now() - memoryCache.timestamp < CACHE_TTL_MS) {
+    return { data: memoryCache.data, source: memoryCache.source };
+  }
+
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     try {
@@ -375,11 +390,18 @@ export async function getAllDatabase(): Promise<{
         cfg.googleSheetsWebAppUrl,
         "getAll"
       );
-      return { data: applyDatabaseJoins(sheetData), source: "google-sheets" };
+      const joined = applyDatabaseJoins(sheetData);
+      memoryCache = {
+        data: joined,
+        source: "google-sheets",
+        timestamp: Date.now(),
+      };
+      return { data: joined, source: "google-sheets" };
     } catch (err) {
       // Fallback to local if sheet endpoint fails temporarily
+      const localJoined = applyDatabaseJoins(readLocalDb());
       return {
-        data: applyDatabaseJoins(readLocalDb()),
+        data: localJoined,
         source: "local",
         warning: `เชื่อมต่อ Google Sheet ไม่สำเร็จ (${String(err)}) — กำลังแสดงข้อมูลสำรองในเครื่อง`,
       };
@@ -663,18 +685,6 @@ export async function getUserById(id: string): Promise<User | null> {
 }
 
 export async function createUserRecord(user: User): Promise<User> {
-  const cfg = getRuntimeConfig();
-  if (cfg.googleSheetsWebAppUrl) {
-    try {
-      await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createUser", {
-        ...user,
-        userId: user.userId || user.id,
-      });
-    } catch (err) {
-      console.warn("Google Apps Script createUser failed, saved to local cache:", err);
-    }
-  }
-
   const db = readLocalDb();
   if (!Array.isArray(db.users)) db.users = [];
   const existingIdx = db.users.findIndex((u) => u.id === user.id);
@@ -684,6 +694,18 @@ export async function createUserRecord(user: User): Promise<User> {
     db.users.push(user);
   }
   writeLocalDb(db);
+  invalidateDatabaseCache();
+
+  const cfg = getRuntimeConfig();
+  if (cfg.googleSheetsWebAppUrl) {
+    callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createUser", {
+      ...user,
+      userId: user.userId || user.id,
+    }).catch((err) => {
+      console.warn("Google Apps Script createUser failed, saved to local cache:", err);
+    });
+  }
+
   return user;
 }
 
@@ -691,22 +713,10 @@ export async function updateUserRecord(
   id: string,
   updates: Partial<User>
 ): Promise<User | null> {
-  const cfg = getRuntimeConfig();
-  if (cfg.googleSheetsWebAppUrl) {
-    try {
-      await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updateUser", {
-        id,
-        userId: id,
-        ...updates,
-      });
-    } catch (err) {
-      console.warn("Google Apps Script updateUser failed, saved to local cache:", err);
-    }
-  }
-
   const db = readLocalDb();
   if (!Array.isArray(db.users)) db.users = [];
-  const idx = db.users.findIndex((u) => u.id === id);
+  const idx = db.users.findIndex((u) => u.id === id || (u.userId && u.userId === id));
+  let updatedUser: User | null = null;
   if (idx !== -1) {
     db.users[idx] = {
       ...db.users[idx],
@@ -714,9 +724,22 @@ export async function updateUserRecord(
       updatedAt: new Date().toISOString(),
     };
     writeLocalDb(db);
-    return db.users[idx];
+    updatedUser = db.users[idx];
   }
-  return null;
+  invalidateDatabaseCache();
+
+  const cfg = getRuntimeConfig();
+  if (cfg.googleSheetsWebAppUrl) {
+    callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updateUser", {
+      id,
+      userId: id,
+      ...updates,
+    }).catch((err) => {
+      console.warn("Google Apps Script updateUser failed, saved to local cache:", err);
+    });
+  }
+
+  return updatedUser;
 }
 
 export interface UpsertLineUserInput {
@@ -749,8 +772,8 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
   const firstName = nameParts[0] || cleanName;
   const lastName = nameParts.slice(1).join(" ") || "";
 
-  const allUsers = await getAllUsers();
-  const existing = allUsers.find(
+  const dbLocal = readLocalDb();
+  let existing = (dbLocal.users || []).find(
     (u) =>
       (cleanLineId && u.lineUserId === cleanLineId) ||
       (cleanLineId && u.username === `line_${cleanLineId}`) ||
@@ -759,6 +782,19 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
         u.phone &&
         u.phone.replace(/[^\d]/g, "") === cleanPhone.replace(/[^\d]/g, ""))
   );
+
+  if (!existing) {
+    const allUsers = await getAllUsers();
+    existing = allUsers.find(
+      (u) =>
+        (cleanLineId && u.lineUserId === cleanLineId) ||
+        (cleanLineId && u.username === `line_${cleanLineId}`) ||
+        (cleanPhone &&
+          cleanPhone.length >= 9 &&
+          u.phone &&
+          u.phone.replace(/[^\d]/g, "") === cleanPhone.replace(/[^\d]/g, ""))
+    );
+  }
 
   const now = new Date().toISOString();
   const cfg = getRuntimeConfig();

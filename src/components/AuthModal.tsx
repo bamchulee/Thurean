@@ -15,6 +15,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { LineIcon, DurianIcon } from "./Icons";
 import { useLiff } from "../lib/use-liff";
+import { MapLocationPicker } from "./MapLocationPicker";
 
 export function AuthModal() {
   const {
@@ -328,13 +329,23 @@ export function AuthModal() {
                 <label className="block text-xs font-bold text-stone-700 mb-1">
                   ที่อยู่จัดส่งพัสดุละเอียด *
                 </label>
+
+                <div className="mb-2">
+                  <MapLocationPicker
+                    address={address}
+                    postalCode={postalCode}
+                    onAddressChange={(newAddr) => setAddress(newAddr)}
+                    onPostalCodeChange={(newPost) => setPostalCode(newPost)}
+                  />
+                </div>
+
                 <div className="relative">
                   <textarea
                     required
                     rows={2}
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder="บ้านเลขที่, หมู่, ซอย, ถนน, แขวง/ตำบล, เขต/อำเภอ, จังหวัด"
+                    placeholder="บ้านเลขที่, หมู่, ซอย, ถนน, แขวง/ตำบล, เขต/อำเภอ, จังหวัด (หรือกดปุ่มปักหมุดด้านบน)"
                     className="w-full border border-stone-300 rounded-xl pl-9 pr-3.5 py-2.5 text-xs bg-white focus:border-[#06C755] focus:outline-none resize-none"
                   />
                   <MapPin className="w-4 h-4 text-stone-400 absolute left-3 top-3" />

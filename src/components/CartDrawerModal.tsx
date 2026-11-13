@@ -18,6 +18,7 @@ import { useAuth } from "../context/AuthContext";
 import type { Order } from "../types/durian";
 import { OrderSuccessModal } from "./OrderSuccessModal";
 import { LineIcon } from "./Icons";
+import { MapLocationPicker } from "./MapLocationPicker";
 
 export function CartDrawerModal({
   roundId,
@@ -277,12 +278,18 @@ export function CartDrawerModal({
               placeholder="เบอร์โทรศัพท์ * (08X-XXX-XXXX)"
               className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs bg-white focus:border-[#1B4D31] focus:outline-none"
             />
+            <div className="pt-0.5">
+              <MapLocationPicker
+                address={address}
+                onAddressChange={(newAddr) => setAddress(newAddr)}
+              />
+            </div>
             <textarea
               required
               rows={2}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="ที่อยู่จัดส่งละเอียด *"
+              placeholder="ที่อยู่จัดส่งละเอียด * (หรือกดปุ่มปักหมุดด้านบน)"
               className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs bg-white focus:border-[#1B4D31] focus:outline-none resize-none"
             />
 
