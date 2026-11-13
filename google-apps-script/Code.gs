@@ -68,6 +68,7 @@ function setupDurianWinkinSheets() {
         "address",
         "postalCode",
         "avatarUrl",
+        "role",
         "source",
         "notes",
         "createdAt",
