@@ -33,15 +33,31 @@ export async function PATCH(req: NextRequest) {
       return unauthorizedResponse();
     }
 
-    const body = (await req.json()) as { userId?: string; role?: "user" | "admin" };
-    if (!body.userId || !body.role || !["user", "admin"].includes(body.role)) {
+    const body = (await req.json()) as {
+      userId?: string;
+      role?: "user" | "admin";
+      isActive?: number | boolean;
+      notes?: string;
+    };
+    if (!body.userId) {
       return NextResponse.json(
-        { ok: false, error: "กรุณาระบุ userId และ role (user หรือ admin)" },
+        { ok: false, error: "กรุณาระบุ userId" },
         { status: 400 }
       );
     }
 
-    const updated = await updateUserRecord(body.userId, { role: body.role });
+    const updates: Partial<Parameters<typeof updateUserRecord>[1]> = {};
+    if (body.role && ["user", "admin"].includes(body.role)) {
+      updates.role = body.role;
+    }
+    if (body.isActive !== undefined) {
+      updates.isActive = (body.isActive === 0 || (body.isActive as any) === "0" || body.isActive === false) ? 0 : 1;
+    }
+    if (body.notes !== undefined) {
+      updates.notes = body.notes;
+    }
+
+    const updated = await updateUserRecord(body.userId, updates);
     if (!updated) {
       return NextResponse.json(
         { ok: false, error: "ไม่พบข้อมูลผู้ใช้ที่ต้องการอัปเดต" },
@@ -52,7 +68,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       user: toSafeUser(updated),
-      message: `อัปเดตสิทธิ์ของ ${updated.displayName || updated.firstName || updated.username} เป็น ${body.role === "admin" ? "แอดมิน (Admin)" : "ลูกค้า (User)"} เรียบร้อยแล้ว`,
+      message: `อัปเดตข้อมูลผู้ใช้ ${updated.displayName || updated.firstName || updated.username} เรียบร้อยแล้ว`,
     });
   } catch (err) {
     return NextResponse.json(

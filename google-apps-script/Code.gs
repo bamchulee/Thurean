@@ -48,7 +48,8 @@ function getTargetSpreadsheetForSheet(sheetName) {
 }
 
 /**
- * 1-Click Auto Setup: สร้างโครงสร้างแท็บ + สีหัวตาราง + สูตรคำนวณกำไรของทั้ง 2 ชีต
+ * 1-Click Auto Setup / Auto-Migrate: สร้างและปรับโครงสร้างตารางใหม่ทั้งหมด
+ * พร้อมคอลัมน์ Audit Log: createDate, createdBy, isActive (0/1), updatedAt, updatedBy
  */
 function setupDurianWinkinSheets() {
   const userSs = getUserSpreadsheet();
@@ -71,8 +72,11 @@ function setupDurianWinkinSheets() {
         "role",
         "source",
         "notes",
-        "createdAt",
+        "isActive",
+        "createDate",
+        "createdBy",
         "updatedAt",
+        "updatedBy",
       ],
     },
   ];
@@ -104,6 +108,11 @@ function setupDurianWinkinSheets() {
         "maturity",
         "texture",
         "flavor",
+        "isActive",
+        "createDate",
+        "createdBy",
+        "updatedAt",
+        "updatedBy",
       ],
     },
     {
@@ -119,6 +128,11 @@ function setupDurianWinkinSheets() {
         "status",
         "quotaRemaining",
         "totalQuota",
+        "isActive",
+        "createDate",
+        "createdBy",
+        "updatedAt",
+        "updatedBy",
       ],
     },
     {
@@ -126,7 +140,7 @@ function setupDurianWinkinSheets() {
       color: "#166534",
       headers: [
         "id",
-        "createdAt",
+        "createDate",
         "roundId",
         "userId",
         "customerName",
@@ -147,6 +161,10 @@ function setupDurianWinkinSheets() {
         "notes",
         "courier",
         "slipUrl",
+        "isActive",
+        "createdBy",
+        "updatedAt",
+        "updatedBy",
       ],
     },
     {
@@ -165,6 +183,11 @@ function setupDurianWinkinSheets() {
         "packagingCost",
         "truckFuelCost",
         "notes",
+        "isActive",
+        "createDate",
+        "createdBy",
+        "updatedAt",
+        "updatedBy",
       ],
     },
     {
@@ -172,7 +195,7 @@ function setupDurianWinkinSheets() {
       color: "#991b1b",
       headers: [
         "claimId",
-        "createdAt",
+        "createDate",
         "orderId",
         "userId",
         "phone",
@@ -182,6 +205,10 @@ function setupDurianWinkinSheets() {
         "status",
         "resolutionNote",
         "lotId",
+        "isActive",
+        "createdBy",
+        "updatedAt",
+        "updatedBy",
       ],
     },
     {
@@ -195,35 +222,90 @@ function setupDurianWinkinSheets() {
         "conditionText",
         "promoCode",
         "isActive",
+        "createDate",
+        "createdBy",
+        "updatedAt",
+        "updatedBy",
       ],
     },
   ];
 
-  // Setup User Sheet
-  userDefinitions.forEach((def) => {
-    let sheet = userSs.getSheetByName(def.name);
-    if (!sheet) sheet = userSs.insertSheet(def.name);
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(def.headers);
-      const headerRange = sheet.getRange(1, 1, 1, def.headers.length);
-      headerRange.setBackground(def.color).setFontColor("#ffffff").setFontWeight("bold");
-      sheet.setFrozenRows(1);
+  function applyHeadersToSpreadsheet(ss, definitions) {
+    definitions.forEach((def) => {
+      let sheet = ss.getSheetByName(def.name);
+      if (!sheet) sheet = ss.insertSheet(def.name);
+
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(def.headers);
+      } else {
+        // Upgrade existing sheet headers if new columns were added
+        const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        def.headers.forEach((h) => {
+          if (currentHeaders.indexOf(h) === -1) {
+            sheet.getRange(1, sheet.getLastColumn() + 1).setValue(h);
+          }
+        });
+      }
+
+      const totalCols = sheet.getLastColumn();
+      if (totalCols > 0) {
+        const headerRange = sheet.getRange(1, 1, 1, totalCols);
+        headerRange.setBackground(def.color).setFontColor("#ffffff").setFontWeight("bold");
+        sheet.setFrozenRows(1);
+      }
+
+      // Default isActive = 1 for any existing rows that have blank isActive
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        const activeIdx = headers.indexOf("isActive");
+        if (activeIdx !== -1) {
+          const values = sheet.getRange(2, activeIdx + 1, lastRow - 1, 1).getValues();
+          let needsUpdate = false;
+          for (let i = 0; i < values.length; i++) {
+            if (values[i][0] === "" || values[i][0] === undefined || values[i][0] === null) {
+              values[i][0] = 1;
+              needsUpdate = true;
+            }
+          }
+          if (needsUpdate) {
+            sheet.getRange(2, activeIdx + 1, lastRow - 1, 1).setValues(values);
+          }
+        }
+      }
+    });
+  }
+
+  applyHeadersToSpreadsheet(userSs, userDefinitions);
+  applyHeadersToSpreadsheet(thureanSs, thureanDefinitions);
+
+  return "Dual-Sheet Structure Redesigned with Audit Logs (createDate, createdBy, isActive 0/1, updatedAt, updatedBy) Complete!";
+}
+
+/**
+ * ลื้อตารางและสร้างใหม่ทั้งหมด (Wipe and Rebuild)
+ */
+function resetAndRebuildAllSheets() {
+  const userSs = getUserSpreadsheet();
+  const thureanSs = getThureanSpreadsheet();
+
+  // Clear existing data rows except headers
+  const userSheets = userSs.getSheets();
+  userSheets.forEach((s) => {
+    if (s.getLastRow() > 1) {
+      s.deleteRows(2, s.getLastRow() - 1);
     }
   });
 
-  // Setup THUREAN Sheet
-  thureanDefinitions.forEach((def) => {
-    let sheet = thureanSs.getSheetByName(def.name);
-    if (!sheet) sheet = thureanSs.insertSheet(def.name);
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(def.headers);
-      const headerRange = sheet.getRange(1, 1, 1, def.headers.length);
-      headerRange.setBackground(def.color).setFontColor("#ffffff").setFontWeight("bold");
-      sheet.setFrozenRows(1);
+  const thureanSheets = thureanSs.getSheets();
+  thureanSheets.forEach((s) => {
+    if (s.getLastRow() > 1) {
+      s.deleteRows(2, s.getLastRow() - 1);
     }
   });
 
-  return "Dual-Sheet Setup Complete!";
+  setupDurianWinkinSheets();
+  return "Database Overhauled & Reset Cleanly!";
 }
 
 // ============================================================
@@ -241,6 +323,12 @@ function doGet(e) {
         thureanSpreadsheetId: THUREAN_SPREADSHEET_ID,
       });
     }
+    if (action === "setup") {
+      return jsonResponse({ ok: true, message: setupDurianWinkinSheets() });
+    }
+    if (action === "rebuild") {
+      return jsonResponse({ ok: true, message: resetAndRebuildAllSheets() });
+    }
     if (action === "getAll") {
       return jsonResponse({ ok: true, data: readAllDatabase() });
     }
@@ -257,6 +345,10 @@ function doPost(e) {
     const payload = body.payload || {};
 
     switch (action) {
+      case "setupSheets":
+        return jsonResponse({ ok: true, message: setupDurianWinkinSheets() });
+      case "rebuildSheets":
+        return jsonResponse({ ok: true, message: resetAndRebuildAllSheets() });
       case "syncSeed":
         return jsonResponse({ ok: true, data: syncSeedData(payload) });
       case "createOrder":
@@ -374,6 +466,11 @@ function readAllDatabase() {
       texture: String(p.texture || ""),
       flavor: String(p.flavor || ""),
     },
+    isActive: (p.isActive === 0 || p.isActive === "0" || p.isActive === false) ? 0 : 1,
+    createDate: String(p.createDate || p.createdAt || ""),
+    createdBy: String(p.createdBy || "admin"),
+    updatedAt: String(p.updatedAt || ""),
+    updatedBy: String(p.updatedBy || ""),
   }));
 
   const rawRounds = readSheetObjects(SHEET_NAMES.ROUNDS);
@@ -387,6 +484,11 @@ function readAllDatabase() {
     status: String(r.status || "open"),
     quotaRemaining: Number(r.quotaRemaining) || 0,
     totalQuota: Number(r.totalQuota) || 0,
+    isActive: (r.isActive === 0 || r.isActive === "0" || r.isActive === false) ? 0 : 1,
+    createDate: String(r.createDate || r.createdAt || ""),
+    createdBy: String(r.createdBy || "admin"),
+    updatedAt: String(r.updatedAt || ""),
+    updatedBy: String(r.updatedBy || ""),
   }));
 
   // 1. Read Users from USER Sheet
@@ -408,8 +510,12 @@ function readAllDatabase() {
       role: String(u.role || "user"),
       source: u.source ? String(u.source) : undefined,
       notes: u.notes ? String(u.notes) : undefined,
-      createdAt: String(u.createdAt || ""),
+      isActive: (u.isActive === 0 || u.isActive === "0" || u.isActive === false) ? 0 : 1,
+      createDate: String(u.createDate || u.createdAt || ""),
+      createdBy: String(u.createdBy || "system"),
+      createdAt: String(u.createdAt || u.createDate || ""),
       updatedAt: String(u.updatedAt || ""),
+      updatedBy: String(u.updatedBy || ""),
     };
   });
 
@@ -435,7 +541,9 @@ function readAllDatabase() {
 
     return {
       id: String(o.id),
-      createdAt: String(o.createdAt),
+      createdAt: String(o.createdAt || o.createDate || ""),
+      createDate: String(o.createDate || o.createdAt || ""),
+      createdBy: String(o.createdBy || o.userId || "customer"),
       roundId: String(o.roundId),
       userId: userId,
       customerName: String(o.customerName),
@@ -454,6 +562,9 @@ function readAllDatabase() {
       slipUrl: o.slipUrl ? String(o.slipUrl) : undefined,
       lotId: o.lotId ? String(o.lotId) : undefined,
       notes: o.notes ? String(o.notes) : undefined,
+      isActive: (o.isActive === 0 || o.isActive === "0" || o.isActive === false) ? 0 : 1,
+      updatedAt: String(o.updatedAt || ""),
+      updatedBy: String(o.updatedBy || ""),
     };
   });
 
@@ -473,7 +584,9 @@ function readAllDatabase() {
 
     return {
       claimId: String(c.claimId),
-      createdAt: String(c.createdAt),
+      createdAt: String(c.createdAt || c.createDate || ""),
+      createDate: String(c.createDate || c.createdAt || ""),
+      createdBy: String(c.createdBy || c.userId || "customer"),
       orderId: String(c.orderId),
       userId: userId,
       phone: String(c.phone),
@@ -483,6 +596,9 @@ function readAllDatabase() {
       status: String(c.status || "pending"),
       resolutionNote: c.resolutionNote ? String(c.resolutionNote) : undefined,
       lotId: c.lotId ? String(c.lotId) : undefined,
+      isActive: (c.isActive === 0 || c.isActive === "0" || c.isActive === false) ? 0 : 1,
+      updatedAt: String(c.updatedAt || ""),
+      updatedBy: String(c.updatedBy || ""),
     };
   });
 
@@ -516,6 +632,11 @@ function readAllDatabase() {
     packagingCost: Number(l.packagingCost) || 0,
     truckFuelCost: Number(l.truckFuelCost) || 0,
     notes: l.notes ? String(l.notes) : undefined,
+    isActive: (l.isActive === 0 || l.isActive === "0" || l.isActive === false) ? 0 : 1,
+    createDate: String(l.createDate || l.date || ""),
+    createdBy: String(l.createdBy || "admin"),
+    updatedAt: String(l.updatedAt || ""),
+    updatedBy: String(l.updatedBy || ""),
   }));
 
   const rawPromos = readSheetObjects(SHEET_NAMES.PROMOTIONS);
@@ -526,7 +647,11 @@ function readAllDatabase() {
     discountText: String(pr.discountText || ""),
     conditionText: String(pr.conditionText || ""),
     promoCode: pr.promoCode ? String(pr.promoCode) : undefined,
-    isActive: pr.isActive === true || String(pr.isActive).toUpperCase() === "TRUE",
+    isActive: (pr.isActive === 0 || pr.isActive === "0" || pr.isActive === false) ? 0 : 1,
+    createDate: String(pr.createDate || ""),
+    createdBy: String(pr.createdBy || "admin"),
+    updatedAt: String(pr.updatedAt || ""),
+    updatedBy: String(pr.updatedBy || ""),
   }));
 
   return {
@@ -542,17 +667,51 @@ function readAllDatabase() {
 
 function appendObjectRow(sheetName, obj) {
   const sheet = getSheetOrInit(sheetName);
+  const now = new Date().toISOString();
+  const enriched = Object.assign({}, obj);
+
+  if (enriched.isActive === undefined || enriched.isActive === null || enriched.isActive === "") {
+    enriched.isActive = 1;
+  } else {
+    enriched.isActive = (enriched.isActive === 0 || enriched.isActive === "0" || enriched.isActive === false) ? 0 : 1;
+  }
+
+  if (!enriched.createDate && !enriched.createdAt) {
+    enriched.createDate = now;
+    enriched.createdAt = now;
+  } else {
+    enriched.createDate = enriched.createDate || enriched.createdAt;
+    enriched.createdAt = enriched.createdAt || enriched.createDate;
+  }
+
+  if (!enriched.createdBy) {
+    enriched.createdBy = enriched.userId || enriched.lineUserId || "system";
+  }
+
+  if (!enriched.updatedAt) {
+    enriched.updatedAt = now;
+  }
+  if (!enriched.updatedBy) {
+    enriched.updatedBy = enriched.createdBy || "system";
+  }
+
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const row = headers.map((h) => (obj[h] !== undefined && obj[h] !== null ? obj[h] : ""));
+  const row = headers.map((h) => {
+    let val = enriched[h];
+    if (val === undefined || val === null) return "";
+    if (h === "phone" && val !== "") return "'" + String(val);
+    return val;
+  });
   sheet.appendRow(row);
-  return obj;
+  return enriched;
 }
 
 function createOrderRow(order) {
   const itemSummary = (order.items || []).map((it) => `${it.productName} x${it.qty}`).join(", ");
+  const now = new Date().toISOString();
   const flat = {
     id: order.id,
-    createdAt: order.createdAt,
+    createDate: order.createDate || order.createdAt || now,
     roundId: order.roundId,
     userId: order.userId || "",
     customerName: order.customerName,
@@ -573,6 +732,10 @@ function createOrderRow(order) {
     notes: order.notes || "",
     courier: order.courier || "",
     slipUrl: order.slipUrl || "",
+    isActive: (order.isActive === 0 || order.isActive === "0" || order.isActive === false) ? 0 : 1,
+    createdBy: order.createdBy || order.userId || "customer",
+    updatedAt: order.updatedAt || now,
+    updatedBy: order.updatedBy || order.createdBy || "customer",
   };
 
   appendObjectRow(SHEET_NAMES.ORDERS, flat);
@@ -612,6 +775,7 @@ function createOrderRow(order) {
 }
 
 function createProductRow(product) {
+  const now = new Date().toISOString();
   const flat = {
     id: product.id,
     name: product.name,
@@ -635,11 +799,17 @@ function createProductRow(product) {
     maturity: product.specs ? product.specs.maturity : "",
     texture: product.specs ? product.specs.texture : "",
     flavor: product.specs ? product.specs.flavor : "",
+    isActive: (product.isActive === 0 || product.isActive === "0" || product.isActive === false) ? 0 : 1,
+    createDate: product.createDate || now,
+    createdBy: product.createdBy || "admin",
+    updatedAt: product.updatedAt || now,
+    updatedBy: product.updatedBy || "admin",
   };
   return appendObjectRow(SHEET_NAMES.PRODUCTS, flat);
 }
 
 function createRoundRow(round) {
+  const now = new Date().toISOString();
   const flat = {
     id: round.id,
     name: round.name,
@@ -650,6 +820,11 @@ function createRoundRow(round) {
     status: round.status || "open",
     quotaRemaining: Number(round.quotaRemaining) || 0,
     totalQuota: Number(round.totalQuota) || 0,
+    isActive: (round.isActive === 0 || round.isActive === "0" || round.isActive === false) ? 0 : 1,
+    createDate: round.createDate || now,
+    createdBy: round.createdBy || "admin",
+    updatedAt: round.updatedAt || now,
+    updatedBy: round.updatedBy || "admin",
   };
   return appendObjectRow(SHEET_NAMES.ROUNDS, flat);
 }
@@ -666,22 +841,28 @@ function updateRowById(sheetName, idColName, idValue, updates) {
   const lineUserIdx = headers.indexOf("lineUserId");
   if (idIdx === -1 && lineUserIdx === -1) return null;
 
+  const enrichedUpdates = Object.assign({}, updates);
+  enrichedUpdates.updatedAt = new Date().toISOString();
+  if (enrichedUpdates.isActive !== undefined) {
+    enrichedUpdates.isActive = (enrichedUpdates.isActive === 0 || enrichedUpdates.isActive === "0" || enrichedUpdates.isActive === false) ? 0 : 1;
+  }
+
   for (let r = 1; r < data.length; r++) {
     const rowId = idIdx !== -1 ? String(data[r][idIdx]) : "";
     const rowLineId = lineUserIdx !== -1 ? String(data[r][lineUserIdx]) : "";
     const isMatch =
       (idValue && rowId === String(idValue)) ||
-      (updates.lineUserId && rowLineId && rowLineId === String(updates.lineUserId));
+      (enrichedUpdates.lineUserId && rowLineId && rowLineId === String(enrichedUpdates.lineUserId));
 
     if (isMatch) {
       headers.forEach((h, c) => {
-        if (updates[h] !== undefined) {
-          let val = updates[h];
-          if (h === "phone") val = "'" + String(val);
+        if (enrichedUpdates[h] !== undefined) {
+          let val = enrichedUpdates[h];
+          if (h === "phone" && val !== "") val = "'" + String(val);
           sheet.getRange(r + 1, c + 1).setValue(val);
         }
       });
-      return updates;
+      return enrichedUpdates;
     }
   }
   return null;

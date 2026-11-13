@@ -467,13 +467,23 @@ export const initialPromotions: Promotion[] = [
 ];
 
 export function createInitialDatabase(): DatabaseState {
+  const now = "2026-11-01T00:00:00Z";
+  const enrich = <T extends Record<string, any>>(item: T): T => ({
+    ...item,
+    isActive: (item.isActive === 0 || item.isActive === false) ? 0 : 1,
+    createDate: item.createDate || item.createdAt || now,
+    createdBy: item.createdBy || "system",
+    updatedAt: item.updatedAt || now,
+    updatedBy: item.updatedBy || "system",
+  });
+
   return {
-    products: JSON.parse(JSON.stringify(products)),
-    rounds: [JSON.parse(JSON.stringify(currentRound))],
-    orders: JSON.parse(JSON.stringify(sampleOrders)),
-    lots: JSON.parse(JSON.stringify(initialLots)),
-    claims: JSON.parse(JSON.stringify(initialClaims)),
-    promotions: JSON.parse(JSON.stringify(initialPromotions)),
-    users: JSON.parse(JSON.stringify(initialUsers)),
+    products: (JSON.parse(JSON.stringify(products)) as Product[]).map(enrich),
+    rounds: ([JSON.parse(JSON.stringify(currentRound))] as Round[]).map(enrich),
+    orders: (JSON.parse(JSON.stringify(sampleOrders)) as Order[]).map(enrich),
+    lots: (JSON.parse(JSON.stringify(initialLots)) as LotCost[]).map(enrich),
+    claims: (JSON.parse(JSON.stringify(initialClaims)) as Claim[]).map(enrich),
+    promotions: (JSON.parse(JSON.stringify(initialPromotions)) as Promotion[]).map(enrich),
+    users: (JSON.parse(JSON.stringify(initialUsers)) as User[]).map(enrich),
   };
 }

@@ -9,6 +9,8 @@ import {
   saveRuntimeConfig,
   syncLocalDataToGoogleSheet,
   testGoogleSheetsConnection,
+  setupSheetsSchema,
+  rebuildSheetsSchema,
 } from "../../../../lib/sheets-db";
 import {
   ADMIN_COOKIE_NAME,
@@ -72,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json()) as {
-      action?: "save" | "test" | "sync" | "disconnect";
+      action?: "save" | "test" | "sync" | "disconnect" | "setupSheets" | "rebuildSheets";
       googleSheetsWebAppUrl?: string;
       googleSheetViewUrl?: string;
       lineChannelAccessToken?: string;
@@ -87,6 +89,30 @@ export async function POST(req: NextRequest) {
     };
 
     const action = body.action || "save";
+
+    if (action === "setupSheets") {
+      const targetUrl =
+        body.googleSheetsWebAppUrl?.trim() ||
+        getRuntimeConfig().googleSheetsWebAppUrl;
+      const res = await setupSheetsSchema(targetUrl);
+      return NextResponse.json({
+        ok: true,
+        message: "ปรับโครงสร้างตารางและเพิ่มคอลัมน์ createDate, createdBy, isActive (0/1) ใน Google Sheets เรียบร้อยแล้ว!",
+        details: res,
+      });
+    }
+
+    if (action === "rebuildSheets") {
+      const targetUrl =
+        body.googleSheetsWebAppUrl?.trim() ||
+        getRuntimeConfig().googleSheetsWebAppUrl;
+      const res = await rebuildSheetsSchema(targetUrl);
+      return NextResponse.json({
+        ok: true,
+        message: "ล้างและสร้างตารางฐานข้อมูลใหม่ทั้งหมด (Clean Rebuild) เรียบร้อยแล้ว!",
+        details: res,
+      });
+    }
 
     if (action === "disconnect") {
       saveRuntimeConfig({

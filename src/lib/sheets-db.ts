@@ -290,6 +290,18 @@ export async function testGoogleSheetsConnection(webAppUrl: string) {
   };
 }
 
+export async function setupSheetsSchema(webAppUrl?: string) {
+  const target = webAppUrl || getRuntimeConfig().googleSheetsWebAppUrl;
+  if (!target) throw new Error("No Google Sheets Web App URL configured");
+  return await callGoogleAppsScriptPost<{ message?: string }>(target, "setupSheets", {});
+}
+
+export async function rebuildSheetsSchema(webAppUrl?: string) {
+  const target = webAppUrl || getRuntimeConfig().googleSheetsWebAppUrl;
+  if (!target) throw new Error("No Google Sheets Web App URL configured");
+  return await callGoogleAppsScriptPost<{ message?: string }>(target, "rebuildSheets", {});
+}
+
 export async function syncLocalDataToGoogleSheet(webAppUrl: string) {
   const local = readLocalDb();
   const res = await callGoogleAppsScriptPost<{ syncedItems: number }>(
@@ -411,6 +423,14 @@ export async function getAllDatabase(forceRefresh = false): Promise<{
 }
 
 export async function createOrderRecord(order: Order): Promise<Order> {
+  const now = new Date().toISOString();
+  if (!order.createDate) order.createDate = order.createdAt || now;
+  if (!order.createdAt) order.createdAt = order.createDate;
+  if (order.isActive === undefined) order.isActive = 1;
+  if (!order.createdBy) order.createdBy = order.userId || order.lineUserId || "customer";
+  if (!order.updatedAt) order.updatedAt = now;
+  if (!order.updatedBy) order.updatedBy = order.createdBy;
+
   // Ensure order has a valid userId linking to User sheet
   if (!order.userId) {
     const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
@@ -454,16 +474,23 @@ export async function updateOrderRecord(
   updates: Partial<Order>
 ): Promise<Order | null> {
   const cfg = getRuntimeConfig();
+  const normalized = {
+    ...updates,
+    updatedAt: new Date().toISOString(),
+    ...(updates.isActive !== undefined
+      ? { isActive: (updates.isActive === 0 || (updates.isActive as any) === "0" || updates.isActive === false) ? 0 : 1 }
+      : {}),
+  };
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updateOrder", {
       id,
-      ...updates,
+      ...normalized,
     });
   }
   const db = readLocalDb();
   const idx = db.orders.findIndex((o) => o.id === id);
   if (idx !== -1) {
-    db.orders[idx] = { ...db.orders[idx], ...updates };
+    db.orders[idx] = { ...db.orders[idx], ...normalized };
     writeLocalDb(db);
     return db.orders[idx];
   }
@@ -477,6 +504,13 @@ export async function updateOrderRecord(
 }
 
 export async function createProductRecord(product: Product): Promise<Product> {
+  const now = new Date().toISOString();
+  if (!product.createDate) product.createDate = now;
+  if (product.isActive === undefined) product.isActive = 1;
+  if (!product.createdBy) product.createdBy = "admin";
+  if (!product.updatedAt) product.updatedAt = now;
+  if (!product.updatedBy) product.updatedBy = product.createdBy;
+
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createProduct", product);
@@ -492,16 +526,23 @@ export async function updateProductRecord(
   updates: Partial<Product>
 ): Promise<Product | null> {
   const cfg = getRuntimeConfig();
+  const normalized = {
+    ...updates,
+    updatedAt: new Date().toISOString(),
+    ...(updates.isActive !== undefined
+      ? { isActive: (updates.isActive === 0 || (updates.isActive as any) === "0" || updates.isActive === false) ? 0 : 1 }
+      : {}),
+  };
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updateProduct", {
       id,
-      ...updates,
+      ...normalized,
     });
   }
   const db = readLocalDb();
   const idx = db.products.findIndex((p) => p.id === id);
   if (idx !== -1) {
-    db.products[idx] = { ...db.products[idx], ...updates };
+    db.products[idx] = { ...db.products[idx], ...normalized };
     writeLocalDb(db);
     return db.products[idx];
   }
@@ -513,6 +554,13 @@ export async function updateProductRecord(
 }
 
 export async function createRoundRecord(round: Round): Promise<Round> {
+  const now = new Date().toISOString();
+  if (!round.createDate) round.createDate = now;
+  if (round.isActive === undefined) round.isActive = 1;
+  if (!round.createdBy) round.createdBy = "admin";
+  if (!round.updatedAt) round.updatedAt = now;
+  if (!round.updatedBy) round.updatedBy = round.createdBy;
+
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createRound", round);
@@ -528,16 +576,23 @@ export async function updateRoundRecord(
   updates: Partial<Round>
 ): Promise<Round | null> {
   const cfg = getRuntimeConfig();
+  const normalized = {
+    ...updates,
+    updatedAt: new Date().toISOString(),
+    ...(updates.isActive !== undefined
+      ? { isActive: (updates.isActive === 0 || (updates.isActive as any) === "0" || updates.isActive === false) ? 0 : 1 }
+      : {}),
+  };
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updateRound", {
       id,
-      ...updates,
+      ...normalized,
     });
   }
   const db = readLocalDb();
   const idx = db.rounds.findIndex((r) => r.id === id);
   if (idx !== -1) {
-    db.rounds[idx] = { ...db.rounds[idx], ...updates };
+    db.rounds[idx] = { ...db.rounds[idx], ...normalized };
     writeLocalDb(db);
     return db.rounds[idx];
   }
@@ -549,6 +604,13 @@ export async function updateRoundRecord(
 }
 
 export async function createLotRecord(lot: LotCost): Promise<LotCost> {
+  const now = new Date().toISOString();
+  if (!lot.createDate) lot.createDate = lot.date || now;
+  if (lot.isActive === undefined) lot.isActive = 1;
+  if (!lot.createdBy) lot.createdBy = "admin";
+  if (!lot.updatedAt) lot.updatedAt = now;
+  if (!lot.updatedBy) lot.updatedBy = lot.createdBy;
+
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createLot", lot);
@@ -560,6 +622,14 @@ export async function createLotRecord(lot: LotCost): Promise<LotCost> {
 }
 
 export async function createClaimRecord(claim: Claim): Promise<Claim> {
+  const now = new Date().toISOString();
+  if (!claim.createDate) claim.createDate = claim.createdAt || now;
+  if (!claim.createdAt) claim.createdAt = claim.createDate;
+  if (claim.isActive === undefined) claim.isActive = 1;
+  if (!claim.createdBy) claim.createdBy = claim.userId || "customer";
+  if (!claim.updatedAt) claim.updatedAt = now;
+  if (!claim.updatedBy) claim.updatedBy = claim.createdBy;
+
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createClaim", claim);
@@ -575,16 +645,23 @@ export async function updateClaimRecord(
   updates: Partial<Claim>
 ): Promise<Claim | null> {
   const cfg = getRuntimeConfig();
+  const normalized = {
+    ...updates,
+    updatedAt: new Date().toISOString(),
+    ...(updates.isActive !== undefined
+      ? { isActive: (updates.isActive === 0 || (updates.isActive as any) === "0" || updates.isActive === false) ? 0 : 1 }
+      : {}),
+  };
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updateClaim", {
       claimId,
-      ...updates,
+      ...normalized,
     });
   }
   const db = readLocalDb();
   const idx = db.claims.findIndex((c) => c.claimId === claimId);
   if (idx !== -1) {
-    db.claims[idx] = { ...db.claims[idx], ...updates };
+    db.claims[idx] = { ...db.claims[idx], ...normalized };
     writeLocalDb(db);
     return db.claims[idx];
   }
@@ -596,6 +673,13 @@ export async function updateClaimRecord(
 }
 
 export async function createPromotionRecord(promo: Promotion): Promise<Promotion> {
+  const now = new Date().toISOString();
+  if (!promo.createDate) promo.createDate = now;
+  if (promo.isActive === undefined) promo.isActive = true;
+  if (!promo.createdBy) promo.createdBy = "admin";
+  if (!promo.updatedAt) promo.updatedAt = now;
+  if (!promo.updatedBy) promo.updatedBy = promo.createdBy;
+
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createPromotion", promo);
@@ -613,17 +697,21 @@ export async function updatePromotionRecord(
   updates: Partial<Promotion>
 ): Promise<Promotion | null> {
   const cfg = getRuntimeConfig();
+  const normalized = {
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
   if (cfg.googleSheetsWebAppUrl) {
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updatePromotion", {
       id,
-      ...updates,
+      ...normalized,
     });
   }
   const db = readLocalDb();
   const list = Array.isArray(db.promotions) ? db.promotions : [];
   const idx = list.findIndex((p) => p.id === id);
   if (idx !== -1) {
-    list[idx] = { ...list[idx], ...updates };
+    list[idx] = { ...list[idx], ...normalized };
     db.promotions = list;
     writeLocalDb(db);
     return list[idx];
@@ -685,6 +773,14 @@ export async function getUserById(id: string): Promise<User | null> {
 }
 
 export async function createUserRecord(user: User): Promise<User> {
+  const now = new Date().toISOString();
+  if (!user.createDate) user.createDate = user.createdAt || now;
+  if (!user.createdAt) user.createdAt = user.createDate;
+  if (user.isActive === undefined) user.isActive = 1;
+  if (!user.createdBy) user.createdBy = user.source || "user";
+  if (!user.updatedAt) user.updatedAt = now;
+  if (!user.updatedBy) user.updatedBy = user.createdBy;
+
   const db = readLocalDb();
   if (!Array.isArray(db.users)) db.users = [];
   const existingIdx = db.users.findIndex((u) => u.id === user.id);
@@ -717,11 +813,17 @@ export async function updateUserRecord(
   if (!Array.isArray(db.users)) db.users = [];
   const idx = db.users.findIndex((u) => u.id === id || (u.userId && u.userId === id));
   let updatedUser: User | null = null;
+  const normalized = {
+    ...updates,
+    updatedAt: new Date().toISOString(),
+    ...(updates.isActive !== undefined
+      ? { isActive: (updates.isActive === 0 || (updates.isActive as any) === "0" || updates.isActive === false) ? 0 : 1 }
+      : {}),
+  };
   if (idx !== -1) {
     db.users[idx] = {
       ...db.users[idx],
-      ...updates,
-      updatedAt: new Date().toISOString(),
+      ...normalized,
     };
     writeLocalDb(db);
     updatedUser = db.users[idx];
@@ -733,7 +835,7 @@ export async function updateUserRecord(
     callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updateUser", {
       id,
       userId: id,
-      ...updates,
+      ...normalized,
     }).catch((err) => {
       console.warn("Google Apps Script updateUser failed, saved to local cache:", err);
     });
@@ -847,8 +949,12 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
     role: isAdminByLineId ? "admin" : "user",
     source: input.source || "line-login",
     notes: input.notes,
+    isActive: 1,
+    createDate: now,
+    createdBy: "line-login",
     createdAt: now,
     updatedAt: now,
+    updatedBy: "line-login",
   };
 
   return await createUserRecord(newUser);

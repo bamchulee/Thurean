@@ -8,16 +8,27 @@ export async function GET() {
   try {
     const { data, source, warning } = await getAllDatabase();
     const cfg = getRuntimeConfig();
+
+    // กรองแสดงเฉพาะข้อมูลที่เปิดใช้งาน (isActive !== 0 && isActive !== false)
+    const activeProducts = (data.products || []).filter(
+      (p) => p.isActive !== 0 && (p.isActive as any) !== "0" && p.isActive !== false
+    );
+    const activeRounds = (data.rounds || []).filter(
+      (r) => r.isActive !== 0 && (r.isActive as any) !== "0" && r.isActive !== false
+    );
     const activeRound =
-      data.rounds.find((r) => r.status === "open") || data.rounds[0] || null;
+      activeRounds.find((r) => r.status === "open") || activeRounds[0] || null;
+    const activePromotions = (data.promotions || []).filter(
+      (pr) => pr.isActive !== false && (pr.isActive as any) !== 0 && (pr.isActive as any) !== "0"
+    );
 
     return NextResponse.json({
       ok: true,
       source,
       warning,
-      products: data.products,
+      products: activeProducts,
       currentRound: activeRound,
-      promotions: (data.promotions || []).filter((pr) => pr.isActive),
+      promotions: activePromotions,
       shopInfo: {
         ...shopInfo,
         lineOA: cfg.lineOaId || shopInfo.lineOA,

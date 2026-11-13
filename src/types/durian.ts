@@ -2,7 +2,15 @@
 // Core Domain Types for ร้าน "ทุเรียนวินคิน"
 // ============================================================
 
-export interface Product {
+export interface BaseAuditLog {
+  isActive?: number | boolean;
+  createDate?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface Product extends BaseAuditLog {
   id: string;
   name: string;
   variety: string;
@@ -29,7 +37,7 @@ export interface Product {
   };
 }
 
-export interface Round {
+export interface Round extends BaseAuditLog {
   id: string;
   name: string;
   truckRoute: string;
@@ -57,7 +65,7 @@ export type OrderStatus =
   | "delivered"
   | "claimed";
 
-export interface Order {
+export interface Order extends BaseAuditLog {
   id: string;
   createdAt: string;
   roundId: string;
@@ -80,7 +88,7 @@ export interface Order {
   notes?: string;
 }
 
-export interface LotCost {
+export interface LotCost extends BaseAuditLog {
   lotId: string;
   roundId: string;
   date: string;
@@ -97,7 +105,7 @@ export interface LotCost {
 
 export type ClaimStatus = "pending" | "approved_replace" | "approved_refund" | "rejected";
 
-export interface Claim {
+export interface Claim extends BaseAuditLog {
   claimId: string;
   createdAt: string;
   orderId: string;
@@ -111,7 +119,7 @@ export interface Claim {
   lotId?: string;
 }
 
-export interface Promotion {
+export interface Promotion extends BaseAuditLog {
   id: string;
   title: string;
   badge?: string;
@@ -121,7 +129,7 @@ export interface Promotion {
   isActive: boolean;
 }
 
-export interface User {
+export interface User extends BaseAuditLog {
   id: string;
   userId?: string;
   username: string;

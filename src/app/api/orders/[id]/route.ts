@@ -104,6 +104,10 @@ export async function PATCH(
     if (body.slipUrl !== undefined) updates.slipUrl = body.slipUrl.trim();
     if (body.lotId !== undefined) updates.lotId = body.lotId.trim();
     if (body.notes !== undefined) updates.notes = body.notes;
+    if ((body as any).isActive !== undefined) {
+      updates.isActive = ((body as any).isActive === 0 || (body as any).isActive === "0" || (body as any).isActive === false) ? 0 : 1;
+    }
+    if ((body as any).updatedBy !== undefined) updates.updatedBy = (body as any).updatedBy;
 
     const updated = await updateOrderRecord(orderId, updates);
     if (!updated) {

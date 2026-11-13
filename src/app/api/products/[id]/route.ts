@@ -28,6 +28,10 @@ export async function PATCH(
     if (body.stockKg !== undefined) updates.stockKg = Number(body.stockKg);
     if (body.avgWeightKg !== undefined) updates.avgWeightKg = Number(body.avgWeightKg);
     if (body.stockQty !== undefined) updates.stockQty = Number(body.stockQty);
+    if (body.isActive !== undefined) {
+      updates.isActive = (body.isActive === 0 || (body.isActive as any) === "0" || body.isActive === false) ? 0 : 1;
+    }
+    if (body.updatedBy !== undefined) updates.updatedBy = body.updatedBy;
 
     const updated = await updateProductRecord(productId, updates);
     if (!updated) {

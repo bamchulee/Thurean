@@ -30,6 +30,7 @@ import {
   ShoppingBag,
   Sparkles,
   Sprout,
+  Trash2,
   TrendingUp,
   Truck,
   Unlock,
@@ -765,9 +766,35 @@ function OrdersTab({
                       ล็อต: {order.lotId}
                     </span>
                   )}
+                  <button
+                    onClick={() => {
+                      const currentActive = (order.isActive === 0 || (order.isActive as any) === "0" || order.isActive === false) ? 0 : 1;
+                      const nextVal = currentActive === 1 ? 0 : 1;
+                      patchOrder(order.id, { isActive: nextVal });
+                    }}
+                    title="สลับสถานะ Is Active (1 = ใช้งาน, 0 = ปิดใช้งาน/ยกเลิก)"
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold border transition inline-flex items-center gap-1 ${
+                      (order.isActive === 0 || (order.isActive as any) === "0" || order.isActive === false)
+                        ? "bg-stone-100 text-stone-500 border-stone-300 hover:bg-stone-200"
+                        : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        (order.isActive === 0 || (order.isActive as any) === "0" || order.isActive === false)
+                          ? "bg-stone-400"
+                          : "bg-emerald-500"
+                      }`}
+                    />
+                    <span>
+                      {(order.isActive === 0 || (order.isActive as any) === "0" || order.isActive === false)
+                        ? "IsActive: 0"
+                        : "IsActive: 1"}
+                    </span>
+                  </button>
                 </div>
-                <p className="text-[11px] text-stone-400">
-                  {new Date(order.createdAt).toLocaleString("th-TH")}
+                <p className="text-[11px] text-stone-400 font-mono">
+                  {new Date(order.createDate || order.createdAt).toLocaleString("th-TH")} • โดย: {order.createdBy || order.userId || "customer"}
                 </p>
               </div>
               <span
@@ -1072,6 +1099,20 @@ function ProductsTab({
     }
   };
 
+  const toggleProductActive = async (p: Product) => {
+    const currentActive = (p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false) ? 0 : 1;
+    const nextVal = currentActive === 1 ? 0 : 1;
+    const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: nextVal }),
+    });
+    const json = (await res.json()) as { ok: boolean; product?: Product };
+    if (res.ok && json.ok && json.product) {
+      onProductUpdated(json.product);
+    }
+  };
+
   const handleEditPrice = async (p: Product) => {
     const input = window.prompt(
       `แก้ไขราคาของ "${p.name}" (บาท):`,
@@ -1188,9 +1229,35 @@ function ProductsTab({
               <p className="text-xs font-semibold text-amber-800 mt-0.5">
                 สต็อก: {formatProductStock(p).summary}
               </p>
+              <div className="flex items-center gap-2 text-[10px] text-stone-400 mt-1 font-mono">
+                <span>สร้าง: {p.createDate ? new Date(p.createDate).toLocaleDateString("th-TH") : "-"}</span>
+                <span>• ผู้สร้าง: {p.createdBy || "admin"}</span>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 flex-wrap">
+              <button
+                onClick={() => toggleProductActive(p)}
+                title="คลิกเพื่อสลับสถานะ Is Active (1 = ข้อมูลใช้งาน, 0 = ปิดใช้งาน/ไม่แสดงหน้าร้าน)"
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 border ${
+                  (p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false)
+                    ? "bg-stone-100 text-stone-500 border-stone-300 hover:bg-stone-200"
+                    : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    (p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false)
+                      ? "bg-stone-400"
+                      : "bg-emerald-500"
+                  }`}
+                />
+                <span>
+                  {(p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false)
+                    ? "Is Active: 0 (ปิด)"
+                    : "Is Active: 1 (ใช้)"}
+                </span>
+              </button>
               <button
                 onClick={() => handleEditStock(p)}
                 className="text-right hover:bg-amber-50 px-2.5 py-1 rounded-xl transition border border-amber-200/70"
@@ -2511,6 +2578,38 @@ function SettingsTab({
             type="button"
             disabled={busy || !webAppUrl}
             onClick={() =>
+              callConfigApi({ action: "setupSheets", googleSheetsWebAppUrl: webAppUrl })
+            }
+            className="bg-emerald-700 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5 shadow-xs"
+            title="อัปเกรดหัวตารางทุกชีตให้มี createDate, createdBy, isActive (0/1), updatedAt, updatedBy"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>ปรับโครงสร้างชีตใหม่ (เพิ่มคอลัมน์ Log & IsActive 0/1)</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={busy || !webAppUrl}
+            onClick={() => {
+              if (
+                window.confirm(
+                  "⚠️ คำเตือน: คุณต้องการล้างแถวข้อมูลเดิมทั้งหมดใน Google Sheet ทั้ง 2 ไฟล์ แล้วสร้างโครงสร้างใหม่พร้อมคอลัมน์ Log หรือไม่?"
+                )
+              ) {
+                callConfigApi({ action: "rebuildSheets", googleSheetsWebAppUrl: webAppUrl });
+              }
+            }}
+            className="bg-rose-700 hover:bg-rose-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+            title="ล้างข้อมูลแถวเดิมและสร้างชีตใหม่ทั้งหมด"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>ล้างและสร้างตารางใหม่ (Wipe &amp; Rebuild)</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={busy || !webAppUrl}
+            onClick={() =>
               callConfigApi({ action: "sync", googleSheetsWebAppUrl: webAppUrl })
             }
             className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-5 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
@@ -2567,6 +2666,30 @@ function UsersTab({
       const json = await res.json();
       if (!res.ok || !json.ok) {
         alert(json.error || "ไม่สามารถเปลี่ยนสิทธิ์ได้");
+      } else {
+        onRefresh();
+      }
+    } catch {
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleToggleUserActive = async (u: SafeUser) => {
+    const userId = (u as any).userId || u.id;
+    setUpdatingId(userId);
+    const currentActive = (u.isActive === 0 || (u.isActive as any) === "0" || u.isActive === false) ? 0 : 1;
+    const nextVal = currentActive === 1 ? 0 : 1;
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, isActive: nextVal }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        alert(json.error || "ไม่สามารถเปลี่ยนสถานะได้");
       } else {
         onRefresh();
       }
@@ -2673,15 +2796,16 @@ function UsersTab({
                 <th className="py-3 px-4 font-bold">User ID &amp; ชื่อ</th>
                 <th className="py-3 px-4 font-bold">เบอร์โทรศัพท์</th>
                 <th className="py-3 px-4 font-bold">ที่อยู่จัดส่ง &amp; รหัสไปรษณีย์</th>
-                <th className="py-3 px-4 font-bold text-center">ออเดอร์ที่สั่ง (JOIN)</th>
-                <th className="py-3 px-4 font-bold">วันที่สมัคร</th>
-                <th className="py-3 px-4 font-bold text-center">สิทธิ์การใช้งาน (Role)</th>
+                <th className="py-3 px-4 font-bold text-center">ออเดอร์ (JOIN)</th>
+                <th className="py-3 px-4 font-bold">Log (สร้างเมื่อ / โดย)</th>
+                <th className="py-3 px-4 font-bold text-center">สถานะ (Is Active)</th>
+                <th className="py-3 px-4 font-bold text-center">สิทธิ์ (Role)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-stone-400">
+                  <td colSpan={8} className="py-12 text-center text-stone-400">
                     <User className="w-8 h-8 mx-auto mb-2 opacity-40" />
                     <p className="font-semibold">ไม่พบข้อมูลสมาชิก</p>
                     <p className="text-[11px] text-stone-400 mt-0.5">
@@ -2757,7 +2881,33 @@ function UsersTab({
                       )}
                     </td>
                     <td className="py-3 px-4 text-stone-500 font-mono text-[11px]">
-                      {u.createdAt ? new Date(u.createdAt).toLocaleDateString("th-TH") : "-"}
+                      <div>{u.createDate || u.createdAt ? new Date(u.createDate || u.createdAt).toLocaleDateString("th-TH") : "-"}</div>
+                      <div className="text-[10px] text-stone-400">โดย: {(u as any).createdBy || u.source || "line"}</div>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        onClick={() => handleToggleUserActive(u)}
+                        disabled={updatingId === u.id || updatingId === (u as any).userId}
+                        title="คลิกสลับสถานะ Is Active (1 = ใช้งาน, 0 = ปิดใช้งาน)"
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition inline-flex items-center gap-1 ${
+                          (u.isActive === 0 || (u.isActive as any) === "0" || u.isActive === false)
+                            ? "bg-stone-100 text-stone-500 border-stone-300 hover:bg-stone-200"
+                            : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            (u.isActive === 0 || (u.isActive as any) === "0" || u.isActive === false)
+                              ? "bg-stone-400"
+                              : "bg-emerald-500"
+                          }`}
+                        />
+                        <span>
+                          {(u.isActive === 0 || (u.isActive as any) === "0" || u.isActive === false)
+                            ? "ปิด (0)"
+                            : "ใช้งาน (1)"}
+                        </span>
+                      </button>
                     </td>
                     <td className="py-3 px-4 text-center">
                       <select
