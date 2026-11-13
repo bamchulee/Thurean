@@ -604,3 +604,91 @@ export async function updateUserRecord(
   }
   return null;
 }
+
+export interface UpsertLineUserInput {
+  lineUserId?: string;
+  displayName?: string;
+  customerName?: string;
+  phone?: string;
+  address?: string;
+  postalCode?: string;
+  avatarUrl?: string;
+  source?: "line-login" | "line-chat" | "web" | string;
+  notes?: string;
+}
+
+export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> {
+  const cleanLineId = (input.lineUserId || "").trim();
+  const cleanPhone = (input.phone || "").trim().replace(/\s+/g, "");
+  const cleanAddress = (input.address || "").trim();
+  const cleanDisplay = (input.displayName || "").trim();
+  const cleanName = (input.customerName || cleanDisplay || "ลูกค้า LINE").trim();
+
+  let postal = (input.postalCode || "").trim();
+  if (!postal && cleanAddress) {
+    const postMatch = cleanAddress.match(/\b\d{5}\b/);
+    if (postMatch) postal = postMatch[0];
+  }
+
+  const nameWithoutPrefix = cleanName.replace(/^(คุณ|นาย|นาง|นางสาว)\s*/, "");
+  const nameParts = nameWithoutPrefix.split(/\s+/);
+  const firstName = nameParts[0] || cleanName;
+  const lastName = nameParts.slice(1).join(" ") || "";
+
+  const allUsers = await getAllUsers();
+  const existing = allUsers.find(
+    (u) =>
+      (cleanLineId && u.lineUserId === cleanLineId) ||
+      (cleanLineId && u.username === `line_${cleanLineId}`) ||
+      (cleanPhone &&
+        cleanPhone.length >= 9 &&
+        u.phone &&
+        u.phone.replace(/[^\d]/g, "") === cleanPhone.replace(/[^\d]/g, ""))
+  );
+
+  const now = new Date().toISOString();
+
+  if (existing) {
+    const updates: Partial<User> = {
+      updatedAt: now,
+    };
+    if (cleanLineId && !existing.lineUserId) updates.lineUserId = cleanLineId;
+    if (cleanDisplay && !existing.displayName) updates.displayName = cleanDisplay;
+    if (cleanPhone && (!existing.phone || existing.phone.length < 9)) updates.phone = cleanPhone;
+    if (cleanAddress && (!existing.address || existing.address.length < cleanAddress.length)) updates.address = cleanAddress;
+    if (postal && !existing.postalCode) updates.postalCode = postal;
+    if (input.avatarUrl && !existing.avatarUrl) updates.avatarUrl = input.avatarUrl;
+    if (input.source && !existing.source) updates.source = input.source;
+    if (input.notes && !existing.notes) updates.notes = input.notes;
+    if (firstName && (!existing.firstName || existing.firstName === "ลูกค้า LINE")) {
+      updates.firstName = firstName;
+      if (lastName) updates.lastName = lastName;
+    }
+
+    const updated = await updateUserRecord(existing.id, updates);
+    return updated || { ...existing, ...updates };
+  }
+
+  const newUser: User = {
+    id: `usr_line_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    username: cleanLineId ? `line_${cleanLineId}` : `line_${Date.now()}`,
+    lineUserId: cleanLineId || undefined,
+    displayName: cleanDisplay || cleanName,
+    passwordHash: "LINE_AUTH_NO_PASSWORD",
+    firstName,
+    lastName,
+    phone: cleanPhone,
+    address: cleanAddress,
+    postalCode: postal,
+    avatarUrl:
+      input.avatarUrl ||
+      "https://api.dicebear.com/7.x/bottts/svg?seed=MonthongKing&backgroundColor=fef08a",
+    role: "user",
+    source: input.source || "line-login",
+    notes: input.notes,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return await createUserRecord(newUser);
+}

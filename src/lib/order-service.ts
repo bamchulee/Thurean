@@ -7,6 +7,7 @@ import {
   getAllDatabase,
   getRuntimeConfig,
   updateOrderRecord,
+  upsertLineUser,
 } from "./sheets-db";
 import {
   buildClaimAlertForAdmin,
@@ -132,6 +133,20 @@ export async function submitNewOrder(
   };
 
   const created = await createOrderRecord(newOrder);
+
+  // Auto-sync customer to Users table (Google Sheet Users tab)
+  try {
+    await upsertLineUser({
+      lineUserId: newOrder.lineUserId,
+      customerName: newOrder.customerName,
+      phone: newOrder.phone,
+      address: newOrder.address,
+      source: newOrder.lineUserId ? "line-chat" : "web",
+      notes: `ออเดอร์ ${newOrder.id} (${newOrder.shippingMethod})`,
+    });
+  } catch (err) {
+    console.warn("Auto-sync user from order failed:", err);
+  }
 
   const cfg = getRuntimeConfig();
   if (cfg.lineChannelAccessToken && cfg.lineAdminUserId) {

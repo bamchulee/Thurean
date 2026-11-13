@@ -15,7 +15,7 @@
  * ============================================================
  */
 
-const SPREADSHEET_ID = "1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8";
+const SPREADSHEET_ID = "16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ";
 
 const SHEET_NAMES = {
   PRODUCTS: "Products",
@@ -50,24 +50,24 @@ function setupDurianWinkinSheets() {
         "name",
         "variety",
         "type",
-        "ripeness",
-        "weight",
         "price",
         "marketPrice",
         "unit",
+        "isAvailable",
+        "stockQty",
+        "stockKg",
+        "stockUnit",
+        "avgWeightKg",
+        "ripeness",
+        "weight",
         "origin",
         "brix",
         "image",
         "badge",
-        "isAvailable",
         "description",
         "maturity",
         "texture",
         "flavor",
-        "stockUnit",
-        "stockKg",
-        "avgWeightKg",
-        "stockQty",
       ],
     },
     {
@@ -164,15 +164,16 @@ function setupDurianWinkinSheets() {
       color: "#1e3a8a",
       headers: [
         "id",
-        "username",
-        "passwordHash",
+        "lineUserId",
+        "displayName",
         "firstName",
         "lastName",
         "phone",
         "address",
         "postalCode",
         "avatarUrl",
-        "role",
+        "source",
+        "notes",
         "createdAt",
         "updatedAt",
       ],
@@ -446,7 +447,9 @@ function readAllDatabase() {
   const rawUsers = readSheetObjects(SHEET_NAMES.USERS);
   const users = rawUsers.map((u) => ({
     id: String(u.id),
-    username: String(u.username),
+    username: String(u.username || u.lineUserId || u.displayName || u.id),
+    lineUserId: u.lineUserId ? String(u.lineUserId) : undefined,
+    displayName: u.displayName ? String(u.displayName) : undefined,
     passwordHash: String(u.passwordHash || ""),
     firstName: String(u.firstName || ""),
     lastName: String(u.lastName || ""),
@@ -455,6 +458,8 @@ function readAllDatabase() {
     postalCode: String(u.postalCode || ""),
     avatarUrl: u.avatarUrl ? String(u.avatarUrl) : undefined,
     role: String(u.role || "user"),
+    source: u.source ? String(u.source) : undefined,
+    notes: u.notes ? String(u.notes) : undefined,
     createdAt: String(u.createdAt || ""),
     updatedAt: String(u.updatedAt || ""),
   }));

@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import {
   getAllDatabase,
   getRuntimeConfig,
+  upsertLineUser,
 } from "../../../../lib/sheets-db";
 import {
   buildClaimReceiptForCustomerFlex,
@@ -666,6 +667,20 @@ export async function POST(req: NextRequest) {
             const shippingCost = shipOpt.price;
             const grandTotal = totalPrice + shippingCost;
 
+            // Auto-save customer to Google Sheet Users table
+            try {
+              await upsertLineUser({
+                lineUserId: userId || undefined,
+                customerName: parsed.customerName,
+                phone: parsed.phone,
+                address: parsed.address,
+                source: "line-chat",
+                notes: `ขั้นตอนสั่งซื้อ ${currentSession.productName} (${currentSession.qty || 1} รายการ)`,
+              });
+            } catch (userErr) {
+              console.warn("Auto-save user during contact step failed:", userErr);
+            }
+
             setLineSession(userId, {
               ...currentSession,
               step: "await_slip",
@@ -1033,6 +1048,38 @@ export async function POST(req: NextRequest) {
             token
           );
           continue;
+        }
+
+        // Direct Address / Contact Capture from free-form LINE Chat ("บางทีเขากรอกที่ไลน์มาก็มี")
+        if (msgType === "text") {
+          const directContact = parseContactInput(text);
+          if (directContact) {
+            try {
+              await upsertLineUser({
+                lineUserId: userId || undefined,
+                customerName: directContact.customerName,
+                phone: directContact.phone,
+                address: directContact.address,
+                source: "line-chat",
+                notes: "แจ้งที่อยู่ผ่านแชท LINE OA โดยตรง",
+              });
+            } catch (userErr) {
+              console.warn("Direct contact auto-save failed:", userErr);
+            }
+
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: `🍈 บันทึกข้อมูลที่อยู่จัดส่งของคุณเรียบร้อยแล้วครับ!\n\n👤 ชื่อ: ${directContact.customerName}\n📞 โทร: ${directContact.phone}\n📍 ที่อยู่: ${directContact.address}\n\nต้องการสั่งซื้อทุเรียนเกรดพรีเมียมหรือเช็กสต็อก เลือกเมนูด้านล่างได้เลยครับ`,
+                  quickReply: buildMainQuickReply(),
+                },
+              ],
+              token
+            );
+            continue;
+          }
         }
 
         // Greeting or fallback reply -> Interactive Welcome Card

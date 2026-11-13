@@ -2388,6 +2388,8 @@ function UsersTab({
     const term = searchTerm.toLowerCase();
     return (
       (u.username || "").toLowerCase().includes(term) ||
+      (u.displayName || "").toLowerCase().includes(term) ||
+      (u.lineUserId || "").toLowerCase().includes(term) ||
       (u.firstName || "").toLowerCase().includes(term) ||
       (u.lastName || "").toLowerCase().includes(term) ||
       (u.phone || "").includes(term) ||
@@ -2510,10 +2512,28 @@ function UsersTab({
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="font-mono font-bold text-stone-800">@{u.username}</span>
-                      {u.role === "admin" && (
-                        <span className="ml-1.5 bg-amber-100 text-amber-900 text-[10px] font-extrabold px-1.5 py-0.5 rounded">
-                          ADMIN
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {u.lineUserId ? (
+                          <span className="inline-flex items-center gap-0.5 bg-[#06C755]/10 text-[#06C755] font-extrabold text-[10px] px-1.5 py-0.5 rounded border border-[#06C755]/30">
+                            LINE
+                          </span>
+                        ) : null}
+                        <span className="font-mono font-bold text-stone-800">
+                          {u.displayName ? u.displayName : `@${u.username}`}
+                        </span>
+                        {u.role === "admin" && (
+                          <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-1.5 py-0.5 rounded">
+                            ADMIN
+                          </span>
+                        )}
+                      </div>
+                      {u.source && (
+                        <span className="text-[10px] text-stone-400 block font-sans">
+                          {u.source === "line-chat"
+                            ? "💬 แชท LINE OA"
+                            : u.source === "line-login"
+                            ? "🟢 LINE Login"
+                            : u.source}
                         </span>
                       )}
                     </td>

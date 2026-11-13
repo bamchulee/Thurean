@@ -123,6 +123,7 @@ export interface User {
   id: string;
   username: string;
   lineUserId?: string;
+  displayName?: string;
   passwordHash?: string;
   firstName: string;
   lastName: string;
@@ -131,6 +132,8 @@ export interface User {
   postalCode: string;
   avatarUrl?: string;
   role: "user" | "admin";
+  source?: "line-login" | "line-chat" | "web" | string;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
 }
