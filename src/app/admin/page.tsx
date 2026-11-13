@@ -34,6 +34,7 @@ import {
   Unlock,
   UploadCloud,
   User,
+  Users,
   XCircle,
 } from "lucide-react";
 import { shopInfo } from "../../data/mock";
@@ -49,6 +50,7 @@ import type {
   OrderStatus,
   Product,
   Round,
+  SafeUser,
 } from "../../types/durian";
 
 // ============== STATUS HELPERS ==============
@@ -119,6 +121,7 @@ type TabId =
   | "products"
   | "lots"
   | "claims"
+  | "users"
   | "summary"
   | "settings";
 
@@ -263,6 +266,7 @@ function Sidebar({
     { id: "products", icon: Sprout, label: "จัดการสินค้า" },
     { id: "lots", icon: Truck, label: "รอบรถ & ต้นทุนล้ง" },
     { id: "claims", icon: ShieldAlert, label: "ศูนย์เคลม", badge: pendingClaims },
+    { id: "users", icon: Users, label: "สมาชิก (Users)" },
     { id: "summary", icon: TrendingUp, label: "กำไร-ขาดทุน" },
     { id: "settings", icon: Link2, label: "เชื่อม Google Sheet" },
   ];
@@ -2370,6 +2374,172 @@ function SettingsTab({
   );
 }
 
+// ============== TAB 8: USERS (REGISTERED MEMBERS) ==============
+function UsersTab({
+  users,
+  onRefresh,
+}: {
+  users: SafeUser[];
+  onRefresh: () => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filtered = users.filter((u) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (u.username || "").toLowerCase().includes(term) ||
+      (u.firstName || "").toLowerCase().includes(term) ||
+      (u.lastName || "").toLowerCase().includes(term) ||
+      (u.phone || "").includes(term) ||
+      (u.address || "").toLowerCase().includes(term) ||
+      (u.postalCode || "").includes(term)
+    );
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-black text-stone-900">
+              รายชื่อสมาชิกที่ลงทะเบียน ({users.length} คน)
+            </h3>
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-2 py-0.5 rounded-full">
+              <Lock className="w-3 h-3 text-emerald-600" />
+              Users Sheet (แท็บซ่อนปลอดภัย)
+            </span>
+          </div>
+          <p className="text-xs text-stone-500 mt-0.5">
+            ข้อมูลสมาชิกที่ลงทะเบียนผ่านหน้าร้าน บันทึกลง Google Sheet อัตโนมัติ พร้อมเข้ารหัสความปลอดภัย
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="ค้นหาชื่อ, เบอร์, Username..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white focus:border-[#1B4D31] focus:outline-none w-56 sm:w-64"
+          />
+          <button
+            onClick={onRefresh}
+            className="p-2 border border-stone-300 rounded-xl hover:bg-stone-100 transition bg-white"
+            title="รีเฟรชข้อมูล"
+          >
+            <RefreshCw className="w-4 h-4 text-stone-700" />
+          </button>
+        </div>
+      </div>
+
+      {/* Cards summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-800">
+            <Users className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-stone-500 font-semibold">สมาชิกทั้งหมด</p>
+            <p className="text-xl font-black text-[#1B4D31]">{users.length} คน</p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-800">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-stone-500 font-semibold">สมาชิกล่าสุด</p>
+            <p className="text-xs font-bold text-stone-900 truncate max-w-[150px]">
+              {users.length > 0
+                ? `${users[0].firstName} ${users[0].lastName}`
+                : "ยังไม่มีสมาชิก"}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-800">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-stone-500 font-semibold">การป้องกันข้อมูล</p>
+            <p className="text-xs font-bold text-stone-900">
+              Scrypt Hash + แท็บชีตซ่อน
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Users table */}
+      <div className="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#1B4D31] text-white">
+              <tr>
+                <th className="py-3 px-4 font-bold">โปรไฟล์</th>
+                <th className="py-3 px-4 font-bold">Username</th>
+                <th className="py-3 px-4 font-bold">ชื่อ - นามสกุล</th>
+                <th className="py-3 px-4 font-bold">เบอร์โทรศัพท์</th>
+                <th className="py-3 px-4 font-bold">ที่อยู่จัดส่ง & รหัสไปรษณีย์</th>
+                <th className="py-3 px-4 font-bold">วันที่สมัคร</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-stone-400">
+                    <User className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <p className="font-semibold">ไม่พบข้อมูลสมาชิก</p>
+                    <p className="text-[11px] text-stone-400 mt-0.5">
+                      {searchTerm ? "ลองค้นหาด้วยคำอื่น" : "ยังไม่มีผู้ใช้งานลงทะเบียนในระบบ"}
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((u) => (
+                  <tr key={u.id} className="hover:bg-stone-50/80 transition">
+                    <td className="py-3 px-4">
+                      {u.avatarUrl ? (
+                        <img
+                          src={u.avatarUrl}
+                          alt={u.firstName}
+                          className="w-9 h-9 rounded-full object-cover border border-stone-200 bg-white"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-[#1B4D31] text-amber-300 flex items-center justify-center font-black text-xs">
+                          {u.firstName ? u.firstName.charAt(0) : "U"}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="font-mono font-bold text-stone-800">@{u.username}</span>
+                      {u.role === "admin" && (
+                        <span className="ml-1.5 bg-amber-100 text-amber-900 text-[10px] font-extrabold px-1.5 py-0.5 rounded">
+                          ADMIN
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 font-bold text-stone-900">
+                      {u.firstName} {u.lastName}
+                    </td>
+                    <td className="py-3 px-4 font-mono font-semibold text-emerald-800">
+                      {u.phone}
+                    </td>
+                    <td className="py-3 px-4 text-stone-600 max-w-xs truncate" title={`${u.address} ${u.postalCode}`}>
+                      {u.address} <span className="font-mono font-bold text-stone-800">{u.postalCode}</span>
+                    </td>
+                    <td className="py-3 px-4 text-stone-500 font-mono text-[11px]">
+                      {u.createdAt ? new Date(u.createdAt).toLocaleDateString("th-TH") : "-"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============== MAIN ADMIN PAGE ==============
 export default function AdminPage() {
   const [authChecked, setAuthChecked] = useState(false);
@@ -2385,17 +2555,19 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [lots, setLots] = useState<LotCost[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [users, setUsers] = useState<SafeUser[]>([]);
   const [loadingData, setLoadingData] = useState(false);
 
   const loadAllAdminData = useCallback(async () => {
     setLoadingData(true);
     try {
-      const [shopRes, ordRes, rndRes, lotRes, clmRes] = await Promise.all([
+      const [shopRes, ordRes, rndRes, lotRes, clmRes, usrRes] = await Promise.all([
         fetch("/api/shop"),
         fetch("/api/orders"),
         fetch("/api/rounds"),
         fetch("/api/lots"),
         fetch("/api/claims"),
+        fetch("/api/admin/users"),
       ]);
 
       const shopJson = await shopRes.json();
@@ -2403,6 +2575,7 @@ export default function AdminPage() {
       const rndJson = await rndRes.json();
       const lotJson = await lotRes.json();
       const clmJson = await clmRes.json();
+      const usrJson = await usrRes.json().catch(() => ({ ok: false }));
 
       if (shopJson.ok) {
         setProducts(shopJson.products || []);
@@ -2413,6 +2586,7 @@ export default function AdminPage() {
       if (rndJson.ok) setRounds(rndJson.rounds || []);
       if (lotJson.ok) setLots(lotJson.lots || []);
       if (clmJson.ok) setClaims(clmJson.claims || []);
+      if (usrJson.ok) setUsers(usrJson.users || []);
     } finally {
       setLoadingData(false);
     }
@@ -2575,6 +2749,12 @@ export default function AdminPage() {
                   prev.map((c) => (c.claimId === updated.claimId ? updated : c))
                 )
               }
+            />
+          )}
+          {activeTab === "users" && (
+            <UsersTab
+              users={users}
+              onRefresh={loadAllAdminData}
             />
           )}
           {activeTab === "summary" && <SummaryTab orders={orders} lots={lots} />}

@@ -24,6 +24,7 @@ const SHEET_NAMES = {
   LOTS: "Lots_Cost",
   CLAIMS: "Claims",
   PROMOTIONS: "Promotions",
+  USERS: "Users",
   SUMMARY: "Summary",
 };
 
@@ -158,6 +159,24 @@ function setupDurianWinkinSheets() {
         "isActive",
       ],
     },
+    {
+      name: SHEET_NAMES.USERS,
+      color: "#1e3a8a",
+      headers: [
+        "id",
+        "username",
+        "passwordHash",
+        "firstName",
+        "lastName",
+        "phone",
+        "address",
+        "postalCode",
+        "avatarUrl",
+        "role",
+        "createdAt",
+        "updatedAt",
+      ],
+    },
   ];
 
   definitions.forEach((def) => {
@@ -264,6 +283,10 @@ function doPost(e) {
         return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.PROMOTIONS, payload) });
       case "updatePromotion":
         return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.PROMOTIONS, "id", payload.id, payload) });
+      case "createUser":
+        return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.USERS, payload) });
+      case "updateUser":
+        return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.USERS, "id", payload.id, payload) });
       default:
         return jsonResponse({ ok: false, error: "Unknown POST action: " + action });
     }
@@ -420,7 +443,23 @@ function readAllDatabase() {
     isActive: pr.isActive === true || String(pr.isActive).toUpperCase() === "TRUE",
   }));
 
-  return { products, rounds, orders, lots, claims, promotions };
+  const rawUsers = readSheetObjects(SHEET_NAMES.USERS);
+  const users = rawUsers.map((u) => ({
+    id: String(u.id),
+    username: String(u.username),
+    passwordHash: String(u.passwordHash || ""),
+    firstName: String(u.firstName || ""),
+    lastName: String(u.lastName || ""),
+    phone: String(u.phone || ""),
+    address: String(u.address || ""),
+    postalCode: String(u.postalCode || ""),
+    avatarUrl: u.avatarUrl ? String(u.avatarUrl) : undefined,
+    role: String(u.role || "user"),
+    createdAt: String(u.createdAt || ""),
+    updatedAt: String(u.updatedAt || ""),
+  }));
+
+  return { products, rounds, orders, lots, claims, promotions, users };
 }
 
 function appendObjectRow(sheetName, obj) {

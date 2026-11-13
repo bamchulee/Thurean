@@ -13,6 +13,7 @@ import type {
   Promotion,
   Round,
   RuntimeConfig,
+  User,
 } from "../types/durian";
 import { createInitialDatabase } from "../data/mock";
 import { deductProductStock } from "./stock";
@@ -181,6 +182,7 @@ function readLocalDb(): DatabaseState {
       lots: Array.isArray(parsed.lots) ? parsed.lots : seed.lots,
       claims: Array.isArray(parsed.claims) ? parsed.claims : seed.claims,
       promotions: Array.isArray(parsed.promotions) ? parsed.promotions : seed.promotions,
+      users: Array.isArray(parsed.users) ? parsed.users : [],
     };
   } catch {
     const seed = createInitialDatabase();
@@ -493,6 +495,112 @@ export async function updatePromotionRecord(
     db.promotions = list;
     writeLocalDb(db);
     return list[idx];
+  }
+  return null;
+}
+
+// ============================================================
+// Users & Member Account Operations
+// ============================================================
+export async function getAllUsers(): Promise<User[]> {
+  const db = await getAllDatabase();
+  return db.data.users || [];
+}
+
+export async function getUserByUsername(username: string): Promise<User | null> {
+  const clean = username.trim().toLowerCase();
+  const db = readLocalDb();
+  const found = db.users?.find(
+    (u) =>
+      u.username.toLowerCase() === clean ||
+      (u.phone && clean.length >= 9 && u.phone.replace(/[^0-9]/g, "") === clean.replace(/[^0-9]/g, ""))
+  );
+  if (found) return found;
+
+  const cfg = getRuntimeConfig();
+  if (cfg.googleSheetsWebAppUrl) {
+    try {
+      const all = await getAllDatabase();
+      return (
+        all.data.users?.find(
+          (u) =>
+            u.username.toLowerCase() === clean ||
+            (u.phone && clean.length >= 9 && u.phone.replace(/[^0-9]/g, "") === clean.replace(/[^0-9]/g, ""))
+        ) || null
+      );
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export async function getUserById(id: string): Promise<User | null> {
+  const db = readLocalDb();
+  const found = db.users?.find((u) => u.id === id);
+  if (found) return found;
+
+  const cfg = getRuntimeConfig();
+  if (cfg.googleSheetsWebAppUrl) {
+    try {
+      const all = await getAllDatabase();
+      return all.data.users?.find((u) => u.id === id) || null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export async function createUserRecord(user: User): Promise<User> {
+  const cfg = getRuntimeConfig();
+  if (cfg.googleSheetsWebAppUrl) {
+    try {
+      await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createUser", user);
+    } catch (err) {
+      console.warn("Google Apps Script createUser failed, saved to local cache:", err);
+    }
+  }
+
+  const db = readLocalDb();
+  if (!Array.isArray(db.users)) db.users = [];
+  const existingIdx = db.users.findIndex((u) => u.id === user.id);
+  if (existingIdx !== -1) {
+    db.users[existingIdx] = user;
+  } else {
+    db.users.push(user);
+  }
+  writeLocalDb(db);
+  return user;
+}
+
+export async function updateUserRecord(
+  id: string,
+  updates: Partial<User>
+): Promise<User | null> {
+  const cfg = getRuntimeConfig();
+  if (cfg.googleSheetsWebAppUrl) {
+    try {
+      await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updateUser", {
+        id,
+        ...updates,
+      });
+    } catch (err) {
+      console.warn("Google Apps Script updateUser failed, saved to local cache:", err);
+    }
+  }
+
+  const db = readLocalDb();
+  if (!Array.isArray(db.users)) db.users = [];
+  const idx = db.users.findIndex((u) => u.id === id);
+  if (idx !== -1) {
+    db.users[idx] = {
+      ...db.users[idx],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    writeLocalDb(db);
+    return db.users[idx];
   }
   return null;
 }

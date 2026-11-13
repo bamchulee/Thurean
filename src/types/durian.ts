@@ -119,6 +119,23 @@ export interface Promotion {
   isActive: boolean;
 }
 
+export interface User {
+  id: string;
+  username: string;
+  passwordHash?: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  address: string;
+  postalCode: string;
+  avatarUrl?: string;
+  role: "user" | "admin";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SafeUser = Omit<User, "passwordHash">;
+
 export interface DatabaseState {
   products: Product[];
   rounds: Round[];
@@ -126,6 +143,7 @@ export interface DatabaseState {
   lots: LotCost[];
   claims: Claim[];
   promotions?: Promotion[];
+  users?: User[];
 }
 
 export interface RuntimeConfig {

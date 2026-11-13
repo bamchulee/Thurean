@@ -2,16 +2,19 @@
 
 import { useEffect, useState } from "react";
 import {
+  Check,
   CheckCircle2,
   Minus,
   Plus,
   ShoppingBasket,
   Sparkles,
   Trash2,
+  User as UserIcon,
   X,
 } from "lucide-react";
 import { shopInfo } from "../data/mock";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import type { Order } from "../types/durian";
 import { OrderSuccessModal } from "./OrderSuccessModal";
 import { LineIcon } from "./Icons";
@@ -28,19 +31,32 @@ export function CartDrawerModal({
   onClose: () => void;
 }) {
   const { items, updateQty, removeItem, clearCart, totalPrice } = useCart();
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
+  const { user, openAuthModal } = useAuth();
+  const [name, setName] = useState(
+    user
+      ? `${user.firstName} ${user.lastName}`.trim() || user.username
+      : lineProfile?.displayName || ""
+  );
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [address, setAddress] = useState(
+    user ? `${user.address} ${user.postalCode}`.trim() : ""
+  );
   const [shipping, setShipping] = useState(shopInfo.shippingMethods[0].name);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
-    if (lineProfile?.displayName && !name) {
+    if (user) {
+      if (!name) setName(`${user.firstName} ${user.lastName}`.trim() || user.username);
+      if (!phone && user.phone) setPhone(user.phone);
+      if (!address && user.address) {
+        setAddress(`${user.address} ${user.postalCode}`.trim());
+      }
+    } else if (lineProfile?.displayName && !name) {
       setName(lineProfile.displayName);
     }
-  }, [lineProfile, name]);
+  }, [user, lineProfile]);
 
   if (createdOrder) {
     return (
@@ -216,6 +232,32 @@ export function CartDrawerModal({
                 <LineIcon className="w-4 h-4 text-[#06C755] shrink-0" />
                 <span>เชื่อมต่อบัญชีคุณ {lineProfile.displayName} แล้ว</span>
               </div>
+            )}
+
+            {user ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-800 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold">
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  ดึงข้อมูลสมาชิก: {user.firstName} {user.lastName}
+                </span>
+                <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
+                  ล็อกอินแล้ว
+                </span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthModal("login")}
+                className="w-full bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl p-2 text-xs flex items-center justify-between text-amber-900 transition text-left"
+              >
+                <span className="flex items-center gap-1.5 font-semibold">
+                  <UserIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  เป็นสมาชิกอยู่แล้ว? คลิกเพื่อเข้าสู่ระบบ
+                </span>
+                <span className="text-amber-800 font-bold underline text-[11px] shrink-0">
+                  เข้าสู่ระบบ
+                </span>
+              </button>
             )}
 
             <input

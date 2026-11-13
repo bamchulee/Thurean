@@ -11,6 +11,7 @@ import {
   ChevronUp,
   Flame,
   Info,
+  LogOut,
   MapPin,
   Menu,
   Minus,
@@ -25,6 +26,7 @@ import {
   Sparkles,
   ThumbsUp,
   Truck,
+  User as UserIcon,
   X,
   Zap,
 } from "lucide-react";
@@ -35,6 +37,7 @@ import {
 } from "../data/mock";
 import type { Order, Product, Round } from "../types/durian";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import { useLiff } from "../lib/use-liff";
 import { OrderSuccessModal } from "../components/OrderSuccessModal";
 import { CartDrawerModal } from "../components/CartDrawerModal";
@@ -51,6 +54,8 @@ function Navbar({
   onOpenCart: () => void;
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const { user, openAuthModal, logout } = useAuth();
 
   return (
     <>
@@ -137,6 +142,92 @@ function Navbar({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2.5">
+            {/* User Login / Profile Pill */}
+            {user ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-[#1B4D31] text-xs font-bold transition shadow-xs"
+                >
+                  {user.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.firstName}
+                      className="w-6 h-6 rounded-full object-cover border border-emerald-400 bg-white"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-[#1B4D31] text-amber-300 flex items-center justify-center font-black text-[11px]">
+                      {user.firstName ? user.firstName.charAt(0) : "U"}
+                    </div>
+                  )}
+                  <span className="hidden sm:inline max-w-[90px] truncate">
+                    {user.firstName || user.username}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-emerald-700" />
+                </button>
+
+                {userDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setUserDropdownOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-stone-200 py-2 z-50">
+                      <div className="px-4 py-2.5 border-b border-stone-100">
+                        <p className="text-xs font-extrabold text-[#1B4D31]">
+                          {user.firstName} {user.lastName}
+                        </p>
+                        <p className="text-[11px] text-stone-500 font-mono">
+                          @{user.username} • {user.phone}
+                        </p>
+                        <p className="text-[10px] text-emerald-700 mt-1 font-semibold flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3" />
+                          บัญชีสมาชิกยืนยันแล้ว
+                        </p>
+                      </div>
+                      <a
+                        href="/tracking"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="w-full text-left px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                      >
+                        <Package className="w-4 h-4 text-emerald-700" />
+                        <span>เช็กสถานะพัสดุ</span>
+                      </a>
+                      <a
+                        href="/claim"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="w-full text-left px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-amber-600" />
+                        <span>แจ้งเคลมสินค้า</span>
+                      </a>
+                      <div className="border-t border-stone-100 my-1" />
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          logout();
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>ออกจากระบบ</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthModal("login")}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-900 font-bold text-xs transition shadow-xs border border-amber-300"
+              >
+                <UserIcon className="w-4 h-4 text-stone-900" />
+                <span>เข้าสู่ระบบ</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onOpenCart}
@@ -176,6 +267,55 @@ function Navbar({
         {/* Mobile Dropdown */}
         {mobileMenuOpen && (
           <div className="lg:hidden bg-[#11301F] text-white px-5 py-4 space-y-2.5 font-semibold text-sm border-t border-white/10">
+            {/* User Profile / Login on Mobile */}
+            {user ? (
+              <div className="bg-white/10 p-3 rounded-2xl flex items-center justify-between border border-white/15 mb-3">
+                <div className="flex items-center gap-2.5">
+                  {user.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.firstName}
+                      className="w-9 h-9 rounded-full object-cover border border-amber-300 bg-white"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-amber-400 text-stone-950 flex items-center justify-center font-black text-xs">
+                      {user.firstName ? user.firstName.charAt(0) : "U"}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs font-bold text-amber-300">
+                      {user.firstName} {user.lastName}
+                    </p>
+                    <p className="text-[11px] text-stone-300 font-mono">
+                      @{user.username}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    logout();
+                  }}
+                  className="px-2.5 py-1 text-xs bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg font-bold transition flex items-center gap-1"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>ออก</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  openAuthModal("login");
+                }}
+                className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-stone-950 py-2.5 rounded-xl font-bold text-xs mb-3 transition shadow-xs"
+              >
+                <UserIcon className="w-4 h-4 text-stone-950" />
+                <span>เข้าสู่ระบบ / สมัครสมาชิก</span>
+              </button>
+            )}
+
             <a
               href="#menu"
               className="flex items-center gap-2.5 py-2 border-b border-white/10"
@@ -841,17 +981,36 @@ function OrderModal({
   onSuccess: (order: Order) => void;
   onClose: () => void;
 }) {
+  const { user, openAuthModal } = useAuth();
   const [qty, setQty] = useState(1);
   const [ripenessPref, setRipenessPref] = useState(
     initialRipeness || "แบบกรอบ (กรอบนอกนุ่มใน)"
   );
-  const [name, setName] = useState(lineProfile?.displayName || "");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
+  const [name, setName] = useState(
+    user
+      ? `${user.firstName} ${user.lastName}`.trim() || user.username
+      : lineProfile?.displayName || ""
+  );
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [address, setAddress] = useState(
+    user ? `${user.address} ${user.postalCode}`.trim() : ""
+  );
   const [shipping, setShipping] = useState(shopInfo.shippingMethods[0].name);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      if (!name) setName(`${user.firstName} ${user.lastName}`.trim() || user.username);
+      if (!phone && user.phone) setPhone(user.phone);
+      if (!address && user.address) {
+        setAddress(`${user.address} ${user.postalCode}`.trim());
+      }
+    } else if (lineProfile?.displayName && !name) {
+      setName(lineProfile.displayName);
+    }
+  }, [user, lineProfile]);
 
   const shippingCost =
     shopInfo.shippingMethods.find((s) => s.name === shipping)?.price || 0;
@@ -1028,6 +1187,32 @@ function OrderModal({
 
           {/* ข้อมูลจัดส่ง */}
           <div className="space-y-3">
+            {user ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-800 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold">
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  ดึงข้อมูลสมาชิก: {user.firstName} {user.lastName}
+                </span>
+                <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
+                  ล็อกอินแล้ว
+                </span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthModal("login")}
+                className="w-full bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl p-2.5 text-xs flex items-center justify-between text-amber-900 transition text-left"
+              >
+                <span className="flex items-center gap-1.5 font-semibold">
+                  <UserIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  เป็นสมาชิกอยู่แล้ว? คลิกเพื่อเข้าสู่ระบบและดึงที่อยู่อัตโนมัติ
+                </span>
+                <span className="text-amber-800 font-extrabold underline text-[11px] shrink-0">
+                  เข้าสู่ระบบ
+                </span>
+              </button>
+            )}
+
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1">
                 ชื่อ-นามสกุล ผู้รับ *

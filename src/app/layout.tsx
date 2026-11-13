@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { CartProvider } from "../context/CartContext";
+import { AuthProvider } from "../context/AuthContext";
+import { AuthModal } from "../components/AuthModal";
 
 export const metadata: Metadata = {
   title: "ทุเรียนวินคิน | คัดสดจากสวน วิ่งส่งตรงถึงบ้าน โทร. 082-282-4238",
@@ -27,7 +29,12 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased min-h-screen flex flex-col">
-        <CartProvider>{children}</CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            {children}
+            <AuthModal />
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );
