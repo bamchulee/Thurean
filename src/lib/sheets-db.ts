@@ -74,7 +74,7 @@ export function getRuntimeConfig(): RuntimeConfig {
     lineLiffId:
       process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "",
     lineLoginChannelId:
-      process.env.LINE_LOGIN_CHANNEL_ID || fileConfig.lineLoginChannelId || "",
+      process.env.LINE_LOGIN_CHANNEL_ID || fileConfig.lineLoginChannelId || "2012605985",
     lineLoginChannelSecret:
       process.env.LINE_LOGIN_CHANNEL_SECRET || fileConfig.lineLoginChannelSecret || "",
     adminPin: process.env.ADMIN_PIN || fileConfig.adminPin || "2824",
