@@ -50,7 +50,9 @@ export function getRuntimeConfig(): RuntimeConfig {
 
   return {
     googleSheetsWebAppUrl:
-      process.env.GOOGLE_SHEETS_WEBAPP_URL || fileConfig.googleSheetsWebAppUrl || "",
+      process.env.GOOGLE_SHEETS_WEBAPP_URL ||
+      fileConfig.googleSheetsWebAppUrl ||
+      "https://script.google.com/macros/s/AKfycbzDCBqJeHA5NkSM3j4j02esWdOhoUoqIml50KoDvLBjpzj9Y7BEgNVcBwhzo_hgktHh/exec",
     googleSheetViewUrl:
       process.env.GOOGLE_SHEET_VIEW_URL ||
       fileConfig.googleSheetViewUrl ||
@@ -64,7 +66,7 @@ export function getRuntimeConfig(): RuntimeConfig {
       fileConfig.thureanSheetViewUrl ||
       "https://docs.google.com/spreadsheets/d/1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8/edit?usp=sharing",
     lineOaId:
-      process.env.LINE_OA_ID || fileConfig.lineOaId || "",
+      process.env.LINE_OA_ID || fileConfig.lineOaId || "@713imada",
     lineChannelAccessToken:
       process.env.LINE_CHANNEL_ACCESS_TOKEN || fileConfig.lineChannelAccessToken || "",
     lineAdminUserId:
