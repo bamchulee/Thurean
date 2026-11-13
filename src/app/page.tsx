@@ -370,427 +370,155 @@ function HeroBanner({ round }: { round: Round }) {
   );
 }
 
-// ===================== METRIC BAR HELPER =====================
-function MetricBar({
-  label,
-  valueText,
-  score,
-  max = 5,
-  color = "bg-amber-500",
-}: {
-  label: string;
-  valueText?: string;
-  score: number;
-  max?: number;
-  color?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold text-stone-700">{label}</span>
-        <span className="text-stone-500 font-medium text-[11px]">{valueText}</span>
-      </div>
-      <div className="flex items-center gap-1">
-        {Array.from({ length: max }).map((_, idx) => (
-          <span
-            key={idx}
-            className={`h-2 flex-1 rounded-full transition-all ${
-              idx < score ? color : "bg-stone-200"
-            }`}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ===================== RIPENESS GUIDE =====================
-const RIPENESS_LEVELS = [
-  {
-    id: "crispy",
-    orderValue: "กรอบนอกนุ่มใน (ไก่ฉีก)",
-    number: "1",
-    title: "กรอบนอก นุ่มใน",
-    subtitle: "เนื้อไก่ฉีก (Crispy outside, soft inside)",
-    maturityPct: "ความสุก 70-75%",
-    badge: "🔥 ขายดีอันดับ 1 (ยอดสั่ง 65%)",
-    badgeColor: "bg-amber-500 text-stone-950 font-extrabold",
-    borderColor: "border-amber-400",
-    image: "/ripeness/crispy.jpg",
-    imageAlt: "ทุเรียนเนื้อไก่ฉีก กรอบนอกนุ่มใน วินคิน",
-    desc: "เคี้ยวด้านนอกมีความกรอบกรุบ เด้งสู้ฟัน ด้านในเนื้อนุ่มเนียน ฉีกเป็นเส้นใยสวยงาม ไม่เละ ไม่ติดมือ รสหวานละมุน ไม่หวานเลี่ยน ทานเพลินเคี้ยวมันสุดๆ",
-    highlight: "กรอบเด้ง • ฉีกเป็นเส้น • ถือทานไม่เลอะมือ",
-    crispiness: 4,
-    crispinessText: "กรอบเด้ง 80% (เคี้ยวเพลิน)",
-    sweetness: 4,
-    sweetnessText: "30-32° Brix (หวานกำลังดี)",
-    creaminess: 3,
-    creaminessText: "มันกำลังดี ไม่เลี่ยน",
-    aroma: "กลิ่นหอมอ่อนละมุน ทานในห้องแอร์ได้ ไม่ฉุนติดห้อง",
-    shelfLife: "แช่เย็นเก็บได้ 2-3 วัน เนื้อยังคงความกรอบอร่อย",
-    targetPersona: "ผู้เริ่มต้นทานทุเรียน, คนชอบเคี้ยวกรุบกรอบ, คนที่พกไปทานที่ทำงาน",
-    tagEmoji: "👤",
-  },
-  {
-    id: "creamy",
-    orderValue: "สุกพอดีกิน (เนื้อเนียนครีม)",
-    number: "2",
-    title: "สุกพอดีกิน",
-    subtitle: "เนื้อเนียนครีมคัสตาร์ด (Custard Creamy)",
-    maturityPct: "ความสุก 85-90%",
-    badge: "⭐ รสชาติคลาสสิก แนะนำ",
-    badgeColor: "bg-emerald-600 text-white font-extrabold",
-    borderColor: "border-emerald-500",
-    image: "/ripeness/creamy.jpg",
-    imageAlt: "ทุเรียนเนื้อเนียนครีม สุกพอดีกิน วินคิน",
-    desc: "เนื้อสีเหลืองทองเงางาม นุ่มเนียนละมุนลิ้นคล้ายคัสตาร์ด รสชาติหวานมันจัดเต็มอย่างลงตัว กลิ่นหอมฟุ้งติดปาก มาตรฐานความอร่อยระดับทองคำของทุเรียนไทย",
-    highlight: "เนียนนุ่มคัสตาร์ด • หวานมันกลมกล่อม • หอมฟุ้ง",
-    crispiness: 2,
-    crispinessText: "นุ่มเนียน ไม่กรอบ ไม่เละ",
-    sweetness: 5,
-    sweetnessText: "34-36° Brix (หวานมันกลมกล่อม)",
-    creaminess: 5,
-    creaminessText: "ครีมมี่นัวละมุน 100%",
-    aroma: "กลิ่นหอมฟุ้ง ชวนน้ำลายสอ มาตรฐานทุเรียนระยองแท้",
-    shelfLife: "แช่เย็นเก็บได้ 1-2 วัน ความหวานมันจะยิ่งเข้าเนื้อ",
-    targetPersona: "เหมาะสำหรับทุกคนในครอบครัว, คนที่ชอบรสชาติทุเรียนแท้ที่กลมกล่อมที่สุด",
-    tagEmoji: "👥",
-  },
-  {
-    id: "soft",
-    orderValue: "สุกนิ่ม (เนื้อปลาร้าอ่อนๆ)",
-    number: "3",
-    title: "สุกนิ่ม",
-    subtitle: "เนื้อปลาร้าอ่อนๆ (Melt in your mouth)",
-    maturityPct: "ความสุก 95-100%",
-    badge: "🍯 หวานจัดฉ่ำสะใจ",
-    badgeColor: "bg-amber-700 text-white font-extrabold",
-    borderColor: "border-amber-600",
-    image: "/ripeness/soft.jpg",
-    imageAlt: "ทุเรียนเนื้อสุกนิ่ม ปลาร้าอ่อน หวานฉ่ำ วินคิน",
-    desc: "เนื้อสุกงอมธรรมชาติ สีเหลืองจำปาเข้ม นุ่มเยิ้มละลายในปากทันทีที่สัมผัส รสชาติหวานจัดลึกซึ้งถึงใจ กลิ่นหอมเข้มข้นจัดจ้าน สำหรับคอทุเรียนสายหวานฉ่ำตัวจริง",
-    highlight: "ละลายในปาก • หวานจัดลึกซึ้ง • เหมาะทานกับข้าวเหนียว",
-    crispiness: 0,
-    crispinessText: "นุ่มเยิ้ม ละลายทันที",
-    sweetness: 5,
-    sweetnessText: "36-38°+ Brix (หวานเข้มสะใจ)",
-    creaminess: 4,
-    creaminessText: "นุ่มฉ่ำ ละมุนลิ้น",
-    aroma: "กลิ่นหอมเข้มข้นจัดจ้าน เอกลักษณ์ทุเรียนสุกงอมธรรมชาติ",
-    shelfLife: "ควรทานทันทีในวันที่ได้รับ หรือนำไปทำข้าวเหนียวทุเรียน",
-    targetPersona: "คอทุเรียนพันธุ์แท้, ผู้สูงอายุเคี้ยวง่าย, คนชอบรสหวานจัดลึก",
-    tagEmoji: "👑",
-  },
-];
-
+// ===================== RIPENESS GUIDE (SIMPLE: กรอบ vs ไม่กรอบ) =====================
 function RipenessGuide({
-  selectedRipeness = "กรอบนอกนุ่มใน (ไก่ฉีก)",
+  selectedRipeness = "แบบกรอบ (กรอบนอกนุ่มใน)",
   onSelectRipeness,
 }: {
   selectedRipeness?: string;
   onSelectRipeness?: (ripeness: string) => void;
 }) {
-  const [showComparison, setShowComparison] = useState(false);
-
-  const handleSelect = (orderVal: string) => {
-    if (onSelectRipeness) {
-      onSelectRipeness(orderVal);
-    }
-    const menuEl = document.getElementById("menu");
-    if (menuEl) {
-      menuEl.scrollIntoView({ behavior: "smooth" });
-    }
+  const handleSelect = (choice: string) => {
+    onSelectRipeness?.(choice);
+    document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const isCrispy =
+    !selectedRipeness ||
+    (selectedRipeness.includes("กรอบ") && !selectedRipeness.includes("ไม่กรอบ"));
+
   return (
-    <section id="ripeness" className="relative py-14 sm:py-18 bg-[#F8E9B0] border-b border-amber-200">
+    <section id="ripeness" className="relative py-10 bg-[#F8E9B0] border-b border-amber-200">
       <div className="absolute top-0 inset-x-0 thorn-edge" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        {/* Header */}
-        <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10">
-          <span className="inline-flex items-center gap-1.5 bg-white text-[#1B4D31] border border-amber-300 text-xs font-bold px-3 py-1 rounded-full shadow-xs">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+        {/* Title */}
+        <div className="text-center mb-6">
+          <span className="inline-flex items-center gap-1.5 bg-white text-[#1B4D31] border border-amber-300 text-xs font-bold px-3 py-1 rounded-full shadow-xs mb-2">
             <DurianIcon className="w-3.5 h-3.5 text-amber-600" />
-            <span>คู่มือเลือกระดับเนื้อทุเรียน • คัดพิเศษรายบุคคล</span>
+            <span>เลือกระดับความสุกที่ชอบ</span>
           </span>
-          <h3 className="text-2xl sm:text-3xl font-extrabold text-stone-900 mt-3 mb-2">
-            ชอบเนื้อแบบไหน วินคินจัดให้ตรงใจคุณ
+          <h3 className="text-2xl sm:text-3xl font-extrabold text-stone-900">
+            ชอบแบบกรอบ หรือ ไม่กรอบ?
           </h3>
-          <p className="text-xs sm:text-sm text-stone-700 max-w-xl mx-auto leading-relaxed">
-            ระบุระดับความสุกในขั้นตอนสั่งซื้อ ทีมงานช่างเคาะสวนระยองจะคัดพูตามความชอบของคุณโดยเฉพาะ{" "}
-            <strong className="text-[#1B4D31]">การันตีความสุกตรงปก 100%</strong>
+          <p className="text-xs sm:text-sm text-stone-600 mt-1">
+            เลือกความชอบของคุณได้เลย ทีมงานวินคินจะคัดพูตามใจคุณ 100%
           </p>
         </div>
 
-        {/* Visual Maturity Stepper Bar */}
-        <div className="bg-white/90 backdrop-blur-xs rounded-2xl p-4 sm:p-5 shadow-sm border border-amber-200 mb-8 max-w-4xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-1 mb-3 text-xs font-bold text-stone-700">
-            <span className="flex items-center gap-1.5 text-stone-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-600" />
-              <span>ระดับความสุกตามธรรมชาติ:</span>
-              <span className="text-[#1B4D31] font-extrabold">ยิ่งสุกมาก ยิ่งหวานมันนุ่มละลาย</span>
-            </span>
-            <span className="text-stone-500 text-[11px]">คลิกเลือกระดับที่ชอบเพื่อสั่งซื้อ</span>
-          </div>
-
-          {/* Stepper Gradient Line */}
-          <div className="relative pt-1 pb-2">
-            <div className="h-2.5 w-full rounded-full bg-gradient-to-r from-amber-300 via-amber-500 to-amber-700 shadow-inner" />
-            <div className="grid grid-cols-3 gap-2 mt-3">
-              {RIPENESS_LEVELS.map((lvl) => {
-                const isSelected = selectedRipeness === lvl.orderValue;
-                return (
-                  <button
-                    key={lvl.id}
-                    type="button"
-                    onClick={() => handleSelect(lvl.orderValue)}
-                    className={`text-left p-2 sm:p-3 rounded-xl border transition-all cursor-pointer ${
-                      isSelected
-                        ? "bg-emerald-50 border-[#1B4D31] ring-2 ring-[#1B4D31]/30 shadow-xs"
-                        : "bg-stone-50/80 border-stone-200 hover:bg-white hover:border-amber-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-extrabold text-stone-900 text-xs sm:text-sm">
-                        {lvl.title}
-                      </span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white border border-stone-200 text-amber-800">
-                        {lvl.maturityPct.replace("ความสุก ", "")}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-stone-500 line-clamp-1">{lvl.subtitle}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* 3 Rich Cards Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-7">
-          {RIPENESS_LEVELS.map((lvl) => {
-            const isSelected = selectedRipeness === lvl.orderValue;
-            return (
-              <div
-                key={lvl.id}
-                className={`bg-white rounded-3xl overflow-hidden shadow-sm border-2 transition-all flex flex-col justify-between ${
-                  isSelected
-                    ? "border-[#1B4D31] ring-4 ring-[#1B4D31]/15 shadow-lg"
-                    : "border-amber-200 hover:border-amber-400 hover:shadow-md"
-                }`}
-              >
-                {/* Photo Header */}
-                <div className="relative aspect-[16/10] overflow-hidden bg-stone-900 group">
-                  <img
-                    src={lvl.image}
-                    alt={lvl.imageAlt}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
-
-                  {/* Top Badges */}
-                  <div className="absolute top-3 inset-x-3 flex items-center justify-between gap-2">
-                    <span className={`text-[11px] px-2.5 py-1 rounded-full shadow-sm ${lvl.badgeColor}`}>
-                      {lvl.badge}
-                    </span>
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/95 text-stone-900 shadow-xs">
-                      {lvl.maturityPct}
-                    </span>
-                  </div>
-
-                  {/* Bottom Text Over Photo */}
-                  <div className="absolute bottom-3 inset-x-4 text-white">
-                    <h4 className="text-lg sm:text-xl font-extrabold drop-shadow-md">
-                      {lvl.number}. {lvl.title}
-                    </h4>
-                    <p className="text-xs text-amber-300 font-medium drop-shadow-sm">
-                      {lvl.subtitle}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Card Body */}
-                <div className="p-5 sm:p-6 flex-1 flex flex-col justify-between space-y-4">
-                  {/* Highlight pill & desc */}
-                  <div>
-                    <div className="inline-block bg-amber-50 text-amber-900 font-bold text-[11px] px-2.5 py-1 rounded-lg border border-amber-200 mb-2.5">
-                      ✨ {lvl.highlight}
-                    </div>
-                    <p className="text-xs text-stone-600 leading-relaxed">
-                      {lvl.desc}
-                    </p>
-                  </div>
-
-                  {/* Sensory Meters */}
-                  <div className="bg-stone-50 rounded-2xl p-3.5 border border-stone-200 space-y-2.5">
-                    <MetricBar
-                      label="🥖 ความกรอบ"
-                      valueText={lvl.crispinessText}
-                      score={lvl.crispiness}
-                      color="bg-emerald-600"
-                    />
-                    <MetricBar
-                      label="🍯 ความหวาน"
-                      valueText={lvl.sweetnessText}
-                      score={lvl.sweetness}
-                      color="bg-amber-500"
-                    />
-                    <MetricBar
-                      label="🧈 ความมันครีม"
-                      valueText={lvl.creaminessText}
-                      score={lvl.creaminess}
-                      color="bg-amber-400"
-                    />
-                    <div className="pt-2 border-t border-stone-200 text-xs flex items-start gap-1.5 text-stone-600">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                      <span className="leading-snug">
-                        <strong className="text-stone-800">กลิ่นหอม:</strong> {lvl.aroma}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Recommended Target Persona */}
-                  <div className="bg-amber-50/70 rounded-xl p-3 border border-amber-200/80 text-xs">
-                    <span className="font-bold text-[#1B4D31] flex items-center gap-1.5 mb-1">
-                      <span>{lvl.tagEmoji}</span>
-                      <span>เหมาะสำหรับ:</span>
-                    </span>
-                    <p className="text-stone-600 text-[11px] leading-relaxed">
-                      {lvl.targetPersona}
-                    </p>
-                  </div>
-
-                  {/* CTA Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(lvl.orderValue)}
-                    className={`w-full py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
-                      isSelected
-                        ? "bg-[#1B4D31] text-[#FFD84D] hover:bg-[#143B25] ring-2 ring-[#1B4D31]"
-                        : "bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold"
-                    }`}
-                  >
-                    {isSelected ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        <span>เลือกระดับนี้แล้ว (คลิกไปสั่งซื้อ)</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>สั่งทุเรียนเนื้อระดับนี้</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                </div>
+        {/* 2 Simple Clean Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          {/* 1. แบบกรอบ */}
+          <div
+            onClick={() => handleSelect("แบบกรอบ (กรอบนอกนุ่มใน)")}
+            className={`bg-white rounded-2xl p-4 sm:p-5 border-2 transition-all cursor-pointer flex flex-col justify-between hover:shadow-md ${
+              isCrispy
+                ? "border-[#1B4D31] ring-3 ring-[#1B4D31]/15 shadow-md bg-emerald-50/20"
+                : "border-stone-200 hover:border-amber-400"
+            }`}
+          >
+            <div className="flex gap-4 items-center">
+              <img
+                src="/ripeness/crispy.jpg"
+                alt="ทุเรียนแบบกรอบ"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover shrink-0 shadow-xs border border-stone-200"
+              />
+              <div className="flex-1 min-w-0">
+                <span className="inline-block bg-amber-100 text-amber-900 text-[10px] font-extrabold px-2 py-0.5 rounded-md mb-1">
+                  🥖 สายชอบเคี้ยว
+                </span>
+                <h4 className="text-lg font-extrabold text-stone-900">
+                  แบบกรอบ
+                </h4>
+                <p className="text-xs text-stone-500 font-medium">
+                  กรอบนอก นุ่มใน (เนื้อไก่ฉีก)
+                </p>
+                <p className="text-xs text-stone-600 mt-1 line-clamp-2">
+                  เคี้ยวกรุบเด้ง ไม่เละ ไม่ติดมือ ทานเพลิน
+                </p>
               </div>
-            );
-          })}
-        </div>
+            </div>
 
-        {/* Comparison Toggle Button */}
-        <div className="mt-8 text-center">
-          <button
-            type="button"
-            onClick={() => setShowComparison(!showComparison)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-amber-300 text-stone-800 text-xs font-bold hover:bg-amber-50 transition shadow-xs cursor-pointer"
+            <button
+              type="button"
+              className={`mt-4 w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                isCrispy
+                  ? "bg-[#1B4D31] text-[#FFD84D]"
+                  : "bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold"
+              }`}
+            >
+              {isCrispy ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>เลือกแบบกรอบแล้ว (ไปดูเมนู)</span>
+                </>
+              ) : (
+                <>
+                  <span>เลือกแบบกรอบ</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* 2. แบบไม่กรอบ (นุ่ม) */}
+          <div
+            onClick={() => handleSelect("แบบไม่กรอบ (สุกนุ่มหวานมัน)")}
+            className={`bg-white rounded-2xl p-4 sm:p-5 border-2 transition-all cursor-pointer flex flex-col justify-between hover:shadow-md ${
+              !isCrispy
+                ? "border-[#1B4D31] ring-3 ring-[#1B4D31]/15 shadow-md bg-emerald-50/20"
+                : "border-stone-200 hover:border-amber-400"
+            }`}
           >
-            <span>{showComparison ? "ซ่อนตารางเปรียบเทียบ" : "📊 ดูตารางสรุปเปรียบเทียบทั้ง 3 ระดับแบบละเอียด"}</span>
-            {showComparison ? (
-              <ChevronUp className="w-4 h-4 text-amber-600" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-amber-600" />
-            )}
-          </button>
+            <div className="flex gap-4 items-center">
+              <img
+                src="/ripeness/creamy.jpg"
+                alt="ทุเรียนแบบไม่กรอบ นุ่มหวานมัน"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover shrink-0 shadow-xs border border-stone-200"
+              />
+              <div className="flex-1 min-w-0">
+                <span className="inline-block bg-emerald-100 text-[#1B4D31] text-[10px] font-extrabold px-2 py-0.5 rounded-md mb-1">
+                  🍯 สายชอบนุ่ม
+                </span>
+                <h4 className="text-lg font-extrabold text-stone-900">
+                  แบบไม่กรอบ (นุ่ม)
+                </h4>
+                <p className="text-xs text-stone-500 font-medium">
+                  สุกพอดีกิน นุ่มเนียน หวานมัน
+                </p>
+                <p className="text-xs text-stone-600 mt-1 line-clamp-2">
+                  เนื้อเนียนคัสตาร์ด นุ่มละมุนลิ้น หวานมันจัดเต็ม
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className={`mt-4 w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                !isCrispy
+                  ? "bg-[#1B4D31] text-[#FFD84D]"
+                  : "bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold"
+              }`}
+            >
+              {!isCrispy ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>เลือกแบบไม่กรอบแล้ว (ไปดูเมนู)</span>
+                </>
+              ) : (
+                <>
+                  <span>เลือกแบบไม่กรอบ (นุ่ม)</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
-        {/* Detailed Comparison Table (Expandable) */}
-        {showComparison && (
-          <div className="mt-5 bg-white rounded-3xl p-5 sm:p-7 border border-amber-300 shadow-md max-w-4xl mx-auto overflow-x-auto transition-all">
-            <h4 className="text-base font-extrabold text-stone-900 mb-4 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>ตารางสรุปเปรียบเทียบความแตกต่างของระดับความสุก 3 สไตล์</span>
-            </h4>
-            <table className="w-full text-left text-xs text-stone-700 min-w-[550px]">
-              <thead>
-                <tr className="border-b border-stone-200 text-stone-500 text-[11px] uppercase">
-                  <th className="py-2.5 font-bold">เกณฑ์เปรียบเทียบ</th>
-                  <th className="py-2.5 font-bold text-amber-700">1. กรอบนอกนุ่มใน</th>
-                  <th className="py-2.5 font-bold text-emerald-700">2. สุกพอดีกิน</th>
-                  <th className="py-2.5 font-bold text-amber-900">3. สุกนิ่มฉ่ำ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                <tr>
-                  <td className="py-2.5 font-semibold text-stone-900">ระดับความสุก</td>
-                  <td className="py-2.5 text-stone-600">70% - 75%</td>
-                  <td className="py-2.5 text-stone-600">85% - 90% (มาตรฐาน)</td>
-                  <td className="py-2.5 text-stone-600">95% - 100%</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 font-semibold text-stone-900">สัมผัสเนื้อ</td>
-                  <td className="py-2.5 text-stone-600">เคี้ยวกรุบ ฉีกเป็นเส้น</td>
-                  <td className="py-2.5 text-stone-600">เนียนนุ่มดั่งคัสตาร์ด</td>
-                  <td className="py-2.5 text-stone-600">นุ่มเยิ้ม ละลายในปาก</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 font-semibold text-stone-900">ความกรอบ</td>
-                  <td className="py-2.5 text-stone-600">★★★★☆ (กรอบเด้ง)</td>
-                  <td className="py-2.5 text-stone-600">★★☆☆☆ (นุ่มกำลังดี)</td>
-                  <td className="py-2.5 text-stone-600">☆☆☆☆☆ (ไม่มีความกรอบ)</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 font-semibold text-stone-900">ความหวาน</td>
-                  <td className="py-2.5 text-stone-600">30 - 32° Brix (หวานเบาๆ)</td>
-                  <td className="py-2.5 text-stone-600">34 - 36° Brix (หวานมันกลมกล่อม)</td>
-                  <td className="py-2.5 text-stone-600">36 - 38°+ Brix (หวานจัดเข้ม)</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 font-semibold text-stone-900">กลิ่นหอม</td>
-                  <td className="py-2.5 text-stone-600">กลิ่นอ่อน ไม่ฉุนในห้องแอร์</td>
-                  <td className="py-2.5 text-stone-600">กลิ่นหอมฟุ้ง ชวนน้ำลายสอ</td>
-                  <td className="py-2.5 text-stone-600">กลิ่นหอมเข้มข้นจัดจ้าน</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 font-semibold text-stone-900">การจับทาน</td>
-                  <td className="py-2.5 text-stone-600">แห้งสนิท ไม่เลอะมือ</td>
-                  <td className="py-2.5 text-stone-600">มีความชุ่มฉ่ำพอดี</td>
-                  <td className="py-2.5 text-stone-600">นุ่มเยิ้ม แนะนำใช้ช้อน</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 font-semibold text-stone-900">ระยะเวลาเก็บแช่เย็น</td>
-                  <td className="py-2.5 text-stone-600">2 - 3 วัน เนื้อยังกรอบ</td>
-                  <td className="py-2.5 text-stone-600">1 - 2 วัน ความมันเข้าเนื้อ</td>
-                  <td className="py-2.5 text-stone-600">ควรทานทันทีในวันที่ได้รับ</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* 100% Quality & Ripeness Guarantee Strip */}
-        <div className="mt-8 bg-white/95 rounded-2xl p-5 border border-amber-300 max-w-4xl mx-auto shadow-xs flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-[#1B4D31] flex items-center justify-center shrink-0 border border-emerald-300">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <div className="flex-1">
-            <h4 className="font-extrabold text-stone-900 text-sm mb-1 flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
-              <span>การันตีความสุกตรงปก 100% โดยทุเรียนวินคิน</span>
-              <span className="text-[10px] bg-emerald-100 text-[#1B4D31] px-2 py-0.5 rounded-full font-bold">
-                เคลมเปลี่ยนลูกใหม่ฟรี
-              </span>
-            </h4>
-            <p className="text-xs text-stone-600 leading-relaxed">
-              ช่างเคาะสวนระยองประสบการณ์กว่า 20 ปี คัดพูตามระดับที่คุณสั่ง หากผ่าแล้วเนื้อไม่ตรงตามระดับที่คุณเลือก ถ่ายรูปหรือคลิปส่งแอดมินทาง LINE ได้ตลอด 24 ชม. เคลมเปลี่ยนลูกใหม่หรือคืนเงินทันที!
-            </p>
-          </div>
-          <LineDirectLink
-            prefillText="สวัสดีครับ สอบถามเรื่องเลือกระดับความสุกทุเรียนวินคินครับ"
-            className="px-4 py-2.5 rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white text-xs font-bold transition shadow-xs shrink-0 flex items-center gap-1.5"
-          >
-            <LineIcon className="w-4 h-4" />
-            <span>ปรึกษาแอดมิน</span>
-          </LineDirectLink>
-        </div>
+        {/* Small guarantee note */}
+        <p className="text-center text-xs text-stone-600 mt-5 flex items-center justify-center gap-1.5">
+          <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 inline" />
+          <span>การันตีความสุกตรงใจ 100% ผ่าแล้วไม่ตรงตามที่เลือก เคลมส่งใหม่หรือคืนเงินทันที</span>
+        </p>
       </div>
     </section>
   );
@@ -1115,7 +843,7 @@ function OrderModal({
 }) {
   const [qty, setQty] = useState(1);
   const [ripenessPref, setRipenessPref] = useState(
-    initialRipeness || "กรอบนอกนุ่มใน (ไก่ฉีก)"
+    initialRipeness || "แบบกรอบ (กรอบนอกนุ่มใน)"
   );
   const [name, setName] = useState(lineProfile?.displayName || "");
   const [phone, setPhone] = useState("");
@@ -1231,27 +959,22 @@ function OrderModal({
             <label className="block text-xs font-bold text-stone-800 mb-1.5">
               เลือกระดับความสุกที่ชอบ (เราจะคัดตามนี้) *
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               {[
                 {
-                  value: "กรอบนอกนุ่มใน (ไก่ฉีก)",
-                  label: "1. กรอบนอกนุ่มใน",
-                  tag: "เนื้อไก่ฉีก ไม่เละ",
+                  value: "แบบกรอบ (กรอบนอกนุ่มใน)",
+                  label: "แบบกรอบ",
+                  tag: "กรอบนอก นุ่มใน (ไก่ฉีก)",
                 },
                 {
-                  value: "สุกพอดีกิน (เนื้อเนียนครีม)",
-                  label: "2. สุกพอดีกิน",
-                  tag: "เนียนนุ่มคัสตาร์ด",
-                },
-                {
-                  value: "สุกนิ่ม (เนื้อปลาร้าอ่อนๆ)",
-                  label: "3. สุกนิ่ม",
-                  tag: "หวานจัด ละลายในปาก",
+                  value: "แบบไม่กรอบ (สุกนุ่มหวานมัน)",
+                  label: "แบบไม่กรอบ (นุ่ม)",
+                  tag: "สุกพอดีกิน นุ่มหวานมัน",
                 },
               ].map((rf) => (
                 <label
                   key={rf.value}
-                  className={`p-2.5 rounded-xl border text-center cursor-pointer transition text-xs font-semibold ${
+                  className={`p-3 rounded-xl border text-center cursor-pointer transition text-xs font-semibold ${
                     ripenessPref === rf.value
                       ? "border-[#1B4D31] bg-emerald-50 text-[#1B4D31] ring-2 ring-[#1B4D31]/30"
                       : "border-stone-200 text-stone-600 hover:border-stone-300"
@@ -1265,8 +988,8 @@ function OrderModal({
                     onChange={() => setRipenessPref(rf.value)}
                     className="sr-only"
                   />
-                  <div className="font-extrabold">{rf.label}</div>
-                  <div className="text-[10px] text-stone-500 font-normal mt-0.5">
+                  <div className="font-extrabold text-sm">{rf.label}</div>
+                  <div className="text-[11px] text-stone-500 font-normal mt-0.5">
                     {rf.tag}
                   </div>
                 </label>
@@ -1606,7 +1329,7 @@ export default function Home() {
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [preferredRipeness, setPreferredRipeness] = useState<string>(
-    "กรอบนอกนุ่มใน (ไก่ฉีก)"
+    "แบบกรอบ (กรอบนอกนุ่มใน)"
   );
 
   const { addItem, totalItems } = useCart();
@@ -1664,7 +1387,7 @@ export default function Home() {
         preferredRipeness={preferredRipeness}
         onOrder={setOrderProduct}
         onAddToCart={(p) =>
-          addItem(p, 1, preferredRipeness || p.ripeness || "กรอบนอกนุ่มใน (ไก่ฉีก)")
+          addItem(p, 1, preferredRipeness || p.ripeness || "แบบกรอบ (กรอบนอกนุ่มใน)")
         }
       />
       <WhyUs />
