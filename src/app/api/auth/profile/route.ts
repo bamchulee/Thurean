@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getUserById, updateUserRecord } from "../../../../lib/sheets-db";
-import { verifySessionToken, toSafeUser } from "../../../../lib/user-auth";
+import { verifySessionToken, toSafeUser, createSessionToken } from "../../../../lib/user-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -32,22 +32,39 @@ export async function PUT(req: NextRequest) {
     const updates: Record<string, unknown> = {};
 
     if (body.firstName) updates.firstName = String(body.firstName).trim();
-    if (body.lastName) updates.lastName = String(body.lastName).trim();
+    if (body.lastName !== undefined) updates.lastName = String(body.lastName).trim();
+    if (body.displayName) updates.displayName = String(body.displayName).trim();
     if (body.phone) updates.phone = String(body.phone).trim().replace(/[^0-9]/g, "");
     if (body.address) updates.address = String(body.address).trim();
     if (body.postalCode) updates.postalCode = String(body.postalCode).trim().replace(/[^0-9]/g, "");
     if (body.avatarUrl !== undefined) updates.avatarUrl = String(body.avatarUrl).trim();
 
-    const updated = await updateUserRecord(user.id, updates);
+    const updated = await updateUserRecord(user.id, {
+      ...updates,
+      lineUserId: user.lineUserId,
+    });
     if (!updated) {
       return NextResponse.json({ ok: false, error: "อัปเดตไม่สำเร็จ" }, { status: 500 });
     }
 
-    return NextResponse.json({
+    const safe = toSafeUser(updated);
+    const newToken = createSessionToken(safe);
+
+    const res = NextResponse.json({
       ok: true,
-      user: toSafeUser(updated),
+      user: safe,
       message: "อัปเดตข้อมูลสำเร็จ",
     });
+
+    res.cookies.set("winkin_user_token", newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      path: "/",
+    });
+
+    return res;
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: String(err) },

@@ -215,6 +215,17 @@ function Navbar({
                           <span>แผงควบคุมร้านค้า (Admin Dashboard)</span>
                         </a>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          openAuthModal("line");
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                      >
+                        <MapPin className="w-4 h-4 text-emerald-700" />
+                        <span>ที่อยู่จัดส่งของฉัน</span>
+                      </button>
                       <a
                         href="/tracking"
                         onClick={() => setUserDropdownOpen(false)}
@@ -247,14 +258,13 @@ function Navbar({
                 )}
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => openAuthModal("line")}
+              <a
+                href="/api/auth/line/login"
                 className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white font-bold text-xs transition shadow-xs"
               >
                 <LineIcon className="w-4 h-4 text-white" />
                 <span>เข้าสู่ระบบด้วย LINE</span>
-              </button>
+              </a>
             )}
 
             <button
@@ -333,29 +343,37 @@ function Navbar({
                 </button>
               </div>
 
-              {user.role === "admin" && (
-                <a
-                  href="/admin"
-                  className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-500 text-stone-950 py-2.5 rounded-xl font-black text-xs mb-3 transition shadow-sm"
-                  onClick={() => setMobileMenuOpen(false)}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    openAuthModal("line");
+                  }}
+                  className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white py-2 rounded-xl font-bold text-xs mb-2 transition border border-white/10"
                 >
-                  <ShieldAlert className="w-4 h-4 text-stone-950" />
-                  <span>แผงควบคุมร้านค้า (Admin Panel)</span>
-                </a>
-              )}
-            </>
+                  <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>ที่อยู่จัดส่งของฉัน</span>
+                </button>
+
+                {user.role === "admin" && (
+                  <a
+                    href="/admin"
+                    className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-500 text-stone-950 py-2.5 rounded-xl font-black text-xs mb-3 transition shadow-sm"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <ShieldAlert className="w-4 h-4 text-stone-950" />
+                    <span>แผงควบคุมร้านค้า (Admin Panel)</span>
+                  </a>
+                )}
+              </>
             ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  openAuthModal("line");
-                }}
+              <a
+                href="/api/auth/line/login"
                 className="w-full flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34c] text-white py-2.5 rounded-xl font-bold text-xs mb-3 transition shadow-xs"
               >
                 <LineIcon className="w-4 h-4 text-white" />
                 <span>เข้าสู่ระบบด้วย LINE</span>
-              </button>
+              </a>
             )}
 
             <a
@@ -1561,8 +1579,18 @@ export default function Home() {
   );
 
   const { addItem, totalItems } = useCart();
-  const { user, loginWithLine } = useAuth();
+  const { user, loginWithLine, openAuthModal } = useAuth();
   const { profile: lineProfile } = useLiff(liffId);
+
+  // Auto-open modal if user was redirected from LINE login to complete address or handle error
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("setup_address") || params.get("line_login_error")) {
+        openAuthModal("line");
+      }
+    }
+  }, [openAuthModal]);
 
   // Auto-login customer if accessed through LINE app
   useEffect(() => {

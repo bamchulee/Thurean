@@ -1052,6 +1052,57 @@ export async function POST(req: NextRequest) {
 
         // Direct Address / Contact Capture from free-form LINE Chat ("บางทีเขากรอกที่ไลน์มาก็มี")
         if (msgType === "text") {
+          const lowerText = (text || "").trim().toLowerCase();
+          if (
+            lowerText === "ที่อยู่" ||
+            lowerText === "ที่อยู่ของฉัน" ||
+            lowerText === "เช็คที่อยู่" ||
+            lowerText === "เช็กที่อยู่" ||
+            lowerText === "แก้ไขที่อยู่" ||
+            lowerText === "เปลี่ยนที่อยู่" ||
+            lowerText === "ข้อมูลจัดส่ง" ||
+            lowerText === "ข้อมูลของฉัน"
+          ) {
+            const { data } = await getAllDatabase();
+            const matchedUser = userId
+              ? (data.users || []).find(
+                  (u) =>
+                    (u.lineUserId && u.lineUserId === userId) ||
+                    u.username === `line_${userId}` ||
+                    u.id === userId
+                )
+              : undefined;
+
+            if (matchedUser && matchedUser.address) {
+              const fullAddr = `${matchedUser.address} ${matchedUser.postalCode || ""}`.trim();
+              const fullName = `${matchedUser.firstName || ""} ${matchedUser.lastName || ""}`.trim() || matchedUser.displayName || "คุณลูกค้า";
+              await replyLineMessage(
+                replyToken,
+                [
+                  {
+                    type: "text",
+                    text: `🍈 ข้อมูลที่อยู่จัดส่งในระบบของคุณ:\n\n👤 ชื่อผู้รับ: ${fullName}\n📞 เบอร์โทร: ${matchedUser.phone || "-"}\n📍 ที่อยู่: ${fullAddr}\n\n💡 ต้องการแก้ไขที่อยู่?\nพิมพ์ "ชื่อ เบอร์โทร ที่อยู่ใหม่" ส่งในแชทนี้ได้เลยครับ ระบบจะบันทึกให้อัตโนมัติ 🙏`,
+                    quickReply: buildMainQuickReply(),
+                  },
+                ],
+                token
+              );
+            } else {
+              await replyLineMessage(
+                replyToken,
+                [
+                  {
+                    type: "text",
+                    text: `📦 คุณยังไม่มีข้อมูลที่อยู่จัดส่งในระบบครับ\n\nสามารถพิมพ์แจ้งชื่อ เบอร์โทร และที่อยู่จัดส่งในแชทนี้ได้เลยครับ (ระบบจะจำไว้ใช้สั่งซื้ออัตโนมัติ)\n\nตัวอย่าง:\nคุณสมชาย 0812345678 99/1 ถ.สุขุมวิท แขวงคลองตันเหนือ เขตวัฒนา กทม. 10110`,
+                    quickReply: buildMainQuickReply(),
+                  },
+                ],
+                token
+              );
+            }
+            continue;
+          }
+
           const directContact = parseContactInput(text);
           if (directContact) {
             try {

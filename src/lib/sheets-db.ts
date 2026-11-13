@@ -662,7 +662,10 @@ export async function createUserRecord(user: User): Promise<User> {
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     try {
-      await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createUser", user);
+      await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createUser", {
+        ...user,
+        userId: user.userId || user.id,
+      });
     } catch (err) {
       console.warn("Google Apps Script createUser failed, saved to local cache:", err);
     }
@@ -689,6 +692,7 @@ export async function updateUserRecord(
     try {
       await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updateUser", {
         id,
+        userId: id,
         ...updates,
       });
     } catch (err) {
@@ -784,8 +788,10 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
     return updated || { ...existing, ...updates };
   }
 
+  const genId = `usr_line_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const newUser: User = {
-    id: `usr_line_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    id: genId,
+    userId: genId,
     username: cleanLineId ? `line_${cleanLineId}` : `line_${Date.now()}`,
     lineUserId: cleanLineId || undefined,
     displayName: cleanDisplay || cleanName,

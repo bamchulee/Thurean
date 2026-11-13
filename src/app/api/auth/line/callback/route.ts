@@ -124,6 +124,9 @@ export async function GET(req: NextRequest) {
 
     if (safe.role !== "admin") {
       redirectUrl.searchParams.set("login_success", "line");
+      if (!user.phone || !user.address || user.phone.length < 9) {
+        redirectUrl.searchParams.set("setup_address", "1");
+      }
     }
 
     const res = NextResponse.redirect(redirectUrl);

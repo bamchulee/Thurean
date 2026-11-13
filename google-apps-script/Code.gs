@@ -281,18 +281,26 @@ function doPost(e) {
         return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.PROMOTIONS, payload) });
       case "updatePromotion":
         return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.PROMOTIONS, "id", payload.id, payload) });
-      case "createUser":
-        return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.USERS, payload) });
-      case "updateUser":
+      case "createUser": {
+        const userPayload = {
+          ...payload,
+          userId: payload.userId || payload.id || ("usr_" + new Date().getTime()),
+        };
+        return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.USERS, userPayload) });
+      }
+      case "updateUser": {
+        const targetId = payload.userId || payload.id;
+        const updated = updateRowById(
+          SHEET_NAMES.USERS,
+          "userId",
+          targetId,
+          payload
+        );
         return jsonResponse({
           ok: true,
-          data: updateRowById(
-            SHEET_NAMES.USERS,
-            "userId",
-            payload.userId || payload.id,
-            payload
-          ),
+          data: updated,
         });
+      }
       default:
         return jsonResponse({ ok: false, error: "Unknown POST action: " + action });
     }
@@ -655,10 +663,17 @@ function updateRowById(sheetName, idColName, idValue, updates) {
   if (idIdx === -1 && idColName === "userId") {
     idIdx = headers.indexOf("id");
   }
-  if (idIdx === -1) return null;
+  const lineUserIdx = headers.indexOf("lineUserId");
+  if (idIdx === -1 && lineUserIdx === -1) return null;
 
   for (let r = 1; r < data.length; r++) {
-    if (String(data[r][idIdx]) === String(idValue)) {
+    const rowId = idIdx !== -1 ? String(data[r][idIdx]) : "";
+    const rowLineId = lineUserIdx !== -1 ? String(data[r][lineUserIdx]) : "";
+    const isMatch =
+      (idValue && rowId === String(idValue)) ||
+      (updates.lineUserId && rowLineId && rowLineId === String(updates.lineUserId));
+
+    if (isMatch) {
       headers.forEach((h, c) => {
         if (updates[h] !== undefined) {
           let val = updates[h];
@@ -712,7 +727,10 @@ function syncSeedData(seed) {
   }
   if (seed.users) {
     seed.users.forEach((u) => {
-      appendObjectRow(SHEET_NAMES.USERS, u);
+      appendObjectRow(SHEET_NAMES.USERS, {
+        ...u,
+        userId: u.userId || u.id,
+      });
       count++;
     });
   }

@@ -33,6 +33,10 @@ export function buildMainQuickReply() {
       },
       {
         type: "action",
+        action: { type: "message", label: "📍 ที่อยู่จัดส่ง", text: "ที่อยู่" },
+      },
+      {
+        type: "action",
         action: { type: "message", label: "เช็กโปรโมชั่น", text: "โปรโมชั่น" },
       },
       {
