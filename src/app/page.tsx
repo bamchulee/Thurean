@@ -1589,6 +1589,11 @@ export default function Home() {
       if (params.get("setup_address") || params.get("line_login_error")) {
         openAuthModal("line");
       }
+      if (params.get("login_success")) {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.delete("login_success");
+        window.history.replaceState({}, "", nextUrl.pathname + (nextUrl.search ? nextUrl.search : ""));
+      }
     }
   }, [openAuthModal]);
 

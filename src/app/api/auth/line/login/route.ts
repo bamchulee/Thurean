@@ -12,7 +12,7 @@ function getCallbackUrl(req: NextRequest, publicBaseUrl?: string): string {
   const fwdHost =
     req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
   const fwdProto = req.headers.get("x-forwarded-proto") || "https";
-  if (fwdHost) {
+  if (fwdHost && (fwdHost.includes("localhost") || fwdHost.includes("127.0.0.1"))) {
     return `${fwdProto}://${fwdHost}/api/auth/line/callback`;
   }
   return "https://durianwinkin.vercel.app/api/auth/line/callback";
@@ -20,15 +20,7 @@ function getCallbackUrl(req: NextRequest, publicBaseUrl?: string): string {
 
 export async function GET(req: NextRequest) {
   const cfg = getRuntimeConfig();
-  const channelId = cfg.lineLoginChannelId || process.env.LINE_LOGIN_CHANNEL_ID;
-  const liffId = cfg.lineLiffId || process.env.NEXT_PUBLIC_LINE_LIFF_ID;
-
-  // On Mobile, if LIFF is configured, bouncing through LIFF opens the native LINE app directly!
-  const userAgent = req.headers.get("user-agent") || "";
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(userAgent);
-  if (liffId && isMobile) {
-    return NextResponse.redirect(`https://liff.line.me/${liffId}`);
-  }
+  const channelId = cfg.lineLoginChannelId || process.env.LINE_LOGIN_CHANNEL_ID || "2012605985";
 
   if (!channelId) {
     // If not configured, redirect back to shop with error notice
@@ -54,7 +46,7 @@ export async function GET(req: NextRequest) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 10, // 10 minutes
+    maxAge: 60 * 15, // 15 minutes
   });
 
   return res;

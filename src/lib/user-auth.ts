@@ -39,11 +39,20 @@ export function verifyPassword(password: string, stored: string): boolean {
 export function createSessionToken(user: SafeUser): string {
   const payload = JSON.stringify({
     id: user.id,
+    userId: (user as any).userId || user.id,
     username: user.username,
+    displayName: user.displayName,
     role: user.role,
     firstName: user.firstName,
     lastName: user.lastName,
     phone: user.phone,
+    address: user.address,
+    postalCode: user.postalCode,
+    avatarUrl: user.avatarUrl,
+    lineUserId: user.lineUserId,
+    source: user.source,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
     exp: Date.now() + 1000 * 60 * 60 * 24 * 30, // 30 days
   });
   const hmac = crypto
@@ -59,7 +68,7 @@ export function createSessionToken(user: SafeUser): string {
  */
 export function verifySessionToken(
   token: string
-): { id: string; username: string; role: "user" | "admin" } | null {
+): SafeUser | null {
   if (!token || !token.includes(".")) return null;
   const [b64Payload, hmac] = token.split(".");
   if (!b64Payload || !hmac) return null;
@@ -74,13 +83,25 @@ export function verifySessionToken(
     if (hmac !== expectedHmac) return null;
 
     const data = JSON.parse(payloadStr);
-    if (!data.id || !data.username) return null;
+    if (!data.id) return null;
     if (data.exp && Date.now() > data.exp) return null; // expired
 
     return {
       id: data.id,
-      username: data.username,
+      userId: data.userId || data.id,
+      username: data.username || data.id,
+      displayName: data.displayName,
       role: data.role || "user",
+      firstName: data.firstName || "",
+      lastName: data.lastName || "",
+      phone: data.phone || "",
+      address: data.address || "",
+      postalCode: data.postalCode || "",
+      avatarUrl: data.avatarUrl,
+      lineUserId: data.lineUserId,
+      source: data.source,
+      createdAt: data.createdAt || "",
+      updatedAt: data.updatedAt || "",
     };
   } catch {
     return null;

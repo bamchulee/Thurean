@@ -23,14 +23,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, user: null }, { status: 401 });
     }
 
+    // Try fetching latest details from store/sheet; fallback to signed session token
     const user = await getUserById(session.id);
-    if (!user) {
-      return NextResponse.json({ ok: false, user: null }, { status: 401 });
-    }
+    const resolvedUser = user ? toSafeUser(user) : session;
 
     return NextResponse.json({
       ok: true,
-      user: toSafeUser(user),
+      user: resolvedUser,
     });
   } catch (err) {
     return NextResponse.json(

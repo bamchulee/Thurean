@@ -757,14 +757,28 @@ export async function getUserByUsername(username: string): Promise<User | null> 
 
 export async function getUserById(id: string): Promise<User | null> {
   const db = readLocalDb();
-  const found = db.users?.find((u) => u.id === id);
+  const found = db.users?.find(
+    (u) =>
+      u.id === id ||
+      u.userId === id ||
+      (u.lineUserId && u.lineUserId === id) ||
+      (u.username && u.username === id)
+  );
   if (found) return found;
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     try {
       const all = await getAllDatabase();
-      return all.data.users?.find((u) => u.id === id) || null;
+      return (
+        all.data.users?.find(
+          (u) =>
+            u.id === id ||
+            u.userId === id ||
+            (u.lineUserId && u.lineUserId === id) ||
+            (u.username && u.username === id)
+        ) || null
+      );
     } catch {
       return null;
     }
