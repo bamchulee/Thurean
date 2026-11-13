@@ -11,7 +11,9 @@ import {
 } from "./sheets-db";
 import {
   buildClaimAlertForAdmin,
+  buildClaimReceiptForCustomerFlex,
   buildOrderAlertForAdmin,
+  buildOrderSummaryForCustomerFlex,
   pushLineMessage,
 } from "./line-notify";
 import { shopInfo } from "../data/mock";
@@ -155,21 +157,42 @@ export async function submitNewOrder(
   const created = await createOrderRecord(newOrder);
 
   const cfg = getRuntimeConfig();
-  if (cfg.lineChannelAccessToken && cfg.lineAdminUserId) {
-    const messages = buildOrderAlertForAdmin(created);
-    if (created.slipUrl && cfg.publicBaseUrl) {
-      const fullSlipUrl = `${cfg.publicBaseUrl}${created.slipUrl}`;
-      messages.push({
-        type: "image",
-        originalContentUrl: fullSlipUrl,
-        previewImageUrl: fullSlipUrl,
-      });
+  if (cfg.lineChannelAccessToken) {
+    // 1. Send Order Confirmation directly to Customer (if ordered via LINE or logged in with LINE)
+    if (created.lineUserId) {
+      try {
+        const customerMessages = buildOrderSummaryForCustomerFlex(created);
+        await pushLineMessage(
+          created.lineUserId,
+          customerMessages,
+          cfg.lineChannelAccessToken
+        );
+      } catch (err) {
+        console.warn("Failed to push customer order receipt via LINE:", err);
+      }
     }
-    await pushLineMessage(
-      cfg.lineAdminUserId,
-      messages,
-      cfg.lineChannelAccessToken
-    );
+
+    // 2. Send Admin Notification (only if admin ID is configured and NOT the same as customer)
+    if (cfg.lineAdminUserId && cfg.lineAdminUserId !== created.lineUserId) {
+      try {
+        const messages = buildOrderAlertForAdmin(created);
+        if (created.slipUrl && cfg.publicBaseUrl) {
+          const fullSlipUrl = `${cfg.publicBaseUrl}${created.slipUrl}`;
+          messages.push({
+            type: "image",
+            originalContentUrl: fullSlipUrl,
+            previewImageUrl: fullSlipUrl,
+          });
+        }
+        await pushLineMessage(
+          cfg.lineAdminUserId,
+          messages,
+          cfg.lineChannelAccessToken
+        );
+      } catch (err) {
+        console.warn("Failed to push admin order alert via LINE:", err);
+      }
+    }
   }
 
   return { ok: true, order: created };
@@ -225,12 +248,33 @@ export async function submitNewClaim(
   }
 
   const cfg = getRuntimeConfig();
-  if (cfg.lineChannelAccessToken && cfg.lineAdminUserId) {
-    await pushLineMessage(
-      cfg.lineAdminUserId,
-      buildClaimAlertForAdmin(created),
-      cfg.lineChannelAccessToken
-    );
+  if (cfg.lineChannelAccessToken) {
+    // 1. Send Claim Confirmation to Customer (if original order had lineUserId)
+    const customerLineId = matchedOrder?.lineUserId;
+    if (customerLineId) {
+      try {
+        await pushLineMessage(
+          customerLineId,
+          buildClaimReceiptForCustomerFlex(created),
+          cfg.lineChannelAccessToken
+        );
+      } catch (err) {
+        console.warn("Failed to push customer claim receipt via LINE:", err);
+      }
+    }
+
+    // 2. Send Admin Alert (only if configured and not customer)
+    if (cfg.lineAdminUserId && cfg.lineAdminUserId !== customerLineId) {
+      try {
+        await pushLineMessage(
+          cfg.lineAdminUserId,
+          buildClaimAlertForAdmin(created),
+          cfg.lineChannelAccessToken
+        );
+      } catch (err) {
+        console.warn("Failed to push admin claim alert via LINE:", err);
+      }
+    }
   }
 
   return { ok: true, claim: created, matchedOrder };

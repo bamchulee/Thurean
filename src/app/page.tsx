@@ -1026,13 +1026,14 @@ function OrderModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          userId: user?.id || user?.userId,
           customerName: name,
           phone,
           address,
           ripenessPref,
           shippingMethod: shipping,
           roundId,
-          lineUserId: lineProfile?.userId,
+          lineUserId: user?.lineUserId || lineProfile?.userId,
           items: [{ productId: product.id, qty, ripenessPref }],
         }),
       });
@@ -1565,11 +1566,11 @@ export default function Home() {
         totalCartItems={totalItems}
         onOpenCart={() => setCartOpen(true)}
       />
-      {lineProfile && (
+      {(user || lineProfile) && (
         <div className="bg-emerald-50 border-b border-emerald-200 py-2 px-4 text-center text-xs font-semibold text-emerald-800 flex items-center justify-center gap-2">
           <LineIcon className="w-4 h-4 text-[#06C755]" />
           <span>
-            ยินดีต้อนรับคุณ {lineProfile.displayName}{" "}
+            ยินดีต้อนรับคุณ {user?.firstName || user?.displayName || lineProfile?.displayName}{" "}
             (เชื่อมต่อ LINE พร้อมรับแจ้งเตือนพัสดุอัตโนมัติ)
           </span>
         </div>

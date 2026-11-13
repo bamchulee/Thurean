@@ -160,9 +160,12 @@ export interface RuntimeConfig {
   googleSheetViewUrl?: string;
   userSheetViewUrl?: string;
   thureanSheetViewUrl?: string;
+  lineOaId?: string;
   lineChannelAccessToken?: string;
   lineAdminUserId?: string;
   lineLiffId?: string;
+  lineLoginChannelId?: string;
+  lineLoginChannelSecret?: string;
   adminPin?: string;
   publicBaseUrl?: string;
   liveStreamPlatform?: string;

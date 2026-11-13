@@ -48,10 +48,14 @@ export async function GET(req: NextRequest) {
       googleSheetViewUrl: cfg.googleSheetViewUrl || "",
       userSheetViewUrl: cfg.userSheetViewUrl || "",
       thureanSheetViewUrl: cfg.thureanSheetViewUrl || "",
+      lineOaId: cfg.lineOaId || "",
       hasLineToken: Boolean(cfg.lineChannelAccessToken),
       lineTokenMasked: maskSecret(cfg.lineChannelAccessToken),
       lineAdminUserId: cfg.lineAdminUserId || "",
       lineLiffId: cfg.lineLiffId || "",
+      lineLoginChannelId: cfg.lineLoginChannelId || "",
+      hasLineLoginSecret: Boolean(cfg.lineLoginChannelSecret),
+      lineLoginSecretMasked: maskSecret(cfg.lineLoginChannelSecret),
       publicBaseUrl: cfg.publicBaseUrl || "",
       liveStreamPlatform: cfg.liveStreamPlatform || "",
       liveStreamUrl: cfg.liveStreamUrl || "",
@@ -148,12 +152,19 @@ export async function POST(req: NextRequest) {
       googleSheetViewUrl: body.googleSheetViewUrl,
       userSheetViewUrl: (body as any).userSheetViewUrl,
       thureanSheetViewUrl: (body as any).thureanSheetViewUrl,
+      lineOaId: (body as any).lineOaId,
       lineChannelAccessToken:
         body.lineChannelAccessToken && !body.lineChannelAccessToken.includes("••••")
           ? body.lineChannelAccessToken
           : undefined,
       lineAdminUserId: body.lineAdminUserId,
       lineLiffId: body.lineLiffId,
+      lineLoginChannelId: (body as any).lineLoginChannelId,
+      lineLoginChannelSecret:
+        (body as any).lineLoginChannelSecret &&
+        !(body as any).lineLoginChannelSecret.includes("••••")
+          ? (body as any).lineLoginChannelSecret
+          : undefined,
       adminPin: body.adminPin,
       publicBaseUrl: body.publicBaseUrl,
       liveStreamPlatform: body.liveStreamPlatform,

@@ -49,6 +49,23 @@ export function AuthModal() {
     setErrorMsg("");
     setSuccessMsg("");
 
+    // Check if redirected from failed LINE Login
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const loginErr = urlParams.get("line_login_error");
+      if (loginErr === "not_configured") {
+        setErrorMsg(
+          "LINE Login OAuth ยังไม่ได้ตั้งค่า Channel ID ในระบบหลังบ้าน (/admin) คุณสามารถกรอกชื่อและเบอร์โทรด้านล่างเพื่อสั่งซื้อได้ทันที"
+        );
+        setStep("details");
+        return;
+      } else if (loginErr) {
+        setErrorMsg("การล็อกอินผ่าน LINE ไม่สำเร็จ กรุณากรอกข้อมูลด้านล่างเพื่อเข้าสู่ระบบ");
+        setStep("details");
+        return;
+      }
+    }
+
     if (user) {
       // User is already logged in, opening modal to view/edit address & phone
       setDisplayName(user.firstName || user.username || "");
@@ -89,8 +106,8 @@ export function AuthModal() {
       return;
     }
 
-    // Default flow: proceed to provide LINE name and address
-    setStep("details");
+    // Redirect to real LINE Login OAuth v2.1
+    window.location.href = "/api/auth/line/login";
   };
 
   // Submit Save Profile & Login
@@ -227,6 +244,14 @@ export function AuthModal() {
                 >
                   <LineIcon className="w-5 h-5" />
                   <span>เข้าสู่ระบบด้วย LINE</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStep("details")}
+                  className="w-full bg-stone-100 hover:bg-stone-200 text-stone-700 py-2.5 rounded-xl font-bold text-xs transition"
+                >
+                  หรือกรอกข้อมูลจัดส่ง / เบอร์โทรด้วยตนเอง
                 </button>
 
                 <p className="text-[11px] text-stone-400">

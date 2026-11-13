@@ -85,12 +85,13 @@ export function CartDrawerModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          userId: user?.id || user?.userId,
           customerName: name,
           phone,
           address,
           shippingMethod: shipping,
           roundId,
-          lineUserId: lineProfile?.userId,
+          lineUserId: user?.lineUserId || lineProfile?.userId,
           items: items.map((it) => ({
             productId: it.product.id,
             qty: it.qty,

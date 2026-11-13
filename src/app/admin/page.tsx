@@ -129,10 +129,16 @@ type TabId =
 interface ConfigInfo {
   googleSheetsWebAppUrl: string;
   googleSheetViewUrl: string;
+  userSheetViewUrl?: string;
+  thureanSheetViewUrl?: string;
+  lineOaId?: string;
   hasLineToken: boolean;
   lineTokenMasked: string;
   lineAdminUserId: string;
   lineLiffId: string;
+  lineLoginChannelId?: string;
+  hasLineLoginSecret?: boolean;
+  lineLoginSecretMasked?: string;
   publicBaseUrl: string;
   liveStreamPlatform: string;
   liveStreamUrl: string;
@@ -1924,8 +1930,11 @@ function SettingsTab({
   const [userSheetUrl, setUserSheetUrl] = useState("https://docs.google.com/spreadsheets/d/16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ/edit?usp=sharing");
   const [thureanSheetUrl, setThureanSheetUrl] = useState("https://docs.google.com/spreadsheets/d/1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8/edit?usp=sharing");
   const [lineToken, setLineToken] = useState("");
+  const [lineOaId, setLineOaId] = useState("");
   const [lineAdminId, setLineAdminId] = useState("");
   const [lineLiffId, setLineLiffId] = useState("");
+  const [lineLoginChannelId, setLineLoginChannelId] = useState("");
+  const [lineLoginSecret, setLineLoginSecret] = useState("");
   const [publicBaseUrl, setPublicBaseUrl] = useState("");
   const [livePlatform, setLivePlatform] = useState("");
   const [liveUrl, setLiveUrl] = useState("");
@@ -1951,8 +1960,10 @@ function SettingsTab({
           setSheetViewUrl(json.config.googleSheetViewUrl || "");
           if (json.config.userSheetViewUrl) setUserSheetUrl(json.config.userSheetViewUrl);
           if (json.config.thureanSheetViewUrl) setThureanSheetUrl(json.config.thureanSheetViewUrl);
+          setLineOaId(json.config.lineOaId || "");
           setLineAdminId(json.config.lineAdminUserId || "");
           setLineLiffId(json.config.lineLiffId || "");
+          setLineLoginChannelId(json.config.lineLoginChannelId || "");
           setPublicBaseUrl(json.config.publicBaseUrl || "");
           setLivePlatform(json.config.liveStreamPlatform || "");
           setLiveUrl(json.config.liveStreamUrl || "");
@@ -2207,46 +2218,134 @@ function SettingsTab({
 
         <hr className="border-stone-100" />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-stone-700 mb-1">
-              LINE Channel Access Token
-            </label>
-            <input
-              type="password"
-              value={lineToken}
-              onChange={(e) => setLineToken(e.target.value)}
-              placeholder={
-                config?.hasLineToken
-                  ? `บันทึกแล้ว (${config.lineTokenMasked})`
-                  : "วาง Token จาก LINE Developers"
-              }
-              className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
-            />
+        <div className="space-y-4">
+          <div className="border border-emerald-900/10 bg-emerald-50/50 rounded-2xl p-4 space-y-3">
+            <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#06C755]" />
+              LINE Official Account & บ็อตแจ้งเตือน (Messaging API)
+            </h3>
+            <p className="text-xs text-stone-500">
+              กำหนด LINE Official Account ของร้านคุณ และ LINE Admin ID ของคุณเพื่อรับแจ้งเตือนออเดอร์ใหม่โดยตรง ไม่ปนกับคนอื่น
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  LINE OA ID ของร้าน (เช่น @durianwinkin)
+                </label>
+                <input
+                  type="text"
+                  value={lineOaId}
+                  onChange={(e) => setLineOaId(e.target.value)}
+                  placeholder="@ชื่อร้านคุณ (สำหรับปุ่มแชท)"
+                  className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  LINE Admin User ID (รับแจ้งเตือนร้านค้า)
+                </label>
+                <input
+                  type="text"
+                  value={lineAdminId}
+                  onChange={(e) => setLineAdminId(e.target.value)}
+                  placeholder="U... (พิมพ์ myid ในแชท Bot เพื่อดู ID)"
+                  className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
+                />
+                <p className="text-[10px] text-amber-700 mt-1">
+                  💡 พิมพ์คำว่า <code>myid</code> ในแชทไลน์บ็อตเพื่อดู ID ตัวเอง แล้วนำมากรอกที่นี่
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  LINE Channel Access Token (Messaging API)
+                </label>
+                <input
+                  type="password"
+                  value={lineToken}
+                  onChange={(e) => setLineToken(e.target.value)}
+                  placeholder={
+                    config?.hasLineToken
+                      ? `บันทึกแล้ว (${config.lineTokenMasked})`
+                      : "วาง Token บ็อตของคุณจาก LINE Developers"
+                  }
+                  className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-bold text-stone-700 mb-1">
-              LINE Admin User ID (รับแจ้งเตือน)
-            </label>
-            <input
-              type="text"
-              value={lineAdminId}
-              onChange={(e) => setLineAdminId(e.target.value)}
-              placeholder="U1234... (พิมพ์ myid ในแชท Bot)"
-              className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-stone-700 mb-1">
-              LINE LIFF ID (เปิดร้านในแอป LINE)
-            </label>
-            <input
-              type="text"
-              value={lineLiffId}
-              onChange={(e) => setLineLiffId(e.target.value)}
-              placeholder="เช่น 2001234567-AbCdEfGh"
-              className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
-            />
+
+          <div className="border border-blue-900/10 bg-blue-50/50 rounded-2xl p-4 space-y-3">
+            <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+              ระบบล็อกอินด้วย LINE (LINE Login v2.1 OAuth & LIFF)
+            </h3>
+            <p className="text-xs text-stone-500">
+              สร้าง Channel ชนิด &quot;LINE Login&quot; บน LINE Developers Console เพื่อให้ลูกค้ากดปุ่มล็อกอินด้วย LINE ได้ทันทีโดยไม่ต้องจำรหัสผ่าน
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  LINE Login Channel ID
+                </label>
+                <input
+                  type="text"
+                  value={lineLoginChannelId}
+                  onChange={(e) => setLineLoginChannelId(e.target.value)}
+                  placeholder="เช่น 2001234567"
+                  className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  LINE Login Channel Secret
+                </label>
+                <input
+                  type="password"
+                  value={lineLoginSecret}
+                  onChange={(e) => setLineLoginSecret(e.target.value)}
+                  placeholder={
+                    config?.hasLineLoginSecret
+                      ? `บันทึกแล้ว (${config.lineLoginSecretMasked})`
+                      : "วาง Secret จากแท็บ Basic settings"
+                  }
+                  className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  LINE LIFF ID (เปิดเว็บในแอป LINE)
+                </label>
+                <input
+                  type="text"
+                  value={lineLiffId}
+                  onChange={(e) => setLineLiffId(e.target.value)}
+                  placeholder="เช่น 2001234567-AbCdEfGh"
+                  className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="bg-white border border-stone-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div>
+                <span className="font-bold text-stone-800">Callback URL สำหรับตั้งใน LINE Developers Console:</span>
+                <p className="font-mono text-blue-700 text-[11px] select-all mt-0.5">
+                  {(publicBaseUrl || "https://durianwinkin.vercel.app").replace(/\/+$/, "")}/api/auth/line/callback
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const cb = `${(publicBaseUrl || "https://durianwinkin.vercel.app").replace(/\/+$/, "")}/api/auth/line/callback`;
+                  navigator.clipboard.writeText(cb);
+                  alert("คัดลอก Callback URL เรียบร้อยแล้ว!");
+                }}
+                className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-1.5 rounded-lg font-bold shrink-0 text-xs transition"
+              >
+                คัดลอก Callback URL
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2359,9 +2458,12 @@ function SettingsTab({
                 googleSheetViewUrl: thureanSheetUrl || sheetViewUrl,
                 thureanSheetViewUrl: thureanSheetUrl,
                 userSheetViewUrl: userSheetUrl,
+                lineOaId: lineOaId,
                 lineChannelAccessToken: lineToken || undefined,
                 lineAdminUserId: lineAdminId,
                 lineLiffId: lineLiffId,
+                lineLoginChannelId: lineLoginChannelId,
+                lineLoginChannelSecret: lineLoginSecret || undefined,
                 publicBaseUrl: publicBaseUrl,
                 liveStreamPlatform: livePlatform,
                 liveStreamUrl: liveUrl,

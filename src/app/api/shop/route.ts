@@ -18,8 +18,12 @@ export async function GET() {
       products: data.products,
       currentRound: activeRound,
       promotions: (data.promotions || []).filter((pr) => pr.isActive),
-      shopInfo,
-      lineLiffId: cfg.lineLiffId || "",
+      shopInfo: {
+        ...shopInfo,
+        lineOA: cfg.lineOaId || shopInfo.lineOA,
+      },
+      hasLineLogin: Boolean(cfg.lineLoginChannelId || process.env.LINE_LOGIN_CHANNEL_ID),
+      lineLiffId: cfg.lineLiffId || process.env.NEXT_PUBLIC_LINE_LIFF_ID || "",
       liveStream: {
         isLiveNow: Boolean(cfg.isLiveNow),
         platform: cfg.liveStreamPlatform || "",

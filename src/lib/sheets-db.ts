@@ -63,12 +63,18 @@ export function getRuntimeConfig(): RuntimeConfig {
       process.env.THUREAN_SHEET_VIEW_URL ||
       fileConfig.thureanSheetViewUrl ||
       "https://docs.google.com/spreadsheets/d/1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8/edit?usp=sharing",
+    lineOaId:
+      process.env.LINE_OA_ID || fileConfig.lineOaId || "",
     lineChannelAccessToken:
       process.env.LINE_CHANNEL_ACCESS_TOKEN || fileConfig.lineChannelAccessToken || "",
     lineAdminUserId:
       process.env.LINE_ADMIN_USER_ID || fileConfig.lineAdminUserId || "",
     lineLiffId:
       process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "",
+    lineLoginChannelId:
+      process.env.LINE_LOGIN_CHANNEL_ID || fileConfig.lineLoginChannelId || "",
+    lineLoginChannelSecret:
+      process.env.LINE_LOGIN_CHANNEL_SECRET || fileConfig.lineLoginChannelSecret || "",
     adminPin: process.env.ADMIN_PIN || fileConfig.adminPin || "2824",
     publicBaseUrl:
       process.env.NEXT_PUBLIC_BASE_URL || fileConfig.publicBaseUrl || vercelFallbackUrl,
@@ -106,6 +112,9 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
   if (partial.thureanSheetViewUrl !== undefined) {
     next.thureanSheetViewUrl = partial.thureanSheetViewUrl.trim();
   }
+  if (partial.lineOaId !== undefined) {
+    next.lineOaId = partial.lineOaId.trim();
+  }
   if (partial.lineChannelAccessToken !== undefined) {
     next.lineChannelAccessToken = partial.lineChannelAccessToken.trim();
   }
@@ -114,6 +123,12 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
   }
   if (partial.lineLiffId !== undefined) {
     next.lineLiffId = partial.lineLiffId.trim();
+  }
+  if (partial.lineLoginChannelId !== undefined) {
+    next.lineLoginChannelId = partial.lineLoginChannelId.trim();
+  }
+  if (partial.lineLoginChannelSecret !== undefined) {
+    next.lineLoginChannelSecret = partial.lineLoginChannelSecret.trim();
   }
   if (partial.adminPin !== undefined && partial.adminPin.trim().length >= 4) {
     next.adminPin = partial.adminPin.trim();
