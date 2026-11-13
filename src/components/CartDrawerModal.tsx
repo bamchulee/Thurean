@@ -237,25 +237,25 @@ export function CartDrawerModal({
             {user ? (
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-800 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 font-bold">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  ดึงข้อมูลสมาชิก: {user.firstName} {user.lastName}
+                  <LineIcon className="w-4 h-4 text-[#06C755]" />
+                  ดึงข้อมูลจัดส่ง LINE: {user.firstName || user.username}
                 </span>
                 <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
-                  ล็อกอินแล้ว
+                  เชื่อมต่อแล้ว
                 </span>
               </div>
             ) : (
               <button
                 type="button"
-                onClick={() => openAuthModal("login")}
-                className="w-full bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl p-2 text-xs flex items-center justify-between text-amber-900 transition text-left"
+                onClick={() => openAuthModal("line")}
+                className="w-full bg-[#06C755]/10 hover:bg-[#06C755]/20 border border-[#06C755]/30 rounded-xl p-2.5 text-xs flex items-center justify-between text-emerald-900 transition text-left"
               >
                 <span className="flex items-center gap-1.5 font-semibold">
-                  <UserIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  เป็นสมาชิกอยู่แล้ว? คลิกเพื่อเข้าสู่ระบบ
+                  <LineIcon className="w-4 h-4 text-[#06C755] shrink-0" />
+                  เข้าสู่ระบบด้วย LINE เพื่อดึงที่อยู่อัตโนมัติ
                 </span>
-                <span className="text-amber-800 font-bold underline text-[11px] shrink-0">
-                  เข้าสู่ระบบ
+                <span className="text-[#06C755] font-extrabold underline text-[11px] shrink-0">
+                  เชื่อมต่อ LINE
                 </span>
               </button>
             )}

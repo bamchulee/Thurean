@@ -1,531 +1,353 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
-  User as UserIcon,
-  Lock,
   Phone,
   MapPin,
-  Camera,
   CheckCircle2,
   AlertCircle,
   Loader2,
   Sparkles,
-  Upload,
+  ShieldCheck,
+  User as UserIcon,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { DurianIcon } from "./Icons";
-
-// Preset cute avatar icons for users who don't want to take/upload a photo
-const PRESET_AVATARS = [
-  { name: "พูทองคิง", url: "https://api.dicebear.com/7.x/bottts/svg?seed=MonthongKing&backgroundColor=fef08a" },
-  { name: "สายกรอบ", url: "https://api.dicebear.com/7.x/bottts/svg?seed=CrispyDurian&backgroundColor=bbf7d0" },
-  { name: "สายหวานมัน", url: "https://api.dicebear.com/7.x/bottts/svg?seed=CreamyDurian&backgroundColor=fed7aa" },
-  { name: "นักชิมวินคิน", url: "https://api.dicebear.com/7.x/bottts/svg?seed=WinkinFan&backgroundColor=e9d5ff" },
-];
+import { LineIcon, DurianIcon } from "./Icons";
+import { useLiff } from "../lib/use-liff";
 
 export function AuthModal() {
   const {
+    user,
     isAuthModalOpen,
-    authModalMode,
     closeAuthModal,
-    setAuthModalMode,
-    login,
-    register,
+    loginWithLine,
+    updateProfile,
   } = useAuth();
 
-  // Login Form State
-  const [loginUsername, setLoginUsername] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
+  const { profile: liffProfile, inLineApp, login: liffLogin } = useLiff();
 
-  // Register Form State
-  const [regUsername, setRegUsername] = useState("");
-  const [regPassword, setRegPassword] = useState("");
-  const [regConfirmPassword, setRegConfirmPassword] = useState("");
-  const [regFirstName, setRegFirstName] = useState("");
-  const [regLastName, setRegLastName] = useState("");
-  const [regPhone, setRegPhone] = useState("");
-  const [regAddress, setRegAddress] = useState("");
-  const [regPostalCode, setRegPostalCode] = useState("");
-  const [regAvatarUrl, setRegAvatarUrl] = useState(PRESET_AVATARS[0].url);
+  // Mode: "connect" (click LINE login) | "details" (fill/update phone & address)
+  const [step, setStep] = useState<"connect" | "details">("connect");
 
-  // Upload state
-  const [uploadingImage, setUploadingImage] = useState(false);
+  // Form State
+  const [lineUserId, setLineUserId] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [pictureUrl, setPictureUrl] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Sync state when modal opens or user/LIFF profile changes
+  useEffect(() => {
+    if (!isAuthModalOpen) return;
+
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    if (user) {
+      // User is already logged in, opening modal to view/edit address & phone
+      setDisplayName(user.firstName || user.username || "");
+      setPhone(user.phone || "");
+      setAddress(user.address || "");
+      setPostalCode(user.postalCode || "");
+      setPictureUrl(user.avatarUrl || "");
+      setLineUserId(user.lineUserId || "");
+      setStep("details");
+    } else if (liffProfile) {
+      // LIFF detected customer's LINE profile
+      setDisplayName(liffProfile.displayName);
+      setPictureUrl(liffProfile.pictureUrl || "");
+      setLineUserId(liffProfile.userId);
+      setStep("details");
+    } else {
+      setStep("connect");
+    }
+  }, [isAuthModalOpen, user, liffProfile]);
 
   if (!isAuthModalOpen) return null;
 
-  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingImage(true);
+  // Handle 1-click LINE Connect
+  const handleLineConnect = async () => {
     setErrorMsg("");
 
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
+    // If LIFF is available and in LINE client, try LIFF login
+    if (liffProfile) {
+      setDisplayName(liffProfile.displayName);
+      setPictureUrl(liffProfile.pictureUrl || "");
+      setLineUserId(liffProfile.userId);
+      setStep("details");
+      return;
+    }
 
-      const res = await fetch("/api/upload/avatar", {
-        method: "POST",
-        body: fd,
+    if (inLineApp && typeof window !== "undefined" && (window as any).liff) {
+      liffLogin();
+      return;
+    }
+
+    // Default flow: proceed to provide LINE name and address
+    setStep("details");
+  };
+
+  // Submit Save Profile & Login
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setSubmitting(true);
+
+    if (!displayName.trim()) {
+      setErrorMsg("กรุณาระบุชื่อของคุณ หรือชื่อบัญชี LINE");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!phone.trim()) {
+      setErrorMsg("กรุณาระบุเบอร์โทรศัพท์สำหรับจัดส่ง");
+      setSubmitting(false);
+      return;
+    }
+
+    if (user) {
+      // Update existing user profile
+      const res = await updateProfile({
+        firstName: displayName.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        postalCode: postalCode.trim(),
+        avatarUrl: pictureUrl || user.avatarUrl,
       });
-      const json = await res.json();
-      if (!res.ok || !json.ok || !json.url) {
-        setErrorMsg(json.error || "อัปโหลดรูปไม่สำเร็จ");
+
+      setSubmitting(false);
+      if (!res.ok) {
+        setErrorMsg(res.error || "บันทึกข้อมูลไม่สำเร็จ");
       } else {
-        setRegAvatarUrl(json.url);
+        setSuccessMsg("อัปเดตข้อมูลจัดส่งเรียบร้อยแล้ว!");
+        setTimeout(() => closeAuthModal(), 1200);
       }
-    } catch (err) {
-      setErrorMsg(`เกิดข้อผิดพลาดในการอัปโหลดรูป: ${String(err)}`);
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg("");
-    setSubmitting(true);
-
-    const res = await login(loginUsername, loginPassword);
-    setSubmitting(false);
-
-    if (!res.ok) {
-      setErrorMsg(res.error || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
     } else {
-      setSuccessMsg("เข้าสู่ระบบสำเร็จ!");
-      setTimeout(() => {
-        closeAuthModal();
-      }, 700);
-    }
-  };
+      // Login or Register via LINE
+      const res = await loginWithLine({
+        lineUserId: lineUserId || `manual_${Date.now()}`,
+        displayName: displayName.trim(),
+        pictureUrl:
+          pictureUrl ||
+          "https://api.dicebear.com/7.x/bottts/svg?seed=MonthongKing&backgroundColor=fef08a",
+        phone: phone.trim(),
+        address: address.trim(),
+        postalCode: postalCode.trim(),
+      });
 
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg("");
-
-    if (regPassword !== regConfirmPassword) {
-      setErrorMsg("รหัสผ่านและยืนยันรหัสผ่านไม่ตรงกัน");
-      return;
-    }
-
-    if (regPostalCode.trim().length !== 5) {
-      setErrorMsg("รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก");
-      return;
-    }
-
-    setSubmitting(true);
-
-    const res = await register({
-      username: regUsername.trim(),
-      password: regPassword,
-      firstName: regFirstName.trim(),
-      lastName: regLastName.trim(),
-      phone: regPhone.trim(),
-      address: regAddress.trim(),
-      postalCode: regPostalCode.trim(),
-      avatarUrl: regAvatarUrl,
-    });
-
-    setSubmitting(false);
-
-    if (!res.ok) {
-      setErrorMsg(res.error || "สมัครสมาชิกไม่สำเร็จ");
-    } else {
-      setSuccessMsg("สมัครสมาชิกและบันทึกข้อมูลลง Google Sheet สำเร็จ!");
-      setTimeout(() => {
-        closeAuthModal();
-      }, 900);
+      setSubmitting(false);
+      if (!res.ok) {
+        setErrorMsg(res.error || "เข้าสู่ระบบไม่สำเร็จ");
+      } else {
+        setSuccessMsg("เข้าสู่ระบบด้วย LINE เรียบร้อยแล้ว!");
+        setTimeout(() => closeAuthModal(), 1200);
+      }
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-amber-300 max-h-[92vh] flex flex-col">
+    <div
+      className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in"
+      onClick={closeAuthModal}
+    >
+      <div
+        className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-emerald-900/20"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#11301F] via-[#1B4D31] to-[#143B25] text-white p-5 sm:p-6 relative shrink-0">
+        <div className="bg-[#11301F] text-white p-5 flex items-center justify-between border-b border-white/10 relative overflow-hidden">
+          <div className="absolute right-0 -bottom-4 opacity-10 pointer-events-none">
+            <LineIcon className="w-32 h-32 text-[#06C755]" />
+          </div>
+
+          <div className="flex items-center gap-3 z-10">
+            <div className="w-10 h-10 rounded-2xl bg-[#06C755] flex items-center justify-center shadow-md">
+              <LineIcon className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-base text-white">
+                {user ? "ข้อมูลสมาชิกของคุณ" : "เข้าสู่ระบบด้วย LINE"}
+              </h3>
+              <p className="text-[11px] text-emerald-300">
+                {user ? "ผูกบัญชี LINE เรียบร้อยแล้ว" : "คลิกเดียวจบ • ไม่ต้องจำรหัสผ่าน"}
+              </p>
+            </div>
+          </div>
+
           <button
-            type="button"
             onClick={closeAuthModal}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+            className="text-white/70 hover:text-white p-1 rounded-lg transition z-10"
           >
             <X className="w-5 h-5" />
           </button>
-
-          <div className="flex items-center gap-2 mb-2">
-            <span className="w-7 h-7 rounded-lg bg-[#FFD84D] text-[#1B4D31] flex items-center justify-center">
-              <DurianIcon className="w-4 h-4" />
-            </span>
-            <span className="text-xs font-bold text-amber-300">
-              สมาชิกทุเรียนวินคิน (Durian Winkin Member)
-            </span>
-          </div>
-
-          <h3 className="text-xl sm:text-2xl font-extrabold text-white">
-            {authModalMode === "login" ? "เข้าสู่ระบบสมาชิก" : "สมัครสมาชิกใหม่"}
-          </h3>
-          <p className="text-xs text-stone-200 mt-1">
-            {authModalMode === "login"
-              ? "เข้าสู่ระบบเพื่อสั่งซื้อสะดวกรวดเร็ว ไม่ต้องพิมพ์ที่อยู่ซ้ำ"
-              : "สมัครสมาชิกครั้งเดียว กรอกที่อยู่จัดส่งให้อัตโนมัติทุกรอบ"}
-          </p>
-
-          {/* Mode Switcher Tabs */}
-          <div className="flex bg-black/25 p-1 rounded-xl mt-4 border border-white/10">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthModalMode("login");
-                setErrorMsg("");
-              }}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                authModalMode === "login"
-                  ? "bg-[#FFD84D] text-stone-950 shadow-sm"
-                  : "text-stone-300 hover:text-white"
-              }`}
-            >
-              เข้าสู่ระบบ
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthModalMode("register");
-                setErrorMsg("");
-              }}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                authModalMode === "register"
-                  ? "bg-[#FFD84D] text-stone-950 shadow-sm"
-                  : "text-stone-300 hover:text-white"
-              }`}
-            >
-              สมัครสมาชิกใหม่
-            </button>
-          </div>
         </div>
 
-        {/* Form Body (Scrollable) */}
-        <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-4">
+        {/* Content Body */}
+        <div className="p-6">
           {errorMsg && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+            <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs rounded-xl flex items-center gap-2">
+            <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
               <span className="font-bold">{successMsg}</span>
             </div>
           )}
 
-          {/* ===================== LOGIN FORM ===================== */}
-          {authModalMode === "login" && (
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                  ชื่อผู้ใช้ (Username) หรือเบอร์โทรศัพท์ *
-                </label>
-                <div className="relative">
-                  <UserIcon className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="เช่น somchai99 หรือ 0812345678"
-                    value={loginUsername}
-                    onChange={(e) => setLoginUsername(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] outline-hidden transition"
-                  />
-                </div>
+          {step === "connect" && !user && (
+            <div className="text-center py-3 space-y-5">
+              <div className="w-20 h-20 mx-auto rounded-3xl bg-[#06C755]/10 border border-[#06C755]/30 flex items-center justify-center">
+                <LineIcon className="w-12 h-12 text-[#06C755]" />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                  รหัสผ่าน (Password) *
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="กรอกรหัสผ่านของคุณ"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] outline-hidden transition"
-                  />
-                </div>
+                <h4 className="font-extrabold text-stone-900 text-base">
+                  เข้าสู่ระบบผ่าน LINE ง่ายและรวดเร็ว
+                </h4>
+                <p className="text-xs text-stone-500 mt-1 max-w-xs mx-auto leading-relaxed">
+                  ไม่ต้องกรอก Username และไม่ต้องจำ Password! เชื่อมต่อบัญชี LINE เพื่อดึงที่อยู่จัดส่งและรับการแจ้งเตือนพัสดุอัตโนมัติ
+                </p>
               </div>
 
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-3 bg-[#1B4D31] hover:bg-[#143B25] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-amber-300" />
-                      <span>กำลังเข้าสู่ระบบ...</span>
-                    </>
-                  ) : (
-                    <span>เข้าสู่ระบบ</span>
-                  )}
-                </button>
-              </div>
-
-              <p className="text-center text-xs text-stone-500 pt-2">
-                ยังไม่มีบัญชีสมาชิก?{" "}
+              <div className="space-y-2.5 pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setAuthModalMode("register");
-                    setErrorMsg("");
-                  }}
-                  className="text-[#1B4D31] font-bold underline hover:text-[#143B25] cursor-pointer"
+                  onClick={handleLineConnect}
+                  className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-3.5 rounded-2xl font-black text-sm transition shadow-lg shadow-emerald-700/20 flex items-center justify-center gap-2.5 active:scale-[0.99]"
                 >
-                  สมัครสมาชิกใหม่ที่นี่
+                  <LineIcon className="w-5 h-5" />
+                  <span>เข้าสู่ระบบด้วย LINE</span>
                 </button>
-              </p>
-            </form>
+
+                <p className="text-[11px] text-stone-400">
+                  ข้อมูลการจัดส่งจะถูกบันทึกลงในระบบอย่างปลอดภัย 100%
+                </p>
+              </div>
+            </div>
           )}
 
-          {/* ===================== REGISTER FORM ===================== */}
-          {authModalMode === "register" && (
-            <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
-              
-              {/* Profile Image / Avatar Picker */}
-              <div className="bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200 space-y-2">
-                <span className="block text-xs font-bold text-stone-800">
-                  รูปภาพประจำตัว (Avatar) *
-                </span>
-                
-                <div className="flex items-center gap-4">
-                  {/* Avatar Preview */}
-                  <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-white border-2 border-[#1B4D31] shadow-xs shrink-0 flex items-center justify-center">
-                    <img
-                      src={regAvatarUrl}
-                      alt="รูปโปรไฟล์"
-                      className="w-full h-full object-cover"
-                    />
-                    {uploadingImage && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white">
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      </div>
-                    )}
+          {step === "details" && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Profile Card Preview */}
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3.5 flex items-center gap-3">
+                {pictureUrl ? (
+                  <img
+                    src={pictureUrl}
+                    alt={displayName}
+                    className="w-12 h-12 rounded-full object-cover border-2 border-[#06C755] bg-white shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-[#06C755] text-white flex items-center justify-center font-black text-base shrink-0 shadow-xs">
+                    {displayName ? displayName.charAt(0) : <LineIcon className="w-6 h-6" />}
                   </div>
-
-                  {/* Upload Button & Action */}
-                  <div className="flex-1 space-y-1.5">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleImageFileChange}
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploadingImage}
-                      className="px-3 py-1.5 bg-white hover:bg-stone-50 text-stone-700 border border-stone-300 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <Camera className="w-3.5 h-3.5 text-amber-600" />
-                      <span>{uploadingImage ? "กำลังอัปโหลด..." : "แนบรูปจากเครื่อง"}</span>
-                    </button>
-                    <p className="text-[10px] text-stone-500">
-                      รองรับ JPG, PNG หรือเลือกมาสคอตน่ารักด้านล่าง
-                    </p>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-stone-900 text-sm truncate">
+                      {displayName || "ลูกค้า LINE"}
+                    </span>
+                    <span className="bg-[#06C755] text-white text-[9px] font-black px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
+                      <CheckCircle2 className="w-2.5 h-2.5" />
+                      LINE
+                    </span>
                   </div>
-                </div>
-
-                {/* Presets */}
-                <div className="pt-1 flex items-center gap-2 overflow-x-auto pb-1">
-                  <span className="text-[10px] font-bold text-stone-500 shrink-0">
-                    หรือเลือกรูป:
-                  </span>
-                  {PRESET_AVATARS.map((av, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setRegAvatarUrl(av.url)}
-                      className={`w-7 h-7 rounded-lg overflow-hidden border-2 shrink-0 transition cursor-pointer ${
-                        regAvatarUrl === av.url
-                          ? "border-[#1B4D31] ring-2 ring-[#1B4D31]/30 scale-105"
-                          : "border-stone-200 hover:border-amber-400 opacity-70 hover:opacity-100"
-                      }`}
-                      title={av.name}
-                    >
-                      <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
-                    </button>
-                  ))}
+                  <p className="text-[11px] text-emerald-800 font-semibold mt-0.5">
+                    {user ? "บันทึกที่อยู่นี้สำหรับสั่งซื้อรอบถัดไป" : "กรอกที่อยู่ครั้งเดียว ใช้ได้ทุกการสั่งซื้อ"}
+                  </p>
                 </div>
               </div>
 
-              {/* Username & Phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    ชื่อผู้ใช้ (Username) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="ภาษาอังกฤษหรือตัวเลข"
-                    value={regUsername}
-                    onChange={(e) => setRegUsername(e.target.value)}
-                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    เบอร์โทรศัพท์ติดต่อ *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="เช่น 0812345678"
-                    value={regPhone}
-                    onChange={(e) => setRegPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] outline-hidden"
-                  />
-                </div>
-              </div>
-
-              {/* Password & Confirm */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    รหัสผ่าน (Password) *
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="อย่างน้อย 4 ตัวอักษร"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    ยืนยันรหัสผ่าน *
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="กรอกรหัสผ่านซ้ำอีกครั้ง"
-                    value={regConfirmPassword}
-                    onChange={(e) => setRegConfirmPassword(e.target.value)}
-                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] outline-hidden"
-                  />
-                </div>
-              </div>
-
-              {/* First Name & Last Name */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    ชื่อจริง *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="เช่น สมชาย"
-                    value={regFirstName}
-                    onChange={(e) => setRegFirstName(e.target.value)}
-                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    นามสกุล *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="เช่น ใจดี"
-                    value={regLastName}
-                    onChange={(e) => setRegLastName(e.target.value)}
-                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] outline-hidden"
-                  />
-                </div>
-              </div>
-
-              {/* Address & Postal Code */}
+              {/* Form Inputs */}
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-1">
-                  ที่อยู่จัดส่งทุเรียน (บ้านเลขที่ / หมู่บ้าน / ถนน / ตำบล / อำเภอ / จังหวัด) *
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  placeholder="เช่น 123/45 หมู่บ้านพฤกษา ซอย 5 ถ.สุขุมวิท ต.เนินพระ อ.เมือง จ.ระยอง"
-                  value={regAddress}
-                  onChange={(e) => setRegAddress(e.target.value)}
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] outline-hidden resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  รหัสไปรษณีย์ (5 หลัก) *
+                  ชื่อที่แสดง / ชื่อผู้รับ *
                 </label>
                 <input
-                  type="text"
                   required
-                  maxLength={5}
-                  placeholder="เช่น 21000"
-                  value={regPostalCode}
-                  onChange={(e) => setRegPostalCode(e.target.value)}
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:w-1/2 focus:bg-white focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] outline-hidden font-mono"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="เช่น คุณสมชาย หรือชื่อ LINE ของคุณ"
+                  className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs bg-white focus:border-[#06C755] focus:outline-none"
                 />
               </div>
 
-              {/* Privacy Notice */}
-              <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 text-[11px] text-stone-500">
-                🔒 ข้อมูลของท่านจะถูกบันทึกอย่างปลอดภัยลงใน Google Sheet ฐานข้อมูลร้านทุเรียนวินคิน และรหัสผ่านจะถูกเข้ารหัสระดับสูง (One-way Hash) เพื่อความปลอดภัยสูงสุด
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  เบอร์โทรศัพท์ติดต่อ (สำหรับคนส่งทุเรียนโทรหา) *
+                </label>
+                <div className="relative">
+                  <input
+                    required
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="08X-XXX-XXXX"
+                    className="w-full border border-stone-300 rounded-xl pl-9 pr-3.5 py-2.5 text-xs bg-white focus:border-[#06C755] focus:outline-none"
+                  />
+                  <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                </div>
               </div>
 
-              {/* Submit Button */}
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={submitting || uploadingImage}
-                  className="w-full py-3 bg-[#1B4D31] hover:bg-[#143B25] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-amber-300" />
-                      <span>กำลังบันทึกลง Google Sheet...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 text-amber-300" />
-                      <span>ยืนยันสมัครสมาชิก &amp; บันทึกข้อมูล</span>
-                    </>
-                  )}
-                </button>
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  ที่อยู่จัดส่งพัสดุละเอียด *
+                </label>
+                <div className="relative">
+                  <textarea
+                    required
+                    rows={2}
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="บ้านเลขที่, หมู่, ซอย, ถนน, แขวง/ตำบล, เขต/อำเภอ, จังหวัด"
+                    className="w-full border border-stone-300 rounded-xl pl-9 pr-3.5 py-2.5 text-xs bg-white focus:border-[#06C755] focus:outline-none resize-none"
+                  />
+                  <MapPin className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                </div>
               </div>
 
-              <p className="text-center text-xs text-stone-500 pt-1">
-                มีบัญชีอยู่แล้ว?{" "}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthModalMode("login");
-                    setErrorMsg("");
-                  }}
-                  className="text-[#1B4D31] font-bold underline hover:text-[#143B25] cursor-pointer"
-                >
-                  เข้าสู่ระบบที่นี่
-                </button>
-              </p>
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  รหัสไปรษณีย์ *
+                </label>
+                <input
+                  required
+                  type="text"
+                  maxLength={5}
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  placeholder="เช่น 10110"
+                  className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs bg-white focus:border-[#06C755] focus:outline-none font-mono"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-[#11301F] hover:bg-[#1B4D31] text-amber-300 py-3.5 rounded-2xl font-black text-sm transition shadow-md flex items-center justify-center gap-2 disabled:opacity-60 mt-2"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>กำลังบันทึกข้อมูล...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-amber-300" />
+                    <span>{user ? "บันทึกการเปลี่ยนแปลง" : "ยืนยัน & เข้าสู่ระบบด้วย LINE"}</span>
+                  </>
+                )}
+              </button>
             </form>
           )}
         </div>

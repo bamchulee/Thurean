@@ -220,11 +220,11 @@ function Navbar({
             ) : (
               <button
                 type="button"
-                onClick={() => openAuthModal("login")}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-900 font-bold text-xs transition shadow-xs border border-amber-300"
+                onClick={() => openAuthModal("line")}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white font-bold text-xs transition shadow-xs"
               >
-                <UserIcon className="w-4 h-4 text-stone-900" />
-                <span>เข้าสู่ระบบ</span>
+                <LineIcon className="w-4 h-4 text-white" />
+                <span>เข้าสู่ระบบด้วย LINE</span>
               </button>
             )}
 
@@ -307,12 +307,12 @@ function Navbar({
                 type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  openAuthModal("login");
+                  openAuthModal("line");
                 }}
-                className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-stone-950 py-2.5 rounded-xl font-bold text-xs mb-3 transition shadow-xs"
+                className="w-full flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34c] text-white py-2.5 rounded-xl font-bold text-xs mb-3 transition shadow-xs"
               >
-                <UserIcon className="w-4 h-4 text-stone-950" />
-                <span>เข้าสู่ระบบ / สมัครสมาชิก</span>
+                <LineIcon className="w-4 h-4 text-white" />
+                <span>เข้าสู่ระบบด้วย LINE</span>
               </button>
             )}
 
@@ -1190,25 +1190,25 @@ function OrderModal({
             {user ? (
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-800 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 font-bold">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  ดึงข้อมูลสมาชิก: {user.firstName} {user.lastName}
+                  <LineIcon className="w-4 h-4 text-[#06C755]" />
+                  ดึงข้อมูลจัดส่ง LINE: {user.firstName || user.username}
                 </span>
                 <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
-                  ล็อกอินแล้ว
+                  เชื่อมต่อแล้ว
                 </span>
               </div>
             ) : (
               <button
                 type="button"
-                onClick={() => openAuthModal("login")}
-                className="w-full bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl p-2.5 text-xs flex items-center justify-between text-amber-900 transition text-left"
+                onClick={() => openAuthModal("line")}
+                className="w-full bg-[#06C755]/10 hover:bg-[#06C755]/20 border border-[#06C755]/30 rounded-xl p-2.5 text-xs flex items-center justify-between text-emerald-900 transition text-left"
               >
                 <span className="flex items-center gap-1.5 font-semibold">
-                  <UserIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  เป็นสมาชิกอยู่แล้ว? คลิกเพื่อเข้าสู่ระบบและดึงที่อยู่อัตโนมัติ
+                  <LineIcon className="w-4 h-4 text-[#06C755] shrink-0" />
+                  เข้าสู่ระบบด้วย LINE เพื่อดึงที่อยู่อัตโนมัติ
                 </span>
-                <span className="text-amber-800 font-extrabold underline text-[11px] shrink-0">
-                  เข้าสู่ระบบ
+                <span className="text-[#06C755] font-extrabold underline text-[11px] shrink-0">
+                  เชื่อมต่อ LINE
                 </span>
               </button>
             )}
@@ -1518,7 +1518,19 @@ export default function Home() {
   );
 
   const { addItem, totalItems } = useCart();
+  const { user, loginWithLine } = useAuth();
   const { profile: lineProfile } = useLiff(liffId);
+
+  // Auto-login customer if accessed through LINE app
+  useEffect(() => {
+    if (lineProfile && !user) {
+      loginWithLine({
+        lineUserId: lineProfile.userId,
+        displayName: lineProfile.displayName,
+        pictureUrl: lineProfile.pictureUrl,
+      });
+    }
+  }, [lineProfile, user, loginWithLine]);
 
   useEffect(() => {
     fetch("/api/shop")
