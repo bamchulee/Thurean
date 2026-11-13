@@ -20,6 +20,7 @@ import {
   Plus,
   Scale,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   ShoppingBasket,
   Snowflake,
@@ -142,6 +143,17 @@ function Navbar({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2.5">
+            {/* Admin Badge & Direct Access */}
+            {user?.role === "admin" && (
+              <a
+                href="/admin"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-stone-950 text-xs font-black shadow-xs transition"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-stone-950" />
+                <span>หลังบ้านแอดมิน</span>
+              </a>
+            )}
+
             {/* User Login / Profile Pill */}
             {user ? (
               <div className="relative">
@@ -181,11 +193,28 @@ function Navbar({
                         <p className="text-[11px] text-stone-500 font-mono">
                           @{user.username} • {user.phone}
                         </p>
-                        <p className="text-[10px] text-emerald-700 mt-1 font-semibold flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3" />
-                          บัญชีสมาชิกยืนยันแล้ว
-                        </p>
+                        {user.role === "admin" ? (
+                          <p className="text-[10px] text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full mt-1.5 font-black inline-flex items-center gap-1 border border-amber-300">
+                            <ShieldAlert className="w-3 h-3 text-amber-700" />
+                            ผู้ดูแลระบบ (Admin)
+                          </p>
+                        ) : (
+                          <p className="text-[10px] text-emerald-700 mt-1 font-semibold flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3" />
+                            สมาชิกทั่วไป (Customer)
+                          </p>
+                        )}
                       </div>
+                      {user.role === "admin" && (
+                        <a
+                          href="/admin"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="w-full text-left px-4 py-2.5 text-xs font-black text-amber-950 bg-amber-50 hover:bg-amber-100 flex items-center gap-2 border-b border-amber-200 transition"
+                        >
+                          <ShieldAlert className="w-4 h-4 text-amber-600" />
+                          <span>แผงควบคุมร้านค้า (Admin Dashboard)</span>
+                        </a>
+                      )}
                       <a
                         href="/tracking"
                         onClick={() => setUserDropdownOpen(false)}
@@ -269,7 +298,8 @@ function Navbar({
           <div className="lg:hidden bg-[#11301F] text-white px-5 py-4 space-y-2.5 font-semibold text-sm border-t border-white/10">
             {/* User Profile / Login on Mobile */}
             {user ? (
-              <div className="bg-white/10 p-3 rounded-2xl flex items-center justify-between border border-white/15 mb-3">
+              <>
+                <div className="bg-white/10 p-3 rounded-2xl flex items-center justify-between border border-white/15 mb-3">
                 <div className="flex items-center gap-2.5">
                   {user.avatarUrl ? (
                     <img
@@ -302,6 +332,18 @@ function Navbar({
                   <span>ออก</span>
                 </button>
               </div>
+
+              {user.role === "admin" && (
+                <a
+                  href="/admin"
+                  className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-500 text-stone-950 py-2.5 rounded-xl font-black text-xs mb-3 transition shadow-sm"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <ShieldAlert className="w-4 h-4 text-stone-950" />
+                  <span>แผงควบคุมร้านค้า (Admin Panel)</span>
+                </a>
+              )}
+            </>
             ) : (
               <button
                 type="button"

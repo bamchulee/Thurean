@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { upsertLineUser } from "../../../../lib/sheets-db";
+import { createAdminSessionToken, getRuntimeConfig, upsertLineUser } from "../../../../lib/sheets-db";
 import { createSessionToken, toSafeUser } from "../../../../lib/user-auth";
+import { ADMIN_COOKIE_NAME } from "../../../../lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,17 @@ export async function POST(req: NextRequest) {
       path: "/",
       maxAge: 60 * 60 * 24 * 30, // 30 days
     });
+
+    if (safe.role === "admin") {
+      const cfg = getRuntimeConfig();
+      const adminToken = createAdminSessionToken(cfg.adminPin || "2824");
+      res.cookies.set(ADMIN_COOKIE_NAME, adminToken, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
+    }
 
     return res;
   } catch (err) {

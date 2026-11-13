@@ -231,8 +231,25 @@ function PinLoginScreen({ onSuccess }: { onSuccess: () => void }) {
           className="w-full bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold py-3.5 rounded-xl text-sm transition shadow-md disabled:opacity-60 inline-flex items-center justify-center gap-2"
         >
           <Unlock className="w-4 h-4 text-amber-300" />
-          <span>{loading ? "กำลังตรวจสอบ..." : "เข้าสู่ระบบหลังบ้าน"}</span>
+          <span>{loading ? "กำลังตรวจสอบ..." : "เข้าสู่ระบบด้วยรหัส PIN"}</span>
         </button>
+
+        <div className="relative pt-1">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-stone-200" />
+          </div>
+          <div className="relative flex justify-center text-[11px]">
+            <span className="bg-white px-2 text-stone-400">หรือ</span>
+          </div>
+        </div>
+
+        <a
+          href="/api/auth/line/login"
+          className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition shadow-xs"
+        >
+          <LineIcon className="w-4 h-4" />
+          <span>เข้าสู่ระบบด้วย LINE (บัญชีแอดมิน)</span>
+        </a>
 
         <a
           href="/"
@@ -2537,6 +2554,28 @@ function UsersTab({
   onRefresh: () => void;
 }) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleRoleChange = async (userId: string, newRole: "user" | "admin") => {
+    setUpdatingId(userId);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role: newRole }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        alert(json.error || "ไม่สามารถเปลี่ยนสิทธิ์ได้");
+      } else {
+        onRefresh();
+      }
+    } catch {
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const filtered = users.filter((u) => {
     const term = searchTerm.toLowerCase();
@@ -2636,12 +2675,13 @@ function UsersTab({
                 <th className="py-3 px-4 font-bold">ที่อยู่จัดส่ง &amp; รหัสไปรษณีย์</th>
                 <th className="py-3 px-4 font-bold text-center">ออเดอร์ที่สั่ง (JOIN)</th>
                 <th className="py-3 px-4 font-bold">วันที่สมัคร</th>
+                <th className="py-3 px-4 font-bold text-center">สิทธิ์การใช้งาน (Role)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-stone-400">
+                  <td colSpan={7} className="py-12 text-center text-stone-400">
                     <User className="w-8 h-8 mx-auto mb-2 opacity-40" />
                     <p className="font-semibold">ไม่พบข้อมูลสมาชิก</p>
                     <p className="text-[11px] text-stone-400 mt-0.5">
@@ -2718,6 +2758,26 @@ function UsersTab({
                     </td>
                     <td className="py-3 px-4 text-stone-500 font-mono text-[11px]">
                       {u.createdAt ? new Date(u.createdAt).toLocaleDateString("th-TH") : "-"}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <select
+                        value={u.role || "user"}
+                        disabled={updatingId === u.id}
+                        onChange={(e) =>
+                          handleRoleChange(
+                            (u as any).userId || u.id,
+                            e.target.value as "user" | "admin"
+                          )
+                        }
+                        className={`text-[11px] font-bold rounded-lg px-2.5 py-1.5 border transition cursor-pointer ${
+                          u.role === "admin"
+                            ? "bg-amber-100 text-amber-900 border-amber-300 font-extrabold shadow-xs"
+                            : "bg-stone-50 text-stone-700 border-stone-200"
+                        }`}
+                      >
+                        <option value="user">👤 ลูกค้า (User)</option>
+                        <option value="admin">🛡️ แอดมิน (Admin)</option>
+                      </select>
                     </td>
                   </tr>
                 ))

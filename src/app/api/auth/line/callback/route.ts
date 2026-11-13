@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getRuntimeConfig, upsertLineUser } from "../../../../../lib/sheets-db";
+import {
+  createAdminSessionToken,
+  getRuntimeConfig,
+  upsertLineUser,
+} from "../../../../../lib/sheets-db";
 import { createSessionToken, toSafeUser } from "../../../../../lib/user-auth";
+import { ADMIN_COOKIE_NAME } from "../../../../../lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -107,12 +112,21 @@ export async function GET(req: NextRequest) {
       notes: "เข้าสู่ระบบผ่าน LINE Login OAuth สำเร็จ",
     });
 
-    // 4. Set session cookie and redirect home
+    // 4. Set session cookie and redirect
     const safe = toSafeUser(user);
     const sessionToken = createSessionToken(safe);
 
-    homeUrl.searchParams.set("login_success", "line");
-    const res = NextResponse.redirect(homeUrl);
+    // If user is Admin, redirect to /admin directly, otherwise to home
+    const redirectUrl =
+      safe.role === "admin"
+        ? new URL("/admin", req.url)
+        : homeUrl;
+
+    if (safe.role !== "admin") {
+      redirectUrl.searchParams.set("login_success", "line");
+    }
+
+    const res = NextResponse.redirect(redirectUrl);
 
     res.cookies.set("winkin_user_token", sessionToken, {
       httpOnly: true,
@@ -121,6 +135,16 @@ export async function GET(req: NextRequest) {
       path: "/",
       maxAge: 60 * 60 * 24 * 30, // 30 days
     });
+
+    if (safe.role === "admin") {
+      const adminToken = createAdminSessionToken(cfg.adminPin || "2824");
+      res.cookies.set(ADMIN_COOKIE_NAME, adminToken, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
+    }
 
     res.cookies.delete("winkin_line_state");
     return res;

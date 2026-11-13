@@ -753,11 +753,20 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
   );
 
   const now = new Date().toISOString();
+  const cfg = getRuntimeConfig();
+  const isAdminByLineId = Boolean(
+    cfg.lineAdminUserId &&
+      cleanLineId &&
+      cfg.lineAdminUserId.trim().toLowerCase() === cleanLineId.trim().toLowerCase()
+  );
 
   if (existing) {
     const updates: Partial<User> = {
       updatedAt: now,
     };
+    if (isAdminByLineId && existing.role !== "admin") {
+      updates.role = "admin";
+    }
     if (cleanLineId && !existing.lineUserId) updates.lineUserId = cleanLineId;
     if (cleanDisplay && !existing.displayName) updates.displayName = cleanDisplay;
     if (cleanPhone && (!existing.phone || existing.phone.length < 9)) updates.phone = cleanPhone;
@@ -789,7 +798,7 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
     avatarUrl:
       input.avatarUrl ||
       "https://api.dicebear.com/7.x/bottts/svg?seed=MonthongKing&backgroundColor=fef08a",
-    role: "user",
+    role: isAdminByLineId ? "admin" : "user",
     source: input.source || "line-login",
     notes: input.notes,
     createdAt: now,
