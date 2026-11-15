@@ -20,6 +20,10 @@ import { deductProductStock } from "./stock";
 import { getWritableDataDir } from "./storage-dir";
 import { getSigningSecret } from "./secrets";
 
+// URL ของ Web App ใช้ได้ต่อเมื่อมี API key เท่านั้น (ดู google-apps-script/Code.gs)
+const DEFAULT_SHEETS_WEBAPP_URL =
+  "https://script.google.com/macros/s/AKfycbzDCBqJeHA5NkSM3j4j02esWdOhoUoqIml50KoDvLBjpzj9Y7BEgNVcBwhzo_hgktHh/exec";
+
 function getLocalDbPath(): string {
   return path.join(getWritableDataDir(), "local-db.json");
 }
@@ -52,8 +56,10 @@ export function getRuntimeConfig(): RuntimeConfig {
   return {
     googleSheetsWebAppUrl:
       process.env.GOOGLE_SHEETS_WEBAPP_URL ||
-      fileConfig.googleSheetsWebAppUrl ||
-      "https://script.google.com/macros/s/AKfycbzDCBqJeHA5NkSM3j4j02esWdOhoUoqIml50KoDvLBjpzj9Y7BEgNVcBwhzo_hgktHh/exec",
+      // ค่าว่างที่บันทึกไว้ = แอดมินกด "ตัดการเชื่อมต่อ" ให้ใช้โหมด local จริง ๆ
+      (fileConfig.googleSheetsWebAppUrl !== undefined
+        ? fileConfig.googleSheetsWebAppUrl
+        : DEFAULT_SHEETS_WEBAPP_URL),
     googleSheetViewUrl:
       process.env.GOOGLE_SHEET_VIEW_URL ||
       fileConfig.googleSheetViewUrl ||

@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ทุเรียนวินคิน
 
-## Getting Started
+ระบบร้านทุเรียนออนไลน์: หน้าร้าน + ตะกร้า + PromptPay QR, หลังบ้านแอดมิน, LINE OA (webhook / LIFF / LINE Login) และฐานข้อมูลบน Google Sheets
 
-First, run the development server:
+## โครงสร้าง
+
+| ส่วน | ที่อยู่ |
+| --- | --- |
+| หน้าร้าน / เช็กพัสดุ / แจ้งเคลม | `src/app/page.tsx`, `src/app/tracking`, `src/app/claim` |
+| หลังบ้าน | `src/app/admin` (เข้าด้วย PIN หรือบัญชี LINE ที่เป็นแอดมิน) |
+| API | `src/app/api/*` |
+| ชั้นข้อมูล (Sheets + ไฟล์สำรองในเครื่อง) | `src/lib/sheets-db.ts` |
+| สร้างออเดอร์ / เคลม | `src/lib/order-service.ts` |
+| Apps Script ที่ต้องนำไปวางใน Google Sheet | `google-apps-script/Code.gs` |
+| หน้า LIFF แบบ HTML ล้วน / ใบเสร็จ | `public/liff`, `public/receipt` |
+
+## รันในเครื่อง
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # แล้วเติมค่า
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+ถ้าไม่ตั้ง `GOOGLE_SHEETS_WEBAPP_URL` ระบบจะเก็บข้อมูลใน `data/local-db.json` (ไม่ขึ้น git)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ตัวแปรที่ต้องตั้ง (Vercel > Settings > Environment Variables)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+ดูรายการเต็มใน `.env.example` — ระบบไม่มีค่าลับเริ่มต้นฝังในโค้ด ตัวที่ต้องตั้งเอง:
 
-## Learn More
+- `ADMIN_PIN` — รหัสเข้าหลังบ้าน ไม่ตั้งจะเข้าด้วย PIN ไม่ได้
+- `SESSION_SECRET` — ข้อความสุ่มยาว ๆ ใช้เซ็น session
+- `LINE_LOGIN_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN` — จาก LINE Developers Console
+- `GOOGLE_SHEETS_API_KEY` — key ของ Apps Script (ดูหัวข้อถัดไป)
 
-To learn more about Next.js, take a look at the following resources:
+## ติดตั้ง / อัปเดต Google Sheets
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. เปิด Google Sheet หลัก > Extensions > Apps Script วางโค้ดจาก `google-apps-script/Code.gs` ทับของเดิม แล้วบันทึก
+2. เลือกฟังก์ชัน `generateApiKey` แล้วกด Run หนึ่งครั้ง คัดลอก key จาก Execution log
+3. ใส่ key เป็น `GOOGLE_SHEETS_API_KEY` ที่ Vercel (และ `.env.local`) แล้ว redeploy เว็บ
+4. กลับมาที่ Apps Script: Deploy > Manage deployments > แก้ไข > Version: **New version** > Deploy (URL เดิม)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+ทำตามลำดับนี้เว็บจะไม่ล่มระหว่างทาง: เว็บรุ่นนี้ยังอ่านข้อมูลจากสคริปต์รุ่นเก่าได้ แต่สคริปต์รุ่นใหม่จะปฏิเสธทุกคำขอที่ไม่มี key
 
-## Deploy on Vercel
+สคริปต์จะสร้างชีตและเติมคอลัมน์ที่ขาดให้เอง ไม่ลบหรือย้ายคอลัมน์เดิม
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### พฤติกรรมการบันทึกข้อมูล
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- ทุกการเขียนทำทีละคำขอภายใต้ล็อก ออเดอร์สองรายการที่เข้ามาพร้อมกันจะไม่ตัดสต็อกทับกัน
+- สร้างออเดอร์: เช็กรหัสซ้ำและสต็อกก่อน ถ้าของไม่พอจะไม่บันทึกอะไรเลย (ช่องสต็อกที่เว้นว่าง = ไม่นับสต็อก)
+- สมาชิกบันทึกแบบ upsert และเก็บ `username` / `passwordHash` ในชีต Users
+- ปุ่ม "ซิงก์" ในหลังบ้านกดซ้ำได้ ไม่เกิดแถวซ้ำและไม่ตัดสต็อกซ้ำ
+- เบอร์โทร รหัสไปรษณีย์ เลขพัสดุ เก็บเป็นข้อความเสมอ เลข 0 นำหน้าไม่หาย

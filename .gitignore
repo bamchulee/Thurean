@@ -37,6 +37,8 @@ yarn-error.log*
 # local runtime data & secrets
 /data/local-db.json
 /data/runtime-config.json
+/data/.signing-secret
+/data/*.tmp
 /data/line-sessions.json
 /data/slips/
 
