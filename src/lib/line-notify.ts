@@ -102,8 +102,14 @@ export async function replyLineMessage(
       },
       body: JSON.stringify({ replyToken, messages }),
     });
-    return res.ok;
-  } catch {
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[LINE Reply Error]", res.status, errText);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[LINE Reply Network Error]", err);
     return false;
   }
 }
@@ -310,7 +316,7 @@ export function buildCustomerStatusFlex(order: Order): unknown[] {
           height: "sm",
           action: {
             type: "uri",
-            label: `เช็กเลขกับ ${courierInfo.name.split(" ")[0]}`,
+            label: "เช็กเลขพัสดุ",
             uri: courierInfo.trackingUrl,
           },
         },
@@ -405,7 +411,7 @@ export function buildWelcomeFlex(round?: Round): unknown[] {
               height: "sm",
               action: {
                 type: "postback",
-                label: "เช็กสต็อก & เลือกสั่งซื้อ",
+                label: "เช็กสต็อก & สั่งซื้อ",
                 data: "action=stock",
                 displayText: "เช็กสต็อกรอบนี้",
               },
@@ -848,7 +854,7 @@ export function buildStockOverviewMessages(
                 height: "sm",
                 action: {
                   type: "postback",
-                  label: `🍈 สั่งรายการนี้ (฿${p.price.toLocaleString()})`,
+                  label: "🍈 สั่งซื้อรายการนี้",
                   data: `action=order_pick&productId=${encodeURIComponent(p.id)}`,
                   displayText: `เลือกสั่ง ${p.name}`,
                 },
@@ -859,7 +865,7 @@ export function buildStockOverviewMessages(
                 height: "sm",
                 action: {
                   type: "postback",
-                  label: "หมดชั่วคราว (เช็กตัวอื่น)",
+                  label: "หมด (ดูพันธุ์อื่น)",
                   data: "action=stock",
                 },
               },
@@ -988,7 +994,7 @@ export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
               height: "sm",
               action: {
                 type: "message",
-                label: `เช็กสถานะ ${order.id}`,
+                label: "เช็กสถานะออเดอร์",
                 text: order.id,
               },
             },
@@ -1154,7 +1160,7 @@ export function buildPromptPayQrPaymentFlex(params: {
           height: "sm",
           action: {
             type: "postback",
-            label: "ยังไม่มีสลิป (ออกเลข Order ก่อน)",
+            label: "ขอยังไม่แนบสลิป",
             data: "action=confirm_without_slip",
             displayText: "ขอยืนยันจองและส่งสลิปภายหลัง",
           },
@@ -1340,7 +1346,7 @@ export function buildLiveStreamFlex(cfg: RuntimeConfig): unknown[] {
     height: "sm",
     action: {
       type: "message",
-      label: "เช็กสต็อกทุเรียนระหว่างรอ",
+      label: "เช็กสต็อกทุเรียน",
       text: "เช็กสต็อก",
     },
   });
@@ -1426,7 +1432,7 @@ export function buildMoreMenuFlex(
       height: "sm",
       action: {
         type: "postback",
-        label: "📦 เช็กสถานะจัดส่ง & ขนส่ง",
+        label: "📦 เช็กสถานะพัสดุ",
         data: "action=status",
         displayText: "เช็กสถานะพัสดุ",
       },
@@ -1441,7 +1447,7 @@ export function buildMoreMenuFlex(
         height: "sm",
         action: {
           type: "uri",
-          label: "🌐 เข้าชมหน้าเว็บไซต์ร้านค้า",
+          label: "🌐 เข้าชมหน้าร้าน",
           uri: `${baseUrl}/`,
         },
       },
@@ -1451,7 +1457,7 @@ export function buildMoreMenuFlex(
         height: "sm",
         action: {
           type: "uri",
-          label: "🚚 เช็กเลขพัสดุบนหน้าเว็บ",
+          label: "🚚 เช็กเลขพัสดุ",
           uri: `${baseUrl}/tracking`,
         },
       },
@@ -1461,7 +1467,7 @@ export function buildMoreMenuFlex(
         height: "sm",
         action: {
           type: "uri",
-          label: "🛡️ หน้าแจ้งเคลมสินค้า 100%",
+          label: "🛡️ แจ้งเคลมสินค้า",
           uri: `${baseUrl}/claim`,
         },
       }
@@ -1474,7 +1480,7 @@ export function buildMoreMenuFlex(
     height: "sm",
     action: {
       type: "uri",
-      label: `📞 โทรสอบถามร้าน ${shopInfo.phone}`,
+      label: "📞 โทรติดต่อร้าน",
       uri: `tel:${shopInfo.phone.replace(/-/g, "")}`,
     },
   });
