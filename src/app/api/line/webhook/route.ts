@@ -164,6 +164,11 @@ export async function POST(req: NextRequest) {
       const userId = ev.source?.userId || "";
       if (!replyToken || !token) continue;
 
+      // แสดง Animation จุดสามจุด (...) ขยับได้ "กำลังพิมพ์..." ให้ลูกค้าเห็นทันทีทุกครั้งที่กดริชเมนูหรือส่งข้อความ
+      if (userId) {
+        await showLineLoadingAnimation(userId, token, 15);
+      }
+
       // 1. Follow Event -> Welcome Card
       if (ev.type === "follow") {
         const { data } = await getAllDatabase();
@@ -441,9 +446,6 @@ export async function POST(req: NextRequest) {
 
         // Global Rich Menu & Text Triggers
         if (msgType === "text") {
-          // แสดงแอนิเมชัน "กำลังพิมพ์..." ในแอป LINE ทันทีภายในเสี้ยววินาที
-          showLineLoadingAnimation(userId, token);
-
           const isStockCmd =
             lower.includes("เช็กสต็อก") ||
             lower.includes("เช็คสต็อก") ||

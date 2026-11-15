@@ -114,23 +114,29 @@ export async function replyLineMessage(
   }
 }
 
-/** แสดงสถานะ "กำลังพิมพ์..." (Loading Animation) ให้ลูกค้าเห็นในหน้าแชททันที */
+/** แสดงสถานะ "กำลังพิมพ์..." (Loading Animation จุดสามจุดขยับได้) ให้ลูกค้าเห็นในหน้าแชททันที */
 export async function showLineLoadingAnimation(
   chatId: string,
   channelAccessToken?: string,
-  loadingSeconds = 5
+  loadingSeconds = 15
 ): Promise<void> {
   if (!channelAccessToken || !chatId) return;
   try {
-    fetch("https://api.line.me/v2/bot/chat/loading/start", {
+    const res = await fetch("https://api.line.me/v2/bot/chat/loading/start", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${channelAccessToken}`,
       },
       body: JSON.stringify({ chatId, loadingSeconds }),
-    }).catch(() => {});
-  } catch {}
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      console.warn("[LINE Loading Error]", res.status, err);
+    }
+  } catch (err) {
+    console.warn("[LINE Loading Exception]", err);
+  }
 }
 
 export function buildOrderAlertForAdmin(order: Order): unknown[] {
@@ -496,7 +502,7 @@ export function buildStockOverviewMessages(
   const statusColor = isClosed ? "#DC2626" : isLowQuota ? "#D97706" : "#15803D";
   const statusText = isClosed ? "🔴 ปิดรับรอบส่งแล้ว" : isLowQuota ? "🟠 โควต้าใกล้เต็ม" : "🟢 กำลังเปิดรับออเดอร์";
 
-  // สร้างแถวรายการสต็อกย่อสำหรับใส่ในการ์ด Dashboard
+  // สร้างแถวรายการสต็อกย่อสำหรับใส่ในการ์ด Dashboard (ตัวหนังสือใหญ่ อ่านง่าย ไม่ตัดคำ)
   const miniStockRows = activeProducts.slice(0, 6).map((p) => {
     const st = formatProductStock(p);
     const isOut = p.isAvailable === false || st.isOutOfStock;
@@ -504,26 +510,27 @@ export function buildStockOverviewMessages(
       type: "box",
       layout: "horizontal",
       alignItems: "center",
+      margin: "sm",
       contents: [
         {
           type: "text",
           text: isOut ? "⚪" : st.isLowStock ? "🟠" : "🟢",
-          size: "xxs",
+          size: "sm",
           flex: 1,
         },
         {
           type: "text",
           text: p.name,
-          size: "xxs",
+          size: "sm",
           color: isOut ? "#9CA3AF" : "#1F2937",
           weight: "bold",
           flex: 6,
-          wrap: false,
+          wrap: true,
         },
         {
           type: "text",
           text: isOut ? "หมดรอบนี้" : st.summary,
-          size: "xxs",
+          size: "sm",
           color: isOut ? "#EF4444" : st.isLowStock ? "#D97706" : "#059669",
           weight: "bold",
           align: "end",
@@ -553,14 +560,14 @@ export function buildStockOverviewMessages(
               text: "🍈 สต็อกสดหน้าสวน",
               color: "#FDE047",
               weight: "bold",
-              size: "sm",
-              flex: 4,
+              size: "md",
+              flex: 5,
             },
             {
               type: "text",
               text: statusText,
               color: "#FFFFFF",
-              size: "xxs",
+              size: "xs",
               weight: "bold",
               align: "end",
               flex: 4,
@@ -596,7 +603,7 @@ export function buildStockOverviewMessages(
               type: "text",
               text: `🚚 รอบส่ง: ${round?.name || "รอบจัดส่งปัจจุบัน"}`,
               weight: "bold",
-              size: "xs",
+              size: "sm",
               color: "#166534",
             },
             {
@@ -607,15 +614,17 @@ export function buildStockOverviewMessages(
                 {
                   type: "text",
                   text: `✂️ ตัดสด: ${round?.harvestDate || "ตามคิว"}`,
-                  size: "xxs",
+                  size: "xs",
                   color: "#374151",
+                  weight: "bold",
                   flex: 1,
                 },
                 {
                   type: "text",
                   text: `🏡 ส่งถึงบ้าน: ${round?.deliveryDate || "1-2 วัน"}`,
-                  size: "xxs",
+                  size: "xs",
                   color: "#374151",
+                  weight: "bold",
                   align: "end",
                   flex: 1,
                 },
@@ -638,11 +647,11 @@ export function buildStockOverviewMessages(
               alignItems: "center",
               flex: 1,
               contents: [
-                { type: "text", text: "สต็อกรวม", size: "xxs", color: "#92400E" },
+                { type: "text", text: "สต็อกรวม", size: "xs", color: "#92400E" },
                 {
                   type: "text",
                   text: `${totalKg.toFixed(1)} กก.`,
-                  size: "xs",
+                  size: "sm",
                   weight: "bold",
                   color: "#78350F",
                   margin: "xs",
@@ -658,11 +667,11 @@ export function buildStockOverviewMessages(
               alignItems: "center",
               flex: 1,
               contents: [
-                { type: "text", text: "โควต้ากล่อง", size: "xxs", color: "#065F46" },
+                { type: "text", text: "โควต้ากล่อง", size: "xs", color: "#065F46" },
                 {
                   type: "text",
                   text: `${round?.quotaRemaining ?? 0}/${round?.totalQuota ?? 0}`,
-                  size: "xs",
+                  size: "sm",
                   weight: "bold",
                   color: "#047857",
                   margin: "xs",
@@ -678,11 +687,11 @@ export function buildStockOverviewMessages(
               alignItems: "center",
               flex: 1,
               contents: [
-                { type: "text", text: "พร้อมส่ง", size: "xxs", color: "#1E40AF" },
+                { type: "text", text: "พร้อมส่ง", size: "xs", color: "#1E40AF" },
                 {
                   type: "text",
                   text: `${availableProducts.length} ชนิด`,
-                  size: "xs",
+                  size: "sm",
                   weight: "bold",
                   color: "#1D4ED8",
                   margin: "xs",
@@ -699,9 +708,9 @@ export function buildStockOverviewMessages(
           contents: [
             {
               type: "text",
-              text: "📋 สรุปสต็อกคงเหลือแต่ละสายพันธุ์:",
+              text: "📋 รายการสต็อกคงเหลือแต่ละสายพันธุ์:",
               weight: "bold",
-              size: "xs",
+              size: "sm",
               color: "#1C1917",
             },
             ...miniStockRows,
@@ -709,8 +718,8 @@ export function buildStockOverviewMessages(
         },
         {
           type: "text",
-          text: "👉 เลื่อนดูการ์ดรูปภาพทุเรียนจริงด้านล่าง แล้วกด \"สั่งรายการนี้\" ได้เลยครับ",
-          size: "xxs",
+          text: "👉 เลื่อนดูการ์ดรูปภาพทุเรียนจริงด้านข้าง แล้วกด \"สั่งซื้อพันธุ์นี้\" ได้เลยครับ",
+          size: "xs",
           weight: "bold",
           color: "#B45309",
           align: "center",
@@ -767,7 +776,7 @@ export function buildStockOverviewMessages(
 
     return {
       type: "bubble",
-      size: "kilo",
+      size: "mega",
       hero: {
         type: "image",
         url: safeHttpsImage(p.image),
@@ -778,8 +787,8 @@ export function buildStockOverviewMessages(
       body: {
         type: "box",
         layout: "vertical",
-        spacing: "xs",
-        paddingAll: "md",
+        spacing: "sm",
+        paddingAll: "lg",
         contents: [
           // Header tag row
           {
@@ -789,7 +798,7 @@ export function buildStockOverviewMessages(
               {
                 type: "text",
                 text: `${p.variety}`,
-                size: "xxs",
+                size: "xs",
                 weight: "bold",
                 color: "#15803D",
                 flex: 1,
@@ -797,7 +806,7 @@ export function buildStockOverviewMessages(
               {
                 type: "text",
                 text: p.badge || (p.type === "flesh" ? "เนื้อล้วน" : "ทั้งลูก"),
-                size: "xxs",
+                size: "xs",
                 weight: "bold",
                 color: "#B45309",
                 align: "end",
@@ -810,7 +819,7 @@ export function buildStockOverviewMessages(
             type: "text",
             text: p.name,
             weight: "bold",
-            size: "sm",
+            size: "md",
             wrap: true,
             maxLines: 2,
             color: "#1C1917",
@@ -820,7 +829,7 @@ export function buildStockOverviewMessages(
             type: "text",
             text: `฿${p.price.toLocaleString()} / ${p.unit}`,
             weight: "bold",
-            size: "md",
+            size: "lg",
             color: "#B45309",
           },
           // Stock badge pill
@@ -829,16 +838,16 @@ export function buildStockOverviewMessages(
             layout: "horizontal",
             backgroundColor: isOut ? "#F3F4F6" : isLow ? "#FEF3C7" : "#DCFCE7",
             cornerRadius: "md",
-            paddingStart: "sm",
-            paddingEnd: "sm",
-            paddingTop: "xs",
-            paddingBottom: "xs",
+            paddingStart: "md",
+            paddingEnd: "md",
+            paddingTop: "sm",
+            paddingBottom: "sm",
             alignItems: "center",
             contents: [
               {
                 type: "text",
-                text: isOut ? "⚪ หมดชั่วคราวรอบนี้" : isLow ? `🟠 ด่วน! ${stockInfo.summary}` : `🟢 ${stockInfo.summary}`,
-                size: "xxs",
+                text: isOut ? "⚪ หมดชั่วคราวรอบนี้" : isLow ? `🟠 ด่วน! ${stockInfo.summary}` : `🟢 สต็อกพร้อมส่ง: ${stockInfo.summary}`,
+                size: "xs",
                 weight: "bold",
                 color: isOut ? "#6B7280" : isLow ? "#92400E" : "#166534",
               },
@@ -848,7 +857,7 @@ export function buildStockOverviewMessages(
           {
             type: "text",
             text: `⚖️ ${p.weight} • 🍯 ${p.brix || "32°+ Brix"}`,
-            size: "xxs",
+            size: "xs",
             color: "#57534E",
             wrap: true,
             margin: "xs",
@@ -856,7 +865,7 @@ export function buildStockOverviewMessages(
           {
             type: "text",
             text: `🥑 ${p.specs?.texture || p.ripeness || "กรอบนอกนุ่มใน"}`,
-            size: "xxs",
+            size: "xs",
             color: "#059669",
             wrap: true,
           },
@@ -875,7 +884,7 @@ export function buildStockOverviewMessages(
                 height: "sm",
                 action: {
                   type: "postback",
-                  label: "🍈 สั่งซื้อรายการนี้",
+                  label: "🛒 สั่งซื้อพันธุ์นี้",
                   data: `action=order_pick&productId=${encodeURIComponent(p.id)}`,
                   displayText: `เลือกสั่ง ${p.name}`,
                 },
