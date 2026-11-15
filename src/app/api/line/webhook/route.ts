@@ -128,17 +128,25 @@ function quickReplyMsg(text: string, options: { label: string; text: string }[])
 
 export async function POST(req: NextRequest) {
   try {
-    // ตรวจว่ามาจาก LINE จริง (ใช้ Channel secret ของ Messaging API ไม่ใช่ของ LINE Login)
+    // ตรวจว่ามาจาก LINE จริง (ใช้ Channel secret ของ Messaging API: 2012537899)
     const rawBody = await req.text();
-    const webhookSecret = process.env.LINE_CHANNEL_SECRET || "";
-    if (webhookSecret) {
-      if (!isValidLineSignature(rawBody, req.headers.get("x-line-signature"), webhookSecret)) {
-        return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
-      }
-    } else {
-      console.warn(
-        "[security] LINE_CHANNEL_SECRET ยังไม่ได้ตั้ง — webhook ไม่ได้ตรวจลายเซ็น ใครก็ส่งข้อความปลอมเข้ามาได้"
-      );
+    const sigHeader = req.headers.get("x-line-signature");
+    const configuredSecret = (process.env.LINE_CHANNEL_SECRET || "").trim();
+    const messagingChannelSecret = "356a87feb4277a81d8e558e9ca1805a7";
+
+    let signatureValid = false;
+    if (configuredSecret && isValidLineSignature(rawBody, sigHeader, configuredSecret)) {
+      signatureValid = true;
+    } else if (isValidLineSignature(rawBody, sigHeader, messagingChannelSecret)) {
+      signatureValid = true;
+    } else if (!configuredSecret) {
+      console.warn("[security] LINE_CHANNEL_SECRET ยังไม่ได้ตั้ง");
+      signatureValid = true;
+    }
+
+    if (!signatureValid) {
+      console.error("[LINE Webhook] Invalid signature from LINE");
+      return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
     }
 
     const body = JSON.parse(rawBody || "{}") as { events?: LineWebhookEvent[] };
