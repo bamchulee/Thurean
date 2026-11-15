@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as SubmitClaimInput;
-    const res = await submitNewClaim(body);
+    const { userId: _u, ...body } = (await req.json()) as SubmitClaimInput;
+    const res = await submitNewClaim({ ...body, userId: getSessionUser(req)?.id });
     if (!res.ok) {
       return NextResponse.json(
         { ok: false, error: res.error },

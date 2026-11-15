@@ -930,8 +930,15 @@ export interface UpsertLineUserInput {
   notes?: string;
 }
 
+/**
+ * หา/สร้างสมาชิกจาก LINE userId ที่ยืนยันแล้วเท่านั้น
+ * ไม่จับคู่บัญชีด้วยเบอร์โทร: เบอร์โทรใคร ๆ ก็พิมพ์ได้ ถ้าใช้จับคู่จะสวมบัญชีคนอื่นได้
+ */
 export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> {
   const cleanLineId = (input.lineUserId || "").trim();
+  if (!cleanLineId) {
+    throw new Error("upsertLineUser requires a verified lineUserId");
+  }
   const cleanPhone = (input.phone || "").trim().replace(/\s+/g, "");
   const cleanAddress = (input.address || "").trim();
   const cleanDisplay = (input.displayName || "").trim();
@@ -952,11 +959,7 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
   let existing = (dbLocal.users || []).find(
     (u) =>
       (cleanLineId && u.lineUserId === cleanLineId) ||
-      (cleanLineId && u.username === `line_${cleanLineId}`) ||
-      (cleanPhone &&
-        cleanPhone.length >= 9 &&
-        u.phone &&
-        u.phone.replace(/[^\d]/g, "") === cleanPhone.replace(/[^\d]/g, ""))
+      (cleanLineId && u.username === `line_${cleanLineId}`)
   );
 
   if (!existing) {
@@ -964,11 +967,7 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
     existing = allUsers.find(
       (u) =>
         (cleanLineId && u.lineUserId === cleanLineId) ||
-        (cleanLineId && u.username === `line_${cleanLineId}`) ||
-        (cleanPhone &&
-          cleanPhone.length >= 9 &&
-          u.phone &&
-          u.phone.replace(/[^\d]/g, "") === cleanPhone.replace(/[^\d]/g, ""))
+        (cleanLineId && u.username === `line_${cleanLineId}`)
     );
   }
 

@@ -145,22 +145,26 @@ export async function submitNewOrder(
     data.rounds.find((r) => r.status === "open") ||
     data.rounds[0];
 
-  // 1. Ensure user is registered/upserted in Users table and retrieve their userId
+  // ตัวตนผู้สั่ง: userId / lineUserId ต้องมาจากผู้เรียกที่ยืนยันแล้ว (session, LINE token, webhook)
+  // ลูกค้าทั่วไปที่ไม่ล็อกอินจะไม่ถูกผูกหรือแก้ข้อมูลบัญชีสมาชิกใด ๆ
   let finalUserId = body.userId?.trim();
-  try {
-    const user = await upsertLineUser({
-      lineUserId: body.lineUserId?.trim(),
-      customerName: body.customerName.trim(),
-      phone: body.phone.trim(),
-      address: body.address.trim(),
-      source: body.lineUserId ? "line-chat" : "web",
-      notes: "ลูกค้าสั่งซื้อทุเรียน",
-    });
-    if (user && user.id) {
-      finalUserId = user.id;
+  const trustedLineUserId = body.lineUserId?.trim();
+  if (!finalUserId && trustedLineUserId) {
+    try {
+      const user = await upsertLineUser({
+        lineUserId: trustedLineUserId,
+        customerName: body.customerName.trim(),
+        phone: body.phone.trim(),
+        address: body.address.trim(),
+        source: "line-chat",
+        notes: "ลูกค้าสั่งซื้อทุเรียน",
+      });
+      if (user && user.id) {
+        finalUserId = user.id;
+      }
+    } catch (err) {
+      console.warn("Auto-sync user from order failed:", err);
     }
-  } catch (err) {
-    console.warn("Auto-sync user from order failed:", err);
   }
 
   const usedOrderIds = new Set(data.orders.map((o) => o.id.toUpperCase()));

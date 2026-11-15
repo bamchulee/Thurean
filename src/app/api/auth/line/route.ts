@@ -3,46 +3,47 @@ import type { NextRequest } from "next/server";
 import { createAdminSessionToken, getRuntimeConfig, upsertLineUser } from "../../../../lib/sheets-db";
 import { createSessionToken, toSafeUser } from "../../../../lib/user-auth";
 import { ADMIN_COOKIE_NAME } from "../../../../lib/admin-auth";
+import { verifyLineAccessToken } from "../../../../lib/line-verify";
 
 export const dynamic = "force-dynamic";
 
+// ล็อกอินจากในแอป LINE (LIFF): ตัวตนมาจาก access token ที่ LINE ยืนยันแล้วเท่านั้น
+// ค่า lineUserId / displayName ที่เบราว์เซอร์ส่งมาจะไม่ถูกใช้ระบุตัวตน
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const {
-      lineUserId,
-      displayName,
-      pictureUrl,
-      phone,
-      address,
-      postalCode,
-    } = body;
+    const body = (await req.json()) as {
+      accessToken?: string;
+      phone?: string;
+      address?: string;
+      postalCode?: string;
+    };
 
-    if (!displayName && !lineUserId) {
+    const profile = await verifyLineAccessToken(body.accessToken);
+    if (!profile) {
       return NextResponse.json(
-        { ok: false, error: "กรุณาระบุข้อมูล LINE ให้ครบถ้วน" },
-        { status: 400 }
+        {
+          ok: false,
+          error: "ยืนยันตัวตนกับ LINE ไม่สำเร็จ กรุณากดเข้าสู่ระบบด้วย LINE อีกครั้ง",
+        },
+        { status: 401 }
       );
     }
 
     const user = await upsertLineUser({
-      lineUserId,
-      displayName,
-      avatarUrl: pictureUrl,
-      phone,
-      address,
-      postalCode,
+      lineUserId: profile.userId,
+      displayName: profile.displayName,
+      avatarUrl: profile.pictureUrl,
+      phone: body.phone,
+      address: body.address,
+      postalCode: body.postalCode,
       source: "line-login",
-      notes: "เข้าสู่ระบบผ่าน LINE Login หน้าร้าน",
+      notes: "เข้าสู่ระบบผ่าน LINE (LIFF)",
     });
 
     const safe = toSafeUser(user);
     const token = createSessionToken(safe);
 
-    const res = NextResponse.json({
-      ok: true,
-      user: safe,
-    });
+    const res = NextResponse.json({ ok: true, user: safe });
 
     res.cookies.set("winkin_user_token", token, {
       httpOnly: true,
