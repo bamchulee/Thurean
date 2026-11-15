@@ -151,7 +151,10 @@ export async function POST(req: NextRequest) {
 
     const body = JSON.parse(rawBody || "{}") as { events?: LineWebhookEvent[] };
     const cfg = getRuntimeConfig();
-    const token = cfg.lineChannelAccessToken;
+    const token =
+      cfg.lineChannelAccessToken ||
+      process.env.LINE_CHANNEL_ACCESS_TOKEN ||
+      "PdFpuOJEzMXiSaUJDIssLxWbbXYtaUE0/e6/1IVXsGDWtu+MpuSsxtx+p2JAZYnh5L68apEKj1Pr8ceQ3UCv9nONR954SD4V8acz6dNxKoghEA0GKanpmzY+p+bM82oxNGaC2Z+LqK1HBSa+Rt/GPgdB04t89/1O/w1cDnyilFU=";
     const publicBaseUrl = resolvePublicBaseUrl(req, cfg.publicBaseUrl);
     const events = body.events || [];
 

@@ -8,17 +8,21 @@ import { getRuntimeConfig } from "../../../../lib/sheets-db";
 export const dynamic = "force-dynamic";
 
 async function deployDefaultRichMenu(channelAccessToken: string) {
-  const imgPath = path.join(process.cwd(), "public", "line-richmenu.png");
+  const jpgPath = path.join(process.cwd(), "public", "line-richmenu.jpg");
+  const pngPath = path.join(process.cwd(), "public", "line-richmenu.png");
+  const isJpg = fs.existsSync(jpgPath);
+  const imgPath = isJpg ? jpgPath : pngPath;
   if (!fs.existsSync(imgPath)) {
-    throw new Error("ไม่พบไฟล์ public/line-richmenu.png");
+    throw new Error("ไม่พบไฟล์รูปภาพ Rich Menu ใน public/");
   }
   const imgBuffer = fs.readFileSync(imgPath);
+  const contentType = isJpg ? "image/jpeg" : "image/png";
 
   const menuSpec = {
     size: { width: 2500, height: 1686 },
     selected: true,
     name: "DurianWinkin 6-Button Menu",
-    chatBarText: "เมนูวินคิน",
+    chatBarText: "เมนูทุเรียนวินคิน",
     areas: [
       {
         bounds: { x: 0, y: 0, width: 833, height: 843 },
@@ -68,13 +72,13 @@ async function deployDefaultRichMenu(channelAccessToken: string) {
   }
   const richMenuId = createJson.richMenuId;
 
-  // 2. Upload PNG artwork
+  // 2. Upload artwork
   const uploadRes = await fetch(
     `https://api-data.line.me/v2/bot/richmenu/${encodeURIComponent(richMenuId)}/content`,
     {
       method: "POST",
       headers: {
-        "Content-Type": "image/png",
+        "Content-Type": contentType,
         Authorization: `Bearer ${channelAccessToken}`,
       },
       body: imgBuffer,
