@@ -485,19 +485,36 @@ export async function POST(req: NextRequest) {
 
           if (isStockCmd || isOrderMenuCmd) {
             clearLineSession(userId);
-            const { data } = await getAllDatabase();
-            const activeRound =
-              data.rounds.find((r) => r.status === "open") || data.rounds[0];
-            await replyLineMessage(
-              replyToken,
-              buildStockOverviewMessages(
-                activeRound,
-                data.products,
-                isOrderMenuCmd ? "order" : "stock",
-                publicBaseUrl
-              ),
-              token
-            );
+            try {
+              const { data } = await getAllDatabase();
+              const rounds = Array.isArray(data?.rounds) ? data.rounds : [];
+              const activeRound =
+                rounds.find((r) => r.status === "open") || rounds[0];
+              const products = Array.isArray(data?.products) ? data.products : [];
+              await replyLineMessage(
+                replyToken,
+                buildStockOverviewMessages(
+                  activeRound,
+                  products,
+                  isOrderMenuCmd ? "order" : "stock",
+                  publicBaseUrl
+                ),
+                token
+              );
+            } catch (err) {
+              console.error("[LINE Webhook] Stock check error:", err);
+              await replyLineMessage(
+                replyToken,
+                [
+                  {
+                    type: "text",
+                    text: `🍈 ทุเรียนวินคิน ยินดีต้อนรับครับ!\nขณะนี้ระบบกำลังอัปเดตข้อมูลสต็อกสดจากสวนระยอง-จันทบุรี กรุณากดเลือกเมนูด้านล่างหรือเข้าชมเว็บไซต์: ${publicBaseUrl || "https://durianwinkin.vercel.app"}`,
+                    quickReply: buildMainQuickReply(),
+                  },
+                ],
+                token
+              );
+            }
             continue;
           }
 
@@ -520,14 +537,19 @@ export async function POST(req: NextRequest) {
 
           if (isMoreCmd) {
             clearLineSession(userId);
-            const { data } = await getAllDatabase();
-            const activeRound =
-              data.rounds.find((r) => r.status === "open") || data.rounds[0];
-            await replyLineMessage(
-              replyToken,
-              buildMoreMenuFlex(publicBaseUrl, activeRound),
-              token
-            );
+            try {
+              const { data } = await getAllDatabase();
+              const rounds = Array.isArray(data?.rounds) ? data.rounds : [];
+              const activeRound =
+                rounds.find((r) => r.status === "open") || rounds[0];
+              await replyLineMessage(
+                replyToken,
+                buildMoreMenuFlex(publicBaseUrl, activeRound),
+                token
+              );
+            } catch (err) {
+              console.error("[LINE Webhook] More menu error:", err);
+            }
             continue;
           }
 
@@ -1162,10 +1184,26 @@ export async function POST(req: NextRequest) {
 
         // Greeting or fallback reply -> Interactive Welcome Card
         if (msgType === "text") {
-          const { data } = await getAllDatabase();
-          const activeRound =
-            data.rounds.find((r) => r.status === "open") || data.rounds[0];
-          await replyLineMessage(replyToken, buildWelcomeFlex(activeRound), token);
+          try {
+            const { data } = await getAllDatabase();
+            const rounds = Array.isArray(data?.rounds) ? data.rounds : [];
+            const activeRound =
+              rounds.find((r) => r.status === "open") || rounds[0];
+            await replyLineMessage(replyToken, buildWelcomeFlex(activeRound), token);
+          } catch (err) {
+            console.error("[LINE Webhook] Welcome reply error:", err);
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: `🍈 สวัสดีครับ! ร้านทุเรียนวินคิน ยินดีต้อนรับครับ\nต้องการสั่งซื้อทุเรียนเกรดพรีเมียม เช็กสต็อก หรือติดตามพัสดุ สามารถกดเลือกเมนูด้านล่างได้เลยครับ`,
+                  quickReply: buildMainQuickReply(),
+                },
+              ],
+              token
+            );
+          }
         }
       }
     }

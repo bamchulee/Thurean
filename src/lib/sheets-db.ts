@@ -365,9 +365,14 @@ export async function syncLocalDataToGoogleSheet(webAppUrl: string) {
 }
 
 function applyDatabaseJoins(db: DatabaseState): DatabaseState {
+  const seed = createInitialDatabase();
   const users = Array.isArray(db.users) ? db.users : [];
   const orders = Array.isArray(db.orders) ? db.orders : [];
   const claims = Array.isArray(db.claims) ? db.claims : [];
+  const rounds = Array.isArray(db.rounds) && db.rounds.length > 0 ? db.rounds : seed.rounds;
+  const products = Array.isArray(db.products) && db.products.length > 0 ? db.products : seed.products;
+  const lots = Array.isArray(db.lots) && db.lots.length > 0 ? db.lots : seed.lots;
+  const promotions = Array.isArray(db.promotions) && db.promotions.length > 0 ? db.promotions : seed.promotions;
 
   const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
 
@@ -417,6 +422,10 @@ function applyDatabaseJoins(db: DatabaseState): DatabaseState {
 
   return {
     ...db,
+    rounds,
+    products,
+    lots,
+    promotions,
     orders: joinedOrders,
     claims: joinedClaims,
     users: joinedUsers,
