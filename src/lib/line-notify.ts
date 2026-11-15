@@ -114,6 +114,25 @@ export async function replyLineMessage(
   }
 }
 
+/** แสดงสถานะ "กำลังพิมพ์..." (Loading Animation) ให้ลูกค้าเห็นในหน้าแชททันที */
+export async function showLineLoadingAnimation(
+  chatId: string,
+  channelAccessToken?: string,
+  loadingSeconds = 5
+): Promise<void> {
+  if (!channelAccessToken || !chatId) return;
+  try {
+    fetch("https://api.line.me/v2/bot/chat/loading/start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${channelAccessToken}`,
+      },
+      body: JSON.stringify({ chatId, loadingSeconds }),
+    }).catch(() => {});
+  } catch {}
+}
+
 export function buildOrderAlertForAdmin(order: Order): unknown[] {
   const itemLines = order.items
     .map((it) => `• ${it.productName} x${it.qty}`)

@@ -433,17 +433,46 @@ function applyDatabaseJoins(db: DatabaseState): DatabaseState {
 }
 
 // ============================================================
-// Public Unified CRUD Operations & In-Memory Fast Cache
+// Public Unified CRUD Operations & In-Memory / Disk SWR Fast Cache
 // ============================================================
 let memoryCache: {
   data: DatabaseState;
   source: "google-sheets" | "local";
   timestamp: number;
 } | null = null;
-const CACHE_TTL_MS = 25_000; // 25 seconds TTL for sub-second responses
+
+const CACHE_FRESH_TTL_MS = 60_000; // 1 นาที: คืนค่าจากแคชทันที (< 5ms)
+const CACHE_STALE_TTL_MS = 300_000; // 5 นาที: คืนค่าจากแคชทันที แล้วดึงอัปเดตชีตแบบ background
+
+function getDiskCachePath(): string {
+  const dir = getWritableDataDir();
+  return path.join(dir, "sheets-cache.json");
+}
+
+function readDiskCache(): { data: DatabaseState; source: "google-sheets" | "local"; timestamp: number } | null {
+  try {
+    const p = getDiskCachePath();
+    if (fs.existsSync(p)) {
+      const raw = fs.readFileSync(p, "utf-8");
+      return JSON.parse(raw);
+    }
+  } catch {}
+  return null;
+}
+
+function writeDiskCache(cached: { data: DatabaseState; source: "google-sheets" | "local"; timestamp: number }) {
+  try {
+    const p = getDiskCachePath();
+    fs.writeFileSync(p, JSON.stringify(cached), "utf-8");
+  } catch {}
+}
 
 export function invalidateDatabaseCache() {
   memoryCache = null;
+  try {
+    const p = getDiskCachePath();
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  } catch {}
 }
 
 export async function getAllDatabase(forceRefresh = false): Promise<{
@@ -451,10 +480,36 @@ export async function getAllDatabase(forceRefresh = false): Promise<{
   source: "google-sheets" | "local";
   warning?: string;
 }> {
-  if (!forceRefresh && memoryCache && Date.now() - memoryCache.timestamp < CACHE_TTL_MS) {
+  const now = Date.now();
+  if (!memoryCache) {
+    memoryCache = readDiskCache();
+  }
+
+  // 1. แคชยังสด (< 1 นาที): คืนค่าทันที ไม่ต้องต่อเน็ต
+  if (!forceRefresh && memoryCache && (now - memoryCache.timestamp) < CACHE_FRESH_TTL_MS) {
     return { data: memoryCache.data, source: memoryCache.source };
   }
 
+  // 2. แคชเริ่มเก่า (< 5 นาที): คืนค่าแคชให้ผู้ใช้ทันที (< 5ms) แล้ว refresh ข้อมูลชีตใน background
+  if (!forceRefresh && memoryCache && (now - memoryCache.timestamp) < CACHE_STALE_TTL_MS) {
+    const cfg = getRuntimeConfig();
+    if (cfg.googleSheetsWebAppUrl) {
+      fetchAllFromSheets(cfg.googleSheetsWebAppUrl)
+        .then((sheetData) => {
+          const joined = applyDatabaseJoins(sheetData);
+          memoryCache = {
+            data: joined,
+            source: "google-sheets",
+            timestamp: Date.now(),
+          };
+          writeDiskCache(memoryCache);
+        })
+        .catch((e) => console.warn("[Sheets Background Refresh Error]", e));
+    }
+    return { data: memoryCache.data, source: memoryCache.source };
+  }
+
+  // 3. ไม่มีแคชเลย หรือบังคับรีเฟรช: ดึงสดจาก Google Apps Script
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     try {
@@ -465,6 +520,7 @@ export async function getAllDatabase(forceRefresh = false): Promise<{
         source: "google-sheets",
         timestamp: Date.now(),
       };
+      writeDiskCache(memoryCache);
       return { data: joined, source: "google-sheets" };
     } catch (err) {
       // Fallback to local if sheet endpoint fails temporarily

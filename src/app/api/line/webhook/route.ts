@@ -18,6 +18,7 @@ import {
   buildWelcomeFlex,
   pushLineMessage,
   replyLineMessage,
+  showLineLoadingAnimation,
 } from "../../../../lib/line-notify";
 import { downloadAndVerifyLineImage } from "../../../../lib/line-media";
 import {
@@ -440,6 +441,9 @@ export async function POST(req: NextRequest) {
 
         // Global Rich Menu & Text Triggers
         if (msgType === "text") {
+          // แสดงแอนิเมชัน "กำลังพิมพ์..." ในแอป LINE ทันทีภายในเสี้ยววินาที
+          showLineLoadingAnimation(userId, token);
+
           const isStockCmd =
             lower.includes("เช็กสต็อก") ||
             lower.includes("เช็คสต็อก") ||
