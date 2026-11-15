@@ -26,6 +26,9 @@ export type LineSessionFlow =
       customerName?: string;
       phone?: string;
       address?: string;
+      mapsUrl?: string;
+      latitude?: number;
+      longitude?: number;
       updatedAt: number;
     }
   | {

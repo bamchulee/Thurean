@@ -717,6 +717,172 @@ export async function POST(req: NextRequest) {
 
         const currentSession = getLineSession(userId);
 
+        // ==========================================
+        // Handle Location Message Event (GPS / Google Maps Pin)
+        // ==========================================
+        if (msgType === "location") {
+          const locMsg = ev.message as any;
+          const locTitle = (locMsg.title || "").trim();
+          const locAddress = (locMsg.address || "").trim();
+          const latitude: number | undefined = locMsg.latitude;
+          const longitude: number | undefined = locMsg.longitude;
+          const mapsUrl =
+            typeof latitude === "number" && typeof longitude === "number"
+              ? `https://www.google.com/maps?q=${latitude},${longitude}`
+              : "";
+
+          let locationText = [locTitle, locAddress].filter(Boolean).join(" ");
+          if (!locationText && latitude && longitude) {
+            locationText = `พิกัด GPS ละติจูด ${latitude}, ลองจิจูด ${longitude}`;
+          }
+
+          let fullAddressWithMap = locationText;
+          if (mapsUrl && !fullAddressWithMap.includes("maps.google.com")) {
+            fullAddressWithMap = `${locationText}\n📍 หมุดแผนที่: ${mapsUrl}`;
+          }
+
+          // Fetch user record
+          const { data } = await getAllDatabase();
+          const users = Array.isArray(data?.users) ? data.users : [];
+          const userObj = users.find(
+            (u) =>
+              (u.lineUserId && u.lineUserId === userId) ||
+              u.username === `line_${userId}` ||
+              u.id === userId
+          );
+
+          const existingName = userObj
+            ? (`${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.displayName || userObj.username)
+            : "";
+          const existingPhone = userObj?.phone || "";
+
+          // Upsert to user table
+          await upsertLineUser({
+            lineUserId: userId || undefined,
+            displayName: existingName || undefined,
+            customerName: existingName || undefined,
+            phone: existingPhone || undefined,
+            address: fullAddressWithMap,
+            mapsUrl: mapsUrl || undefined,
+            latitude,
+            longitude,
+            source: "line-location",
+            notes: "ปักหมุดพิกัดแผนที่ผ่าน LINE Chat",
+          });
+
+          // Check active order session
+          if (
+            currentSession?.flow === "order" &&
+            (currentSession.step === "enter_contact" || currentSession.step === "pick_shipping")
+          ) {
+            const customerName = currentSession.customerName || existingName;
+            const phone = currentSession.phone || existingPhone;
+
+            if (customerName && phone && phone.replace(/\D/g, "").length >= 9) {
+              // Customer already has name and phone: advance to PromptPay payment!
+              const qty = currentSession.qty || 1;
+              const totalPrice = (currentSession.price || 0) * qty;
+              const shipOpt =
+                shopInfo.shippingMethods.find(
+                  (s) => s.name.toLowerCase() === (currentSession.shippingMethod || "").toLowerCase()
+                ) || shopInfo.shippingMethods[0];
+              const shippingCost = shipOpt.price;
+              const grandTotal = totalPrice + shippingCost;
+
+              setLineSession(userId, {
+                ...currentSession,
+                step: "await_slip",
+                customerName,
+                phone,
+                address: fullAddressWithMap,
+                mapsUrl: mapsUrl || undefined,
+                latitude,
+                longitude,
+                grandTotal,
+                updatedAt: Date.now(),
+              });
+
+              await replyLineMessage(
+                replyToken,
+                [
+                  {
+                    type: "text",
+                    text: `📍 ได้รับพิกัด Google Maps เรียบร้อยแล้วครับ!\n\n🗺️ ที่อยู่: ${locationText}\n📌 แผนที่: ${mapsUrl}\n👤 ผู้รับ: ${customerName} (${phone})`,
+                  },
+                  ...(buildPromptPayQrPaymentFlex({
+                    grandTotal,
+                    totalPrice,
+                    shippingCost,
+                    shippingMethod: currentSession.shippingMethod || shipOpt.name,
+                    productName: currentSession.productName || "ทุเรียนวินคิน",
+                    qty,
+                    customerName,
+                    phone,
+                    ripenessPref: currentSession.ripenessPref || "ปกติ (พร้อมทาน)",
+                  }) as unknown[]),
+                ],
+                token
+              );
+              continue;
+            } else {
+              // Missing name or phone: save location in session and prompt user
+              setLineSession(userId, {
+                ...currentSession,
+                step: "enter_contact",
+                address: fullAddressWithMap,
+                mapsUrl: mapsUrl || undefined,
+                latitude,
+                longitude,
+                updatedAt: Date.now(),
+              });
+
+              const formUrl = `${publicBaseUrl || "https://durianwinkin.vercel.app"}/address?userId=${encodeURIComponent(userId || "")}`;
+              await replyLineMessage(
+                replyToken,
+                [
+                  {
+                    type: "text",
+                    text: `📍 ได้รับหมุดพิกัด Google Maps เรียบร้อยครับ!\n\n🗺️ ที่อยู่: ${locationText}\n📌 ลิงก์: ${mapsUrl}\n\nกรุณาแจ้ง "ชื่อผู้รับ และ เบอร์โทรศัพท์" ส่งในแชทนี้ (เช่น สมชาย 0812345678) หรือกดปุ่มด้านล่างเพื่อเปิดฟอร์มตรวจสอบข้อมูลครับ 🙏`,
+                    quickReply: {
+                      items: [
+                        {
+                          type: "action",
+                          action: {
+                            type: "uri",
+                            label: "📝 เปิดฟอร์มกรอก",
+                            uri: formUrl,
+                          },
+                        },
+                        {
+                          type: "action",
+                          action: { type: "message", label: "ยกเลิก", text: "ยกเลิก" },
+                        },
+                      ],
+                    },
+                  },
+                ],
+                token
+              );
+              continue;
+            }
+          }
+
+          // Outside order session
+          const formUrl = `${publicBaseUrl || "https://durianwinkin.vercel.app"}/address?userId=${encodeURIComponent(userId || "")}`;
+          await replyLineMessage(
+            replyToken,
+            [
+              {
+                type: "text",
+                text: `📍 บันทึกหมุดพิกัด Google Maps เข้าสู่ระบบเรียบร้อยแล้วครับ!\n\n🗺️ ตำแหน่ง: ${locationText}\n📌 แผนที่: ${mapsUrl}\n\nระบบจำตำแหน่งนี้ไว้ใช้จัดส่งทุเรียนถึงหน้าบ้านคุณอัตโนมัติแล้วครับ ✨`,
+                quickReply: buildMainQuickReply(),
+              },
+            ],
+            token
+          );
+          continue;
+        }
+
         // Global Rich Menu & Text Triggers
         if (msgType === "text") {
           const isStockCmd =
@@ -1093,6 +1259,7 @@ export async function POST(req: NextRequest) {
                         "คุณลูกค้า",
                       phone: userObj.phone,
                       address: userObj.address,
+                      mapsUrl: userObj.mapsUrl,
                     }
                   : null,
                 formUrl
@@ -1617,6 +1784,7 @@ export async function POST(req: NextRequest) {
                       customerName: fullName || "คุณลูกค้า",
                       phone: matchedUser.phone,
                       address: fullAddr,
+                      mapsUrl: matchedUser.mapsUrl,
                     }
                   : null,
                 formUrl

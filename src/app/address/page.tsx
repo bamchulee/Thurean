@@ -12,6 +12,10 @@ import {
   ArrowRight,
   MessageCircle,
   Truck,
+  LocateFixed,
+  ExternalLink,
+  Globe,
+  Navigation,
 } from "lucide-react";
 
 function AddressFormContent() {
@@ -31,6 +35,14 @@ function AddressFormContent() {
 
   // แบบช่องเดียว
   const [singleAddress, setSingleAddress] = useState("");
+
+  // ระบบ Google Maps & GPS Pin
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [mapsUrl, setMapsUrl] = useState("");
+  const [locating, setLocating] = useState(false);
+  const [locationMsg, setLocationMsg] = useState("");
+  const [savedMapsUrl, setSavedMapsUrl] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -54,11 +66,105 @@ function AddressFormContent() {
           if (data.user.address) {
             setSingleAddress(data.user.address);
           }
+          if (data.user.mapsUrl) {
+            setMapsUrl(data.user.mapsUrl);
+            setSavedMapsUrl(data.user.mapsUrl);
+          }
+          if (typeof data.user.latitude === "number" && typeof data.user.longitude === "number") {
+            setLat(data.user.latitude);
+            setLng(data.user.longitude);
+          }
         }
       })
       .catch(() => {})
       .finally(() => setFetching(false));
   }, [userId]);
+
+  // ฟังก์ชันดึงพิกัด GPS อัตโนมัติและแปลงเป็นที่อยู่อัตโนมัติ (Reverse Geocode)
+  const handleGetLocation = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      setLocationMsg("เบราว์เซอร์ของคุณไม่รองรับการระบุตำแหน่ง GPS");
+      return;
+    }
+
+    setLocating(true);
+    setLocationMsg("กำลังเชื่อมต่อดาวเทียม GPS เพื่อค้นหาตำแหน่งของคุณ...");
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const latitude = pos.coords.latitude;
+        const longitude = pos.coords.longitude;
+        setLat(latitude);
+        setLng(longitude);
+
+        const generatedUrl = `https://www.google.com/maps?q=${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+        setMapsUrl(generatedUrl);
+        setLocationMsg(`✅ ปักหมุดสำเร็จ! พิกัด (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`);
+
+        // พยายามดึงชื่อถนน/ตำบล/อำเภอ จาก OpenStreetMap
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=th`
+          );
+          if (res.ok) {
+            const geo = await res.json();
+            if (geo && geo.address) {
+              const a = geo.address;
+              const road = a.road || a.street || a.neighbourhood || "";
+              const house = a.house_number ? `${a.house_number} ` : "";
+              const sub = a.suburb || a.quarter || a.village || "";
+              const dist = a.city_district || a.district || a.county || "";
+              const prov = a.province || a.state || a.city || "";
+              const post = a.postcode || "";
+
+              if (!houseNo && (house || road)) setHouseNo(`${house}${road}`.trim());
+              if (!subdistrict && sub) setSubdistrict(sub);
+              if (!district && dist) setDistrict(dist);
+              if (!province && prov) setProvince(prov);
+              if (!postalCode && post) setPostalCode(post);
+
+              if (!singleAddress && geo.display_name) {
+                setSingleAddress(geo.display_name);
+              }
+            }
+          }
+        } catch {
+          // หากเชื่อมต่อ Nominatim ไม่ได้ ยังคงบันทึกพิกัดไว้ได้สมบูรณ์
+        }
+
+        setLocating(false);
+      },
+      (err) => {
+        setLocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationMsg("กรุณาอนุญาตสิทธิ์ระบุตำแหน่ง (Location Permission) ในเบราว์เซอร์ หรือคัดลอกลิงก์ Google Maps มาวางได้ครับ");
+        } else {
+          setLocationMsg("ไม่สามารถระบุพิกัดได้ กรุณาลองใหม่อีกครั้ง หรือวางลิงก์ Google Maps ครับ");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
+
+  // ตรวจจับเมื่อผู้ใช้พิมพ์หรือวางลิงก์ Google Maps เพื่อดึงพิกัด lat/lng
+  const handleMapsUrlChange = (val: string) => {
+    setMapsUrl(val);
+    const qMatch = val.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (qMatch) {
+      setLat(parseFloat(qMatch[1]));
+      setLng(parseFloat(qMatch[2]));
+      return;
+    }
+    const atMatch = val.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (atMatch) {
+      setLat(parseFloat(atMatch[1]));
+      setLng(parseFloat(atMatch[2]));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +205,9 @@ function AddressFormContent() {
           district: mode === "fields" ? district.trim() : undefined,
           province: mode === "fields" ? province.trim() : undefined,
           postalCode: mode === "fields" ? postalCode.trim() : undefined,
+          mapsUrl: mapsUrl.trim() || undefined,
+          latitude: lat ?? undefined,
+          longitude: lng ?? undefined,
         }),
       });
 
@@ -108,6 +217,7 @@ function AddressFormContent() {
       }
 
       setSavedFullAddress(json.address || "");
+      setSavedMapsUrl(json.mapsUrl || mapsUrl);
       setAdvancedOrder(Boolean(json.advancedOrder));
       setSuccess(true);
     } catch (err: any) {
@@ -129,13 +239,13 @@ function AddressFormContent() {
                 ร้านทุเรียนวินคิน
               </h1>
               <p className="text-xs text-stone-200">
-                แบบฟอร์มกรอกข้อมูลที่อยู่จัดส่งด่วน
+                แบบฟอร์มกรอกที่อยู่จัดส่งด่วน & ปักหมุดแผนที่
               </p>
             </div>
           </div>
           <div className="mt-3 flex items-center gap-1.5 text-[11px] text-amber-200 bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-full w-fit">
             <Truck className="w-3.5 h-3.5" />
-            <span>คัดตัดสดส่งตรงถึงหน้าบ้าน • รับประกันเนื้อ 100%</span>
+            <span>คัดตัดสดส่งตรงถึงหน้าบ้าน • รองรับปักหมุด Google Maps 100%</span>
           </div>
         </div>
 
@@ -158,11 +268,11 @@ function AddressFormContent() {
               <p className="text-xs text-stone-500 mb-6">
                 {advancedOrder
                   ? "ระบบสร้างยอดชำระเงินและส่ง QR PromptPay เข้าแชท LINE ของคุณแล้ว"
-                  : "ระบบบันทึกที่อยู่เพื่อใช้ในการสั่งซื้อทุเรียนตัดสดเรียบร้อยครับ"}
+                  : "ระบบบันทึกที่อยู่และพิกัดแผนที่เพื่อใช้ในการจัดส่งทุเรียนเรียบร้อยครับ"}
               </p>
 
               {/* Summary Card */}
-              <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 text-left text-xs mb-6 space-y-2">
+              <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 text-left text-xs mb-6 space-y-2.5">
                 <div className="flex items-start gap-2">
                   <User className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                   <div>
@@ -186,6 +296,24 @@ function AddressFormContent() {
                     </span>
                   </div>
                 </div>
+
+                {savedMapsUrl && (
+                  <div className="flex items-start gap-2 pt-2 border-t border-stone-200">
+                    <Globe className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-stone-400 block text-[10px]">พิกัด Google Maps</span>
+                      <a
+                        href={savedMapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-700 font-semibold underline text-[11px] inline-flex items-center gap-1 hover:text-emerald-800"
+                      >
+                        <span>เปิดดูตำแหน่งบน Google Maps</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Action Button */}
@@ -208,7 +336,7 @@ function AddressFormContent() {
 
               {/* Field: Full Name */}
               <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1 flex items-center gap-1.5">
+                <label className="text-xs font-bold text-stone-700 mb-1 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-emerald-700" />
                   <span>ชื่อ-นามสกุล ผู้รับพัสดุ *</span>
                 </label>
@@ -224,7 +352,7 @@ function AddressFormContent() {
 
               {/* Field: Phone Number */}
               <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1 flex items-center gap-1.5">
+                <label className="text-xs font-bold text-stone-700 mb-1 flex items-center gap-1.5">
                   <Phone className="w-3.5 h-3.5 text-emerald-700" />
                   <span>เบอร์โทรศัพท์มือถือ (10 หลัก) *</span>
                 </label>
@@ -239,11 +367,95 @@ function AddressFormContent() {
                 />
               </div>
 
+              {/* GPS & Google Maps Pin Section */}
+              <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Globe className="w-4 h-4 text-emerald-700" />
+                    <span className="text-xs font-bold text-emerald-900">
+                      ปักหมุดแผนที่ Google Maps (สะดวกส่งถึงหน้าบ้าน)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGetLocation}
+                    disabled={locating}
+                    className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-xl text-xs transition shadow-sm disabled:opacity-50"
+                  >
+                    {locating ? (
+                      <>
+                        <div className="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" />
+                        <span>กำลังดึงพิกัด GPS...</span>
+                      </>
+                    ) : (
+                      <>
+                        <LocateFixed className="w-3.5 h-3.5" />
+                        <span>📍 ดึงตำแหน่งปัจจุบันของฉัน (GPS)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {locationMsg && (
+                  <p className="text-[11px] text-emerald-800 font-medium leading-relaxed bg-white/70 p-2 rounded-lg border border-emerald-100">
+                    {locationMsg}
+                  </p>
+                )}
+
+                {/* Google Maps URL Input */}
+                <div>
+                  <label className="text-[10px] text-stone-500 font-medium block mb-1">
+                    ลิงก์แผนที่ Google Maps (หรือวางลิงก์ที่แชร์จากแอป Google Maps):
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={mapsUrl}
+                      onChange={(e) => handleMapsUrlChange(e.target.value)}
+                      placeholder="เช่น https://maps.google.com/?q=13.7563,100.5018 หรือ https://maps.app.goo.gl/..."
+                      className="w-full bg-white border border-stone-300 rounded-xl pl-8 pr-3 py-2 text-xs text-stone-800 focus:border-emerald-600 focus:outline-none font-mono"
+                    />
+                    <MapPin className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-2.5" />
+                  </div>
+                </div>
+
+                {/* Embedded Map Preview if Lat/Lng available */}
+                {lat && lng && (
+                  <div className="mt-2 space-y-1.5">
+                    <div className="rounded-xl overflow-hidden border border-emerald-300 shadow-sm relative h-40 bg-stone-100">
+                      <iframe
+                        title="Google Maps Location Preview"
+                        src={`https://maps.google.com/maps?q=${lat},${lng}&z=16&output=embed`}
+                        className="w-full h-full border-0"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-emerald-800 font-mono">
+                        พิกัด: {lat.toFixed(6)}, {lng.toFixed(6)}
+                      </span>
+                      <a
+                        href={mapsUrl || `https://www.google.com/maps?q=${lat},${lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-emerald-700 font-bold hover:underline"
+                      >
+                        <span>เปิดดูแผนที่เต็ม</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Mode Switcher */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-700" />
+                    <Home className="w-3.5 h-3.5 text-emerald-700" />
                     <span>ที่อยู่จัดส่ง *</span>
                   </label>
                   <div className="flex text-[11px] bg-stone-100 p-0.5 rounded-lg border border-stone-200">
@@ -374,7 +586,7 @@ function AddressFormContent() {
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 text-amber-300" />
-                      <span>บันทึกที่อยู่จัดส่ง</span>
+                      <span>บันทึกที่อยู่ & พิกัดจัดส่ง</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

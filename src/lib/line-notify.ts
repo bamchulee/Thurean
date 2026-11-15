@@ -38,6 +38,10 @@ export function buildMainQuickReply() {
       },
       {
         type: "action",
+        action: { type: "location", label: "🗺️ ปักหมุดแผนที่" },
+      },
+      {
+        type: "action",
         action: { type: "message", label: "เช็กโปรโมชั่น", text: "โปรโมชั่น" },
       },
       {
@@ -1045,6 +1049,7 @@ export function buildAddressFormFlex(
     customerName?: string;
     phone?: string;
     address?: string;
+    mapsUrl?: string;
   } | null,
   formUrl?: string
 ): unknown[] {
@@ -1053,6 +1058,54 @@ export function buildAddressFormFlex(
   const bodyContents: unknown[] = [];
 
   if (hasSaved) {
+    const infoContents: unknown[] = [
+      {
+        type: "text",
+        text: `👤 ชื่อผู้รับ: ${userAddress?.customerName || "-"}`,
+        size: "sm",
+        weight: "bold",
+        color: "#1F2937",
+      },
+      {
+        type: "text",
+        text: `📞 เบอร์โทร: ${userAddress?.phone || "-"}`,
+        size: "xs",
+        color: "#4B5563",
+      },
+      {
+        type: "text",
+        text: `📍 ที่อยู่: ${userAddress?.address || "-"}`,
+        size: "xs",
+        color: "#374151",
+        wrap: true,
+      },
+    ];
+
+    if (userAddress?.mapsUrl) {
+      infoContents.push({
+        type: "box",
+        layout: "horizontal",
+        spacing: "xs",
+        contents: [
+          {
+            type: "text",
+            text: "🗺️ หมุดแผนที่:",
+            size: "xs",
+            color: "#166534",
+            weight: "bold",
+            flex: 0,
+          },
+          {
+            type: "text",
+            text: "มีพิกัด Google Maps บันทึกไว้แล้ว",
+            size: "xs",
+            color: "#15803D",
+            weight: "bold",
+          },
+        ],
+      });
+    }
+
     bodyContents.push(
       {
         type: "text",
@@ -1071,28 +1124,7 @@ export function buildAddressFormFlex(
         paddingAll: "md",
         spacing: "xs",
         margin: "sm",
-        contents: [
-          {
-            type: "text",
-            text: `👤 ชื่อผู้รับ: ${userAddress?.customerName || "-"}`,
-            size: "sm",
-            weight: "bold",
-            color: "#1F2937",
-          },
-          {
-            type: "text",
-            text: `📞 เบอร์โทร: ${userAddress?.phone || "-"}`,
-            size: "xs",
-            color: "#4B5563",
-          },
-          {
-            type: "text",
-            text: `📍 ที่อยู่: ${userAddress?.address || "-"}`,
-            size: "xs",
-            color: "#374151",
-            wrap: true,
-          },
-        ],
+        contents: infoContents,
       }
     );
   } else {
@@ -1106,7 +1138,7 @@ export function buildAddressFormFlex(
       },
       {
         type: "text",
-        text: "กรุณากดปุ่มด้านล่างเพื่อเปิดฟอร์มกรอกที่อยู่อย่างละเอียด (กรอกครั้งเดียว ระบบจะจำไว้ใช้สั่งซื้อรอบถัดไปอัตโนมัติ) หรือพิมพ์แจ้งในแชทนี้ได้เลยครับ",
+        text: "กรุณากดปุ่มด้านล่างเพื่อเปิดฟอร์มกรอกที่อยู่ หรือกด '🗺️ ปักหมุดใน LINE' เพื่อแชร์พิกัด GPS ได้ทันทีครับ",
         size: "xs",
         color: "#6B7280",
         wrap: true,
@@ -1140,8 +1172,21 @@ export function buildAddressFormFlex(
       height: "sm",
       action: {
         type: "uri",
-        label: hasSaved ? "📝 แก้ไขที่อยู่ผ่านฟอร์ม" : "📝 เปิดฟอร์มกรอกที่อยู่",
+        label: hasSaved ? "📝 แก้ไขที่อยู่ / ปักหมุด" : "📝 เปิดฟอร์มกรอกที่อยู่",
         uri: formUrl,
+      },
+    });
+  }
+
+  if (userAddress?.mapsUrl) {
+    buttons.push({
+      type: "button",
+      style: "link",
+      height: "sm",
+      action: {
+        type: "uri",
+        label: "🗺️ ดูบน Google Maps",
+        uri: userAddress.mapsUrl,
       },
     });
   }

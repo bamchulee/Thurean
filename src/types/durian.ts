@@ -86,6 +86,9 @@ export interface Order extends BaseAuditLog {
   courier?: string;
   slipUrl?: string;
   lotId?: string;
+  mapsUrl?: string;
+  latitude?: number;
+  longitude?: number;
   notes?: string;
 }
 
@@ -143,6 +146,9 @@ export interface User extends BaseAuditLog {
   address: string;
   postalCode: string;
   avatarUrl?: string;
+  mapsUrl?: string;
+  latitude?: number;
+  longitude?: number;
   lastLoginAt?: string;
   role: "user" | "admin";
   source?: "line-login" | "line-chat" | "web" | string;

@@ -46,6 +46,9 @@ export async function GET(req: NextRequest) {
             customerName: fullName,
             phone: matched.phone || "",
             address: matched.address || "",
+            mapsUrl: matched.mapsUrl || "",
+            latitude: matched.latitude,
+            longitude: matched.longitude,
           }
         : null,
       session: session?.flow === "order" ? {
@@ -98,6 +101,17 @@ export async function POST(req: NextRequest) {
       fullAddress = parts.join(" ");
     }
 
+    let mapsUrl = typeof body.mapsUrl === "string" ? body.mapsUrl.trim() : "";
+    const lat = typeof body.latitude === "number" ? body.latitude : (body.latitude ? parseFloat(body.latitude) : undefined);
+    const lng = typeof body.longitude === "number" ? body.longitude : (body.longitude ? parseFloat(body.longitude) : undefined);
+    if (!mapsUrl && lat && lng) {
+      mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+    }
+
+    if (mapsUrl && !fullAddress.includes("maps.google.com") && !fullAddress.includes("goo.gl")) {
+      fullAddress += `\n📍 หมุดแผนที่: ${mapsUrl}`;
+    }
+
     if (!fullAddress) {
       return NextResponse.json(
         { ok: false, error: "กรุณาระบุที่อยู่จัดส่งให้ชัดเจน" },
@@ -111,8 +125,11 @@ export async function POST(req: NextRequest) {
       customerName: trimmedName,
       phone: cleanPhone,
       address: fullAddress,
+      mapsUrl: mapsUrl || undefined,
+      latitude: lat,
+      longitude: lng,
       source: "web-form",
-      notes: "กรอกผ่านฟอร์มที่อยู่ออนไลน์",
+      notes: mapsUrl ? "กรอกผ่านฟอร์มพร้อมปักหมุด Google Maps" : "กรอกผ่านฟอร์มที่อยู่ออนไลน์",
     });
 
     const cfg = getRuntimeConfig();
@@ -142,6 +159,9 @@ export async function POST(req: NextRequest) {
           customerName: trimmedName,
           phone: cleanPhone,
           address: fullAddress,
+          mapsUrl: mapsUrl || undefined,
+          latitude: lat,
+          longitude: lng,
           grandTotal,
           updatedAt: Date.now(),
         });

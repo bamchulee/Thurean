@@ -1045,6 +1045,9 @@ export interface UpsertLineUserInput {
   avatarUrl?: string;
   source?: "line-login" | "line-chat" | "web" | string;
   notes?: string;
+  mapsUrl?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 /**
@@ -1155,11 +1158,14 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
     if (cleanLineId && !existing.lineUserId) updates.lineUserId = cleanLineId;
     if (cleanDisplay && !existing.displayName) updates.displayName = cleanDisplay;
     if (cleanPhone && (!existing.phone || existing.phone.length < 9)) updates.phone = cleanPhone;
-    if (cleanAddress && (!existing.address || existing.address.length < cleanAddress.length)) updates.address = cleanAddress;
-    if (postal && !existing.postalCode) updates.postalCode = postal;
+    if (cleanAddress) updates.address = cleanAddress;
+    if (postal) updates.postalCode = postal;
+    if (input.mapsUrl) updates.mapsUrl = input.mapsUrl;
+    if (input.latitude !== undefined) updates.latitude = input.latitude;
+    if (input.longitude !== undefined) updates.longitude = input.longitude;
     if (input.avatarUrl && !existing.avatarUrl) updates.avatarUrl = input.avatarUrl;
     if (input.source && !existing.source) updates.source = input.source;
-    if (input.notes && !existing.notes) updates.notes = input.notes;
+    if (input.notes) updates.notes = input.notes;
     if (firstName && (!existing.firstName || existing.firstName === "ลูกค้า LINE")) {
       updates.firstName = firstName;
       if (lastName) updates.lastName = lastName;
@@ -1182,6 +1188,9 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
     phone: cleanPhone,
     address: cleanAddress,
     postalCode: postal,
+    mapsUrl: input.mapsUrl,
+    latitude: input.latitude,
+    longitude: input.longitude,
     avatarUrl:
       input.avatarUrl ||
       "https://api.dicebear.com/7.x/bottts/svg?seed=MonthongKing&backgroundColor=fef08a",
