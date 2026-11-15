@@ -1580,7 +1580,7 @@ export default function Home() {
 
   const { addItem, totalItems } = useCart();
   const { user, loginWithLine, openAuthModal } = useAuth();
-  const { profile: lineProfile } = useLiff(liffId);
+  const { profile: lineProfile, getAccessToken } = useLiff(liffId);
 
   // Auto-open modal if user was redirected from LINE login to complete address or handle error
   useEffect(() => {
@@ -1600,13 +1600,10 @@ export default function Home() {
   // Auto-login customer if accessed through LINE app
   useEffect(() => {
     if (lineProfile && !user) {
-      loginWithLine({
-        lineUserId: lineProfile.userId,
-        displayName: lineProfile.displayName,
-        pictureUrl: lineProfile.pictureUrl,
-      });
+      const accessToken = getAccessToken();
+      if (accessToken) loginWithLine({ accessToken });
     }
-  }, [lineProfile, user, loginWithLine]);
+  }, [lineProfile, user, loginWithLine, getAccessToken]);
 
   useEffect(() => {
     fetch("/api/shop")

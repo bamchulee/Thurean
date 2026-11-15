@@ -366,7 +366,8 @@
           ripenessPref: rip,
           shippingMethod: el.coShipping.value,
           roundId: state.currentRound ? state.currentRound.id : "WK-ROUND-46",
-          lineUserId: state.lineProfile ? state.lineProfile.userId : undefined,
+          lineAccessToken:
+            window.liff && state.lineProfile ? window.liff.getAccessToken() : undefined,
           items: state.cart.map((c) => ({
             productId: c.product.id,
             qty: c.qty,

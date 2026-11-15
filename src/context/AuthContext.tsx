@@ -22,9 +22,8 @@ interface RegisterPayload {
 }
 
 export interface LineLoginPayload {
-  lineUserId: string;
-  displayName: string;
-  pictureUrl?: string;
+  /** access token จาก liff.getAccessToken() — เซิร์ฟเวอร์ใช้ยืนยันตัวตนกับ LINE */
+  accessToken: string;
   phone?: string;
   address?: string;
   postalCode?: string;

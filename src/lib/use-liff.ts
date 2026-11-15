@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface LiffProfile {
   userId: string;
@@ -17,6 +17,7 @@ declare global {
       login: (opts?: { redirectUri?: string }) => void;
       logout: () => void;
       getProfile: () => Promise<LiffProfile>;
+      getAccessToken: () => string | null;
     };
   }
 }
@@ -75,5 +76,14 @@ export function useLiff(liffId?: string) {
     }
   };
 
-  return { profile, inLineApp, isReady, login };
+  // token ให้เซิร์ฟเวอร์ไปถาม LINE ว่าเป็นใครจริง (เซิร์ฟเวอร์ไม่เชื่อ userId จากเบราว์เซอร์)
+  const getAccessToken = useCallback((): string | null => {
+    try {
+      return typeof window !== "undefined" && window.liff ? window.liff.getAccessToken() : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  return { profile, inLineApp, isReady, login, getAccessToken };
 }

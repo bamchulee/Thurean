@@ -30,6 +30,7 @@ import {
   submitNewOrder,
 } from "../../../../lib/order-service";
 import { formatProductStock } from "../../../../lib/stock";
+import { isValidLineSignature } from "../../../../lib/line-verify";
 import { shopInfo } from "../../../../data/mock";
 
 export const dynamic = "force-dynamic";
@@ -127,7 +128,20 @@ function quickReplyMsg(text: string, options: { label: string; text: string }[])
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { events?: LineWebhookEvent[] };
+    // ตรวจว่ามาจาก LINE จริง (ใช้ Channel secret ของ Messaging API ไม่ใช่ของ LINE Login)
+    const rawBody = await req.text();
+    const webhookSecret = process.env.LINE_CHANNEL_SECRET || "";
+    if (webhookSecret) {
+      if (!isValidLineSignature(rawBody, req.headers.get("x-line-signature"), webhookSecret)) {
+        return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
+      }
+    } else {
+      console.warn(
+        "[security] LINE_CHANNEL_SECRET ยังไม่ได้ตั้ง — webhook ไม่ได้ตรวจลายเซ็น ใครก็ส่งข้อความปลอมเข้ามาได้"
+      );
+    }
+
+    const body = JSON.parse(rawBody || "{}") as { events?: LineWebhookEvent[] };
     const cfg = getRuntimeConfig();
     const token = cfg.lineChannelAccessToken;
     const publicBaseUrl = resolvePublicBaseUrl(req, cfg.publicBaseUrl);

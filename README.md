@@ -31,6 +31,7 @@ npm run dev                  # http://localhost:3000
 - `ADMIN_PIN` — รหัสเข้าหลังบ้าน ไม่ตั้งจะเข้าด้วย PIN ไม่ได้
 - `SESSION_SECRET` — ข้อความสุ่มยาว ๆ ใช้เซ็น session
 - `LINE_LOGIN_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN` — จาก LINE Developers Console
+- `LINE_CHANNEL_SECRET` — Channel secret ของ Messaging API ใช้ตรวจลายเซ็น webhook (ไม่ตั้ง = ใครก็ยิงข้อความปลอมเข้า bot ได้)
 - `GOOGLE_SHEETS_API_KEY` — key ของ Apps Script (ดูหัวข้อถัดไป)
 
 ## ติดตั้ง / อัปเดต Google Sheets

@@ -26,7 +26,7 @@ export function AuthModal() {
     updateProfile,
   } = useAuth();
 
-  const { profile: liffProfile, inLineApp, login: liffLogin } = useLiff();
+  const { profile: liffProfile, inLineApp, login: liffLogin, getAccessToken } = useLiff();
 
   // Mode: "connect" (click LINE login) | "details" (fill/update phone & address)
   const [step, setStep] = useState<"connect" | "details">("connect");
@@ -61,8 +61,10 @@ export function AuthModal() {
         setStep("details");
         return;
       } else if (loginErr) {
-        setErrorMsg("การล็อกอินผ่าน LINE ไม่สำเร็จ กรุณากรอกข้อมูลด้านล่างเพื่อเข้าสู่ระบบ");
-        setStep("details");
+        setErrorMsg(
+          "เข้าสู่ระบบผ่าน LINE ไม่สำเร็จ กดปุ่มด้านล่างเพื่อลองใหม่ หรือปิดหน้านี้แล้วสั่งซื้อโดยไม่ต้องล็อกอินได้เลย"
+        );
+        setStep("connect");
         return;
       }
     }
@@ -147,13 +149,15 @@ export function AuthModal() {
         setTimeout(() => closeAuthModal(), 1200);
       }
     } else {
-      // Login or Register via LINE
+      // Login via LINE: ต้องมี access token จาก LIFF ให้เซิร์ฟเวอร์ยืนยันกับ LINE
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        setSubmitting(false);
+        window.location.href = "/api/auth/line/login";
+        return;
+      }
       const res = await loginWithLine({
-        lineUserId: lineUserId || `manual_${Date.now()}`,
-        displayName: displayName.trim(),
-        pictureUrl:
-          pictureUrl ||
-          "https://api.dicebear.com/7.x/bottts/svg?seed=MonthongKing&backgroundColor=fef08a",
+        accessToken,
         phone: phone.trim(),
         address: address.trim(),
         postalCode: postalCode.trim(),
