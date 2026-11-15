@@ -810,8 +810,10 @@ export function buildStockOverviewMessages(
             layout: "horizontal",
             backgroundColor: isOut ? "#F3F4F6" : isLow ? "#FEF3C7" : "#DCFCE7",
             cornerRadius: "md",
-            paddingHorizontal: "sm",
-            paddingVertical: "xs",
+            paddingStart: "sm",
+            paddingEnd: "sm",
+            paddingTop: "xs",
+            paddingBottom: "xs",
             alignItems: "center",
             contents: [
               {
@@ -1334,7 +1336,7 @@ export function buildLiveStreamFlex(cfg: RuntimeConfig): unknown[] {
       height: "sm",
       action: {
         type: "uri",
-        label: cfg.isLiveNow ? "🔴 เข้าชมไลฟ์สดตอนนี้เลย" : "เปิดช่องไลฟ์สดของร้าน",
+        label: cfg.isLiveNow ? "🔴 ชมไลฟ์สดตอนนี้" : "เปิดชมช่องไลฟ์สด",
         uri: cfg.liveStreamUrl,
       },
     });
