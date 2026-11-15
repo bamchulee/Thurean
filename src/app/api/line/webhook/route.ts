@@ -6,6 +6,7 @@ import {
   upsertLineUser,
 } from "../../../../lib/sheets-db";
 import {
+  buildAddressFormFlex,
   buildClaimReceiptForCustomerFlex,
   buildCustomerStatusFlex,
   buildLiveStreamFlex,
@@ -278,6 +279,87 @@ export async function POST(req: NextRequest) {
               token
             );
           }
+          continue;
+        }
+
+        if (action === "confirm_saved_address") {
+          const { data } = await getAllDatabase();
+          const users = Array.isArray(data?.users) ? data.users : [];
+          const userObj = users.find((u) => u.lineUserId === userId);
+
+          if (!userObj || !userObj.address) {
+            const formUrl = `${publicBaseUrl || "https://durianwinkin.vercel.app"}/address?userId=${encodeURIComponent(userId)}`;
+            await replyLineMessage(
+              replyToken,
+              buildAddressFormFlex(null, formUrl),
+              token
+            );
+            continue;
+          }
+
+          const currentSession = getLineSession(userId);
+          if (currentSession?.flow === "order" && currentSession.step === "enter_contact") {
+            const qty = currentSession.qty || 1;
+            const totalPrice = (currentSession.price || 0) * qty;
+            const shipOpt =
+              shopInfo.shippingMethods.find(
+                (s) => s.name.toLowerCase() === (currentSession.shippingMethod || "").toLowerCase()
+              ) || shopInfo.shippingMethods[0];
+            const shippingCost = shipOpt.price;
+            const grandTotal = totalPrice + shippingCost;
+            const customerName =
+              `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() ||
+              userObj.displayName ||
+              userObj.username ||
+              "ลูกค้า";
+            const phone = userObj.phone || "";
+            const address = userObj.address || "";
+
+            setLineSession(userId, {
+              ...currentSession,
+              step: "await_slip",
+              customerName,
+              phone,
+              address,
+              grandTotal,
+              updatedAt: Date.now(),
+            });
+
+            await replyLineMessage(
+              replyToken,
+              buildPromptPayQrPaymentFlex({
+                grandTotal,
+                totalPrice,
+                shippingCost,
+                shippingMethod: currentSession.shippingMethod || shipOpt.name,
+                productName: currentSession.productName || "ทุเรียนวินคิน",
+                qty,
+                customerName,
+                phone,
+                ripenessPref: currentSession.ripenessPref || "ปกติ (พร้อมทาน)",
+              }),
+              token
+            );
+            continue;
+          }
+
+          const fallbackName =
+            `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() ||
+            userObj.displayName ||
+            userObj.username ||
+            "คุณลูกค้า";
+
+          await replyLineMessage(
+            replyToken,
+            [
+              {
+                type: "text",
+                text: `🍈 ที่อยู่จัดส่งของคุณพร้อมใช้งานแล้วครับ!\n\n👤 ${fallbackName}\n📞 ${userObj.phone || "-"}\n📍 ${userObj.address || "-"}\n\nต้องการสั่งซื้อทุเรียนตัดสด กด 'สั่งซื้อ' ได้เลยครับ`,
+                quickReply: buildMainQuickReply(),
+              },
+            ],
+            token
+          );
           continue;
         }
 
@@ -993,11 +1075,27 @@ export async function POST(req: NextRequest) {
               step: "enter_contact",
               shippingMethod: text,
             });
+
+            const { data } = await getAllDatabase();
+            const users = Array.isArray(data?.users) ? data.users : [];
+            const userObj = users.find((u) => u.lineUserId === userId);
+            const formUrl = `${publicBaseUrl || "https://durianwinkin.vercel.app"}/address?userId=${encodeURIComponent(userId)}`;
+
             await replyLineMessage(
               replyToken,
-              quickReplyMsg(
-                "พิมพ์ ชื่อผู้รับ / เบอร์โทร / ที่อยู่จัดส่ง ในข้อความเดียวได้เลยครับ เดี๋ยวส่ง QR PromptPay ให้สแกนชำระครับ\n\nตัวอย่าง:\nคุณสมชาย ใจดี 0812345678 99/1 ถ.สุขุมวิท แขวงคลองตันเหนือ เขตวัฒนา กทม. 10110",
-                [{ label: "ยกเลิก", text: "ยกเลิก" }]
+              buildAddressFormFlex(
+                userObj
+                  ? {
+                      customerName:
+                        `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() ||
+                        userObj.displayName ||
+                        userObj.username ||
+                        "คุณลูกค้า",
+                      phone: userObj.phone,
+                      address: userObj.address,
+                    }
+                  : null,
+                formUrl
               ),
               token
             );
@@ -1493,8 +1591,9 @@ export async function POST(req: NextRequest) {
             lowerText === "ข้อมูลของฉัน"
           ) {
             const { data } = await getAllDatabase();
+            const users = Array.isArray(data?.users) ? data.users : [];
             const matchedUser = userId
-              ? (data.users || []).find(
+              ? users.find(
                   (u) =>
                     (u.lineUserId && u.lineUserId === userId) ||
                     u.username === `line_${userId}` ||
@@ -1502,33 +1601,28 @@ export async function POST(req: NextRequest) {
                 )
               : undefined;
 
-            if (matchedUser && matchedUser.address) {
-              const fullAddr = `${matchedUser.address} ${matchedUser.postalCode || ""}`.trim();
-              const fullName = `${matchedUser.firstName || ""} ${matchedUser.lastName || ""}`.trim() || matchedUser.displayName || "คุณลูกค้า";
-              await replyLineMessage(
-                replyToken,
-                [
-                  {
-                    type: "text",
-                    text: `🍈 ข้อมูลที่อยู่จัดส่งในระบบของคุณ:\n\n👤 ชื่อผู้รับ: ${fullName}\n📞 เบอร์โทร: ${matchedUser.phone || "-"}\n📍 ที่อยู่: ${fullAddr}\n\n💡 ต้องการแก้ไขที่อยู่?\nพิมพ์ "ชื่อ เบอร์โทร ที่อยู่ใหม่" ส่งในแชทนี้ได้เลยครับ ระบบจะบันทึกให้อัตโนมัติ 🙏`,
-                    quickReply: buildMainQuickReply(),
-                  },
-                ],
-                token
-              );
-            } else {
-              await replyLineMessage(
-                replyToken,
-                [
-                  {
-                    type: "text",
-                    text: `📦 คุณยังไม่มีข้อมูลที่อยู่จัดส่งในระบบครับ\n\nสามารถพิมพ์แจ้งชื่อ เบอร์โทร และที่อยู่จัดส่งในแชทนี้ได้เลยครับ (ระบบจะจำไว้ใช้สั่งซื้ออัตโนมัติ)\n\nตัวอย่าง:\nคุณสมชาย 0812345678 99/1 ถ.สุขุมวิท แขวงคลองตันเหนือ เขตวัฒนา กทม. 10110`,
-                    quickReply: buildMainQuickReply(),
-                  },
-                ],
-                token
-              );
-            }
+            const formUrl = `${publicBaseUrl || "https://durianwinkin.vercel.app"}/address?userId=${encodeURIComponent(userId || "")}`;
+            const fullName = matchedUser
+              ? (`${matchedUser.firstName || ""} ${matchedUser.lastName || ""}`.trim() || matchedUser.displayName || matchedUser.username)
+              : undefined;
+            const fullAddr = matchedUser?.address
+              ? `${matchedUser.address} ${matchedUser.postalCode || ""}`.trim()
+              : undefined;
+
+            await replyLineMessage(
+              replyToken,
+              buildAddressFormFlex(
+                matchedUser && fullAddr
+                  ? {
+                      customerName: fullName || "คุณลูกค้า",
+                      phone: matchedUser.phone,
+                      address: fullAddr,
+                    }
+                  : null,
+                formUrl
+              ),
+              token
+            );
             continue;
           }
 

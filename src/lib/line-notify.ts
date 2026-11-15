@@ -1038,8 +1038,162 @@ export function buildOrderCatalogMessages(
 }
 
 /**
- * แสดงประวัติคำสั่งซื้อของลูกค้าใน LINE
+ * แสดงการ์ดฟอร์มที่อยู่จัดส่ง (เปิดฟอร์มเว็บ หรือใช้ที่อยู่เดิมที่มีในระบบ)
  */
+export function buildAddressFormFlex(
+  userAddress?: {
+    customerName?: string;
+    phone?: string;
+    address?: string;
+  } | null,
+  formUrl?: string
+): unknown[] {
+  const hasSaved = Boolean(userAddress?.customerName && userAddress?.address);
+
+  const bodyContents: unknown[] = [];
+
+  if (hasSaved) {
+    bodyContents.push(
+      {
+        type: "text",
+        text: "📍 ข้อมูลที่อยู่จัดส่งที่บันทึกไว้ในระบบ:",
+        size: "xs",
+        weight: "bold",
+        color: "#166534",
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#F0FDF4",
+        cornerRadius: "md",
+        borderColor: "#BBF7D0",
+        borderWidth: "1px",
+        paddingAll: "md",
+        spacing: "xs",
+        margin: "sm",
+        contents: [
+          {
+            type: "text",
+            text: `👤 ชื่อผู้รับ: ${userAddress?.customerName || "-"}`,
+            size: "sm",
+            weight: "bold",
+            color: "#1F2937",
+          },
+          {
+            type: "text",
+            text: `📞 เบอร์โทร: ${userAddress?.phone || "-"}`,
+            size: "xs",
+            color: "#4B5563",
+          },
+          {
+            type: "text",
+            text: `📍 ที่อยู่: ${userAddress?.address || "-"}`,
+            size: "xs",
+            color: "#374151",
+            wrap: true,
+          },
+        ],
+      }
+    );
+  } else {
+    bodyContents.push(
+      {
+        type: "text",
+        text: "คุณยังไม่มีข้อมูลที่อยู่จัดส่งในระบบครับ",
+        size: "sm",
+        weight: "bold",
+        color: "#1F2937",
+      },
+      {
+        type: "text",
+        text: "กรุณากดปุ่มด้านล่างเพื่อเปิดฟอร์มกรอกที่อยู่อย่างละเอียด (กรอกครั้งเดียว ระบบจะจำไว้ใช้สั่งซื้อรอบถัดไปอัตโนมัติ) หรือพิมพ์แจ้งในแชทนี้ได้เลยครับ",
+        size: "xs",
+        color: "#6B7280",
+        wrap: true,
+        margin: "sm",
+      }
+    );
+  }
+
+  const buttons: unknown[] = [];
+
+  if (hasSaved) {
+    buttons.push({
+      type: "button",
+      style: "primary",
+      color: "#15803D",
+      height: "sm",
+      action: {
+        type: "postback",
+        label: "📍 ใช้ที่อยู่นี้จัดส่ง",
+        data: "action=confirm_saved_address",
+        displayText: "ใช้ที่อยู่นี้จัดส่ง",
+      },
+    });
+  }
+
+  if (formUrl) {
+    buttons.push({
+      type: "button",
+      style: hasSaved ? "secondary" : "primary",
+      color: hasSaved ? undefined : "#1B4D31",
+      height: "sm",
+      action: {
+        type: "uri",
+        label: hasSaved ? "📝 แก้ไขที่อยู่ผ่านฟอร์ม" : "📝 เปิดฟอร์มกรอกที่อยู่",
+        uri: formUrl,
+      },
+    });
+  }
+
+  return [
+    {
+      type: "flex",
+      altText: `📍 ข้อมูลที่อยู่จัดส่ง — ${shopInfo.name}`,
+      quickReply: buildMainQuickReply(),
+      contents: {
+        type: "bubble",
+        size: "mega",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#11301F",
+          paddingAll: "lg",
+          contents: [
+            {
+              type: "text",
+              text: "📍 จัดการข้อมูลที่อยู่จัดส่ง",
+              color: "#FDE047",
+              weight: "bold",
+              size: "md",
+            },
+            {
+              type: "text",
+              text: `${shopInfo.name} — คัดตัดสดส่งตรงถึงหน้าบ้าน`,
+              color: "#E7E5E4",
+              size: "xs",
+              margin: "xs",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          paddingAll: "lg",
+          contents: bodyContents,
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          paddingAll: "md",
+          contents: buttons,
+        },
+      },
+    },
+  ];
+}
+
 export function buildUserOrdersFlex(
   orders: Order[],
   claims: Claim[] = [],
