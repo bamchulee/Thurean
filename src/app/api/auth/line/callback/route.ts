@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
   const cfg = getRuntimeConfig();
   const channelId = cfg.lineLoginChannelId || process.env.LINE_LOGIN_CHANNEL_ID || "2012605985";
   const channelSecret =
-    cfg.lineLoginChannelSecret || process.env.LINE_LOGIN_CHANNEL_SECRET || "fb9820565092fab2f74ab9a24a43151a";
+    cfg.lineLoginChannelSecret || process.env.LINE_LOGIN_CHANNEL_SECRET || "";
 
   if (!channelId || !channelSecret) {
     homeUrl.searchParams.set("line_login_error", "credentials_missing");
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (safe.role === "admin") {
-      const adminToken = createAdminSessionToken(cfg.adminPin || "2824");
+      const adminToken = createAdminSessionToken(cfg.adminPin || "");
       res.cookies.set(ADMIN_COOKIE_NAME, adminToken, {
         httpOnly: true,
         sameSite: "lax",

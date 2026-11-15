@@ -1,7 +1,10 @@
 // ============================================================
 // Shared Order & Claim Business Logic (Web API + LINE Bot)
 // ============================================================
+import crypto from "crypto";
+import { getAvailableUnits } from "./stock";
 import {
+  SheetsApiError,
   createClaimRecord,
   createOrderRecord,
   getAllDatabase,
@@ -19,6 +22,18 @@ import {
 import { shopInfo } from "../data/mock";
 import { resolveCourierInfo } from "./courier";
 import type { Claim, Order, OrderItem } from "../types/durian";
+
+/** สุ่มรหัสตัวเลขที่ยังไม่ถูกใช้ ถ้าช่วงเลขเริ่มแน่นจะขยายจำนวนหลักให้อัตโนมัติ */
+function generateUniqueCode(prefix: string, digits: number, used: Set<string>): string {
+  let len = digits;
+  while (used.size > 0.5 * 9 * 10 ** (len - 1)) len++;
+  for (let i = 0; i < 200; i++) {
+    const min = 10 ** (len - 1);
+    const code = `${prefix}${crypto.randomInt(min, min * 10)}`;
+    if (!used.has(code.toUpperCase())) return code;
+  }
+  return `${prefix}${Date.now()}`;
+}
 
 export interface SubmitOrderInput {
   userId?: string;
@@ -96,6 +111,27 @@ export async function submitNewOrder(
     totalPrice += prod.price * qty;
   }
 
+  // เช็กสต็อกรวมต่อสินค้า (สินค้าเดียวกันอาจอยู่หลายบรรทัดคนละระดับความสุก)
+  const qtyByProduct = new Map<string, number>();
+  for (const it of verifiedItems) {
+    qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) || 0) + it.qty);
+  }
+  for (const [productId, qty] of qtyByProduct) {
+    const prod = data.products.find((p) => p.id === productId);
+    if (!prod) continue;
+    const available = getAvailableUnits(prod);
+    if (available !== undefined && qty > available) {
+      return {
+        ok: false,
+        error:
+          available <= 0
+            ? `สินค้า "${prod.name}" หมดแล้วในรอบนี้`
+            : `สินค้า "${prod.name}" เหลือประมาณ ${available} ${prod.unit} (สั่งมา ${qty})`,
+        status: 409,
+      };
+    }
+  }
+
   const shipQuery = (body.shippingMethod || "").trim().toLowerCase();
   const shipMethod =
     shopInfo.shippingMethods.find(
@@ -127,8 +163,9 @@ export async function submitNewOrder(
     console.warn("Auto-sync user from order failed:", err);
   }
 
+  const usedOrderIds = new Set(data.orders.map((o) => o.id.toUpperCase()));
   const newOrder: Order = {
-    id: `WK-${Math.floor(1000 + Math.random() * 9000)}`,
+    id: generateUniqueCode("WK-", 4, usedOrderIds),
     createdAt: new Date().toISOString(),
     roundId: activeRound?.id || "WK-ROUND-46",
     userId: finalUserId,
@@ -154,7 +191,28 @@ export async function submitNewOrder(
     notes: body.notes?.trim() || undefined,
   };
 
-  const created = await createOrderRecord(newOrder);
+  // ชีตเป็นตัวตัดสินสุดท้าย (เช็กรหัสซ้ำ/สต็อกใต้ล็อก) — รหัสชนให้สุ่มใหม่ ของหมดให้แจ้งลูกค้า
+  let created: Order | null = null;
+  for (let attempt = 0; attempt < 4 && !created; attempt++) {
+    try {
+      created = await createOrderRecord(newOrder);
+    } catch (err) {
+      const code = err instanceof SheetsApiError ? err.code : "";
+      if (code === "DUPLICATE_ID" && attempt < 3) {
+        usedOrderIds.add(newOrder.id.toUpperCase());
+        newOrder.id = generateUniqueCode("WK-", 4, usedOrderIds);
+        continue;
+      }
+      if (code === "OUT_OF_STOCK") {
+        const detail = String((err as Error).message).replace(/^.*OUT_OF_STOCK:\s*/, "");
+        return { ok: false, error: `สินค้าไม่พอ: ${detail}`, status: 409 };
+      }
+      throw err;
+    }
+  }
+  if (!created) {
+    return { ok: false, error: "ไม่สามารถออกเลขคำสั่งซื้อได้ กรุณาลองใหม่", status: 500 };
+  }
 
   const cfg = getRuntimeConfig();
   if (cfg.lineChannelAccessToken) {
@@ -228,8 +286,9 @@ export async function submitNewClaim(
     (o) => o.id.toUpperCase() === orderIdClean
   );
 
+  const usedClaimIds = new Set(data.claims.map((c) => c.claimId.toUpperCase()));
   const newClaim: Claim = {
-    claimId: `CLM-${Math.floor(10000 + Math.random() * 89999)}`,
+    claimId: generateUniqueCode("CLM-", 5, usedClaimIds),
     createdAt: new Date().toISOString(),
     orderId: orderIdClean,
     userId: body.userId?.trim() || matchedOrder?.userId || undefined,

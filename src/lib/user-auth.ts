@@ -1,10 +1,7 @@
 import crypto from "crypto";
 import type { SafeUser, User } from "../types/durian";
 
-const SESSION_SECRET =
-  process.env.SESSION_SECRET ||
-  process.env.ADMIN_SECRET ||
-  "winkin-durian-user-secret-salt-2026";
+import { getSigningSecret } from "./secrets";
 
 /**
  * Hash password with scrypt and random 16-byte salt
@@ -56,7 +53,7 @@ export function createSessionToken(user: SafeUser): string {
     exp: Date.now() + 1000 * 60 * 60 * 24 * 30, // 30 days
   });
   const hmac = crypto
-    .createHmac("sha256", SESSION_SECRET)
+    .createHmac("sha256", getSigningSecret())
     .update(payload)
     .digest("base64url");
   const b64Payload = Buffer.from(payload, "utf-8").toString("base64url");
@@ -76,11 +73,13 @@ export function verifySessionToken(
   try {
     const payloadStr = Buffer.from(b64Payload, "base64url").toString("utf-8");
     const expectedHmac = crypto
-      .createHmac("sha256", SESSION_SECRET)
+      .createHmac("sha256", getSigningSecret())
       .update(payloadStr)
       .digest("base64url");
 
-    if (hmac !== expectedHmac) return null;
+    const a = Buffer.from(hmac);
+    const b = Buffer.from(expectedHmac);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
 
     const data = JSON.parse(payloadStr);
     if (!data.id) return null;

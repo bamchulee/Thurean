@@ -18,6 +18,7 @@ import type {
 import { createInitialDatabase } from "../data/mock";
 import { deductProductStock } from "./stock";
 import { getWritableDataDir } from "./storage-dir";
+import { getSigningSecret } from "./secrets";
 
 function getLocalDbPath(): string {
   return path.join(getWritableDataDir(), "local-db.json");
@@ -76,10 +77,11 @@ export function getRuntimeConfig(): RuntimeConfig {
     lineLoginChannelId:
       process.env.LINE_LOGIN_CHANNEL_ID || fileConfig.lineLoginChannelId || "2012605985",
     lineLoginChannelSecret:
-      process.env.LINE_LOGIN_CHANNEL_SECRET ||
-      fileConfig.lineLoginChannelSecret ||
-      "fb9820565092fab2f74ab9a24a43151a",
-    adminPin: process.env.ADMIN_PIN || fileConfig.adminPin || "2824",
+      process.env.LINE_LOGIN_CHANNEL_SECRET || fileConfig.lineLoginChannelSecret || "",
+    googleSheetsApiKey:
+      process.env.GOOGLE_SHEETS_API_KEY || fileConfig.googleSheetsApiKey || "",
+    // ไม่มี PIN เริ่มต้น: ถ้าไม่ตั้ง ADMIN_PIN จะเข้าแอดมินด้วย PIN ไม่ได้
+    adminPin: process.env.ADMIN_PIN || fileConfig.adminPin || "",
     publicBaseUrl:
       process.env.NEXT_PUBLIC_BASE_URL || fileConfig.publicBaseUrl || vercelFallbackUrl,
     liveStreamPlatform:
@@ -134,6 +136,9 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
   if (partial.lineLoginChannelSecret !== undefined) {
     next.lineLoginChannelSecret = partial.lineLoginChannelSecret.trim();
   }
+  if (partial.googleSheetsApiKey !== undefined) {
+    next.googleSheetsApiKey = partial.googleSheetsApiKey.trim();
+  }
   if (partial.adminPin !== undefined && partial.adminPin.trim().length >= 4) {
     next.adminPin = partial.adminPin.trim();
   }
@@ -169,14 +174,16 @@ export function getDataSourceMode(): "google-sheets" | "local" {
 // Auth Helpers (Admin Session Token)
 // ============================================================
 export function createAdminSessionToken(pin: string): string {
-  const secret = process.env.ADMIN_SECRET || "winkin-durian-secret-2026";
-  return crypto.createHmac("sha256", secret).update(pin).digest("hex");
+  return crypto
+    .createHmac("sha256", getSigningSecret())
+    .update(`admin-session:${pin}`)
+    .digest("hex");
 }
 
 export function verifyAdminSessionToken(token?: string | null): boolean {
   if (!token) return false;
   const cfg = getRuntimeConfig();
-  const expected = createAdminSessionToken(cfg.adminPin || "2824");
+  const expected = createAdminSessionToken(cfg.adminPin || "");
   try {
     return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected));
   } catch {
@@ -227,28 +234,47 @@ function readLocalDb(): DatabaseState {
 }
 
 function writeLocalDb(db: DatabaseState) {
-  fs.writeFileSync(getLocalDbPath(), JSON.stringify(db, null, 2), "utf-8");
+  // เขียนลงไฟล์ชั่วคราวก่อนแล้วค่อยสลับชื่อ กันไฟล์พังถ้าโปรเซสดับกลางคัน
+  const target = getLocalDbPath();
+  const tmp = `${target}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2), "utf-8");
+  fs.renameSync(tmp, target);
+  invalidateDatabaseCache();
 }
 
 // ============================================================
 // Google Apps Script HTTP Bridge
 // ============================================================
-async function callGoogleAppsScriptGet<T>(webAppUrl: string, action: string): Promise<T> {
-  const url = new URL(webAppUrl);
-  url.searchParams.set("action", action);
-
-  const res = await fetch(url.toString(), {
-    method: "GET",
-    cache: "no-store",
-    redirect: "follow",
-  });
-
-  if (!res.ok) {
-    throw new Error(`Google Apps Script GET failed: ${res.status}`);
+export class SheetsApiError extends Error {
+  code: string;
+  constructor(message: string, code = "ERROR") {
+    super(message);
+    this.name = "SheetsApiError";
+    this.code = code;
   }
-  const json = (await res.json()) as { ok: boolean; data?: T; error?: string };
+}
+
+const SHEETS_TIMEOUT_MS = 30_000;
+
+async function parseSheetsResponse<T>(res: Response, label: string): Promise<T> {
+  if (!res.ok) {
+    throw new SheetsApiError(`Google Apps Script ${label} failed: HTTP ${res.status}`, "HTTP_ERROR");
+  }
+  const text = await res.text();
+  let json: { ok: boolean; data?: T; error?: string; code?: string };
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // ได้หน้า HTML กลับมา = URL ผิด หรือ Web App ไม่ได้เปิดสิทธิ์ "Anyone"
+    throw new SheetsApiError(
+      "Google Apps Script ไม่ได้ตอบกลับเป็น JSON (ตรวจ URL และสิทธิ์การ Deploy)",
+      "BAD_RESPONSE"
+    );
+  }
   if (!json.ok) {
-    throw new Error(json.error || "Google Apps Script returned error");
+    const msg = json.error || "Google Apps Script returned error";
+    const code = json.code || msg.match(/([A-Z_]{4,}):/)?.[1] || "ERROR";
+    throw new SheetsApiError(msg, code);
   }
   return json.data as T;
 }
@@ -258,26 +284,44 @@ async function callGoogleAppsScriptPost<T>(
   action: string,
   payload: unknown
 ): Promise<T> {
-  const res = await fetch(webAppUrl, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ action, payload }),
-    cache: "no-store",
-    redirect: "follow",
-  });
+  const key = getRuntimeConfig().googleSheetsApiKey || "";
+  try {
+    const res = await fetch(webAppUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action, payload, key }),
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(SHEETS_TIMEOUT_MS),
+    });
+    return await parseSheetsResponse<T>(res, `POST ${action}`);
+  } finally {
+    if (action !== "getAll" && action !== "ping") invalidateDatabaseCache();
+  }
+}
 
-  if (!res.ok) {
-    throw new Error(`Google Apps Script POST failed: ${res.status}`);
+async function fetchAllFromSheets(webAppUrl: string): Promise<DatabaseState> {
+  try {
+    return await callGoogleAppsScriptPost<DatabaseState>(webAppUrl, "getAll", {});
+  } catch (err) {
+    // สคริปต์รุ่นเก่า (ยังไม่ได้ Deploy Code.gs รุ่นใหม่) รู้จัก getAll เฉพาะแบบ GET
+    const legacy =
+      err instanceof SheetsApiError && /Unknown POST action/i.test(err.message);
+    if (!legacy) throw err;
+    const url = new URL(webAppUrl);
+    url.searchParams.set("action", "getAll");
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(SHEETS_TIMEOUT_MS),
+    });
+    return await parseSheetsResponse<DatabaseState>(res, "GET getAll");
   }
-  const json = (await res.json()) as { ok: boolean; data?: T; error?: string };
-  if (!json.ok) {
-    throw new Error(json.error || "Google Apps Script returned error");
-  }
-  return json.data as T;
 }
 
 export async function testGoogleSheetsConnection(webAppUrl: string) {
-  const data = await callGoogleAppsScriptGet<DatabaseState>(webAppUrl, "getAll");
+  const data = await fetchAllFromSheets(webAppUrl);
   return {
     connected: true,
     counts: {
@@ -299,7 +343,7 @@ export async function setupSheetsSchema(webAppUrl?: string) {
 export async function rebuildSheetsSchema(webAppUrl?: string) {
   const target = webAppUrl || getRuntimeConfig().googleSheetsWebAppUrl;
   if (!target) throw new Error("No Google Sheets Web App URL configured");
-  return await callGoogleAppsScriptPost<{ message?: string }>(target, "rebuildSheets", {});
+  return await callGoogleAppsScriptPost<{ message?: string }>(target, "rebuildSheets", { confirm: "RESET" });
 }
 
 export async function syncLocalDataToGoogleSheet(webAppUrl: string) {
@@ -398,10 +442,7 @@ export async function getAllDatabase(forceRefresh = false): Promise<{
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     try {
-      const sheetData = await callGoogleAppsScriptGet<DatabaseState>(
-        cfg.googleSheetsWebAppUrl,
-        "getAll"
-      );
+      const sheetData = await fetchAllFromSheets(cfg.googleSheetsWebAppUrl);
       const joined = applyDatabaseJoins(sheetData);
       memoryCache = {
         data: joined,
@@ -449,7 +490,10 @@ export async function createOrderRecord(order: Order): Promise<Order> {
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
+    // Apps Script เช็กรหัสซ้ำ + สต็อก และตัดสต็อกภายใต้ล็อกเดียวกัน
     await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createOrder", order);
+  } else if (readLocalDb().orders.some((o) => o.id === order.id)) {
+    throw new SheetsApiError(`DUPLICATE_ID: รหัสออเดอร์ ${order.id} ถูกใช้แล้ว`, "DUPLICATE_ID");
   }
   // Always mirror locally as backup / instant cache + deduct weight/qty stock
   const db = readLocalDb();
@@ -808,11 +852,12 @@ export async function createUserRecord(user: User): Promise<User> {
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
-    callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createUser", {
+    // รอผลจริง (บน serverless ถ้าไม่รอ คำขออาจถูกตัดทิ้งก่อนบันทึกเสร็จ)
+    await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createUser", {
       ...user,
       userId: user.userId || user.id,
     }).catch((err) => {
-      console.warn("Google Apps Script createUser failed, saved to local cache:", err);
+      console.error("Google Sheets createUser failed (saved locally only):", err);
     });
   }
 
@@ -846,13 +891,22 @@ export async function updateUserRecord(
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
-    callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "updateUser", {
-      id,
-      userId: id,
-      ...normalized,
-    }).catch((err) => {
-      console.warn("Google Apps Script updateUser failed, saved to local cache:", err);
-    });
+    try {
+      const res = await callGoogleAppsScriptPost<unknown>(
+        cfg.googleSheetsWebAppUrl,
+        "updateUser",
+        { id, userId: id, ...normalized }
+      );
+      // ไม่พบแถวในชีต (เช่น เคยบันทึกไม่สำเร็จ) → ส่งข้อมูลเต็มขึ้นไปสร้างใหม่
+      if (res === null && updatedUser) {
+        await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createUser", {
+          ...updatedUser,
+          userId: updatedUser.userId || updatedUser.id,
+        });
+      }
+    } catch (err) {
+      console.error("Google Sheets updateUser failed (saved locally only):", err);
+    }
   }
 
   return updatedUser;

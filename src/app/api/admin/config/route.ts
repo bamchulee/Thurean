@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
       googleSheetViewUrl: cfg.googleSheetViewUrl || "",
       userSheetViewUrl: cfg.userSheetViewUrl || "",
       thureanSheetViewUrl: cfg.thureanSheetViewUrl || "",
+      hasSheetsApiKey: Boolean(cfg.googleSheetsApiKey),
       lineOaId: cfg.lineOaId || "",
       hasLineToken: Boolean(cfg.lineChannelAccessToken),
       lineTokenMasked: maskSecret(cfg.lineChannelAccessToken),
@@ -176,6 +177,12 @@ export async function POST(req: NextRequest) {
     const updated = saveRuntimeConfig({
       googleSheetsWebAppUrl: body.googleSheetsWebAppUrl,
       googleSheetViewUrl: body.googleSheetViewUrl,
+      googleSheetsApiKey:
+        typeof (body as any).googleSheetsApiKey === "string" &&
+        (body as any).googleSheetsApiKey.trim() &&
+        !(body as any).googleSheetsApiKey.includes("••••")
+          ? (body as any).googleSheetsApiKey
+          : undefined,
       userSheetViewUrl: (body as any).userSheetViewUrl,
       thureanSheetViewUrl: (body as any).thureanSheetViewUrl,
       lineOaId: (body as any).lineOaId,
@@ -207,7 +214,7 @@ export async function POST(req: NextRequest) {
 
     // If PIN changed, refresh session cookie
     if (body.adminPin && body.adminPin.trim().length >= 4) {
-      const newToken = createAdminSessionToken(updated.adminPin || "2824");
+      const newToken = createAdminSessionToken(updated.adminPin || "");
       res.cookies.set(ADMIN_COOKIE_NAME, newToken, {
         httpOnly: true,
         sameSite: "lax",

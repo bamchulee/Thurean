@@ -211,11 +211,7 @@ function PinLoginScreen({ onSuccess }: { onSuccess: () => void }) {
             className="w-full text-center text-2xl tracking-[0.5em] font-mono border border-stone-300 rounded-2xl py-3 focus:border-[#1B4D31] focus:outline-none"
           />
           <p className="text-[11px] text-stone-400 mt-2">
-            รหัสเริ่มต้น:{" "}
-            <code className="bg-stone-100 px-1.5 py-0.5 rounded font-bold text-stone-700">
-              2824
-            </code>{" "}
-            (เปลี่ยนได้ในตั้งค่า)
+            ใช้รหัส PIN ที่ตั้งไว้ในตัวแปร ADMIN_PIN ของระบบ
           </p>
         </div>
 

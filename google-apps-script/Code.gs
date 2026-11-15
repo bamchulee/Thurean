@@ -1,13 +1,23 @@
 /**
  * ============================================================
- * Google Apps Script สำหรับระบบหลังบ้าน "ทุเรียนวินคิน" (โมเดลรับมาขายออก)
+ * Google Apps Script — ฐานข้อมูลร้าน "ทุเรียนวินคิน"
  * ============================================================
- * ระบบฐานข้อมูล 2 ลิงก์เชื่อมโยง (Relational Join):
- * 1. USER Sheet (16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ)
- *    - จัดเก็บข้อมูลสมาชิก / ผู้ลงทะเบียนผ่าน LINE (userId, ที่อยู่, เบอร์โทร, ชื่อ-สกุล)
- * 2. THUREAN Sheet (1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8)
- *    - จัดเก็บข้อมูลสินค้า, สต็อก, ออเดอร์ (Orders), แจ้งเคลม (Claims), รอบส่ง (Rounds)
- *    - ทุก Order และ Claim มี foreign key "userId" เชื่อมกลับไปหา User Sheet
+ * ชีต 2 ไฟล์:
+ * 1. USER Sheet    — ตาราง Users (สมาชิก)
+ * 2. THUREAN Sheet — Products, Rounds, Orders, Lots_Cost, Claims, Promotions
+ *
+ * หลักการบันทึกข้อมูล (เวอร์ชันนี้):
+ * - ทุกคำขอต้องแนบ API key (ตั้งครั้งแรกด้วยฟังก์ชัน generateApiKey ด้านล่าง)
+ * - ทุกการเขียนอยู่ใต้ LockService ทีละคำขอ กันออเดอร์ชนกัน/ตัดสต็อกซ้อน
+ * - สร้างออเดอร์: เช็กรหัสซ้ำ + เช็กสต็อกก่อน แล้วค่อยบันทึกและตัดสต็อก
+ * - สมาชิก: upsert (มีแล้วอัปเดต ไม่มีค่อยเพิ่ม) ไม่เกิดแถวซ้ำ
+ * - syncSeed: upsert ตามรหัส กดซ้ำกี่ครั้งก็ไม่เกิดแถวซ้ำและไม่ตัดสต็อกซ้ำ
+ *
+ * ติดตั้ง/อัปเดต:
+ * 1. วางโค้ดนี้ทับของเดิม แล้วกดบันทึก
+ * 2. เลือกฟังก์ชัน generateApiKey แล้วกด Run (ครั้งเดียว) คัดลอก key จาก Execution log
+ * 3. นำ key ไปใส่ที่เว็บ: ตัวแปร GOOGLE_SHEETS_API_KEY
+ * 4. Deploy > Manage deployments > แก้ไข > Version: New version > Deploy (URL เดิม)
  * ============================================================
  */
 
@@ -22,387 +32,98 @@ const SHEET_NAMES = {
   CLAIMS: "Claims",
   PROMOTIONS: "Promotions",
   USERS: "Users",
-  SUMMARY: "Summary",
 };
 
-function getUserSpreadsheet() {
-  return SpreadsheetApp.openById(USER_SPREADSHEET_ID);
+const AUDIT_HEADERS = ["isActive", "createDate", "createdBy", "updatedAt", "updatedBy"];
+
+const SHEET_DEFS = {
+  Users: {
+    color: "#1e3a8a",
+    idCol: "userId",
+    headers: [
+      "userId", "lineUserId", "username", "displayName", "firstName", "lastName",
+      "phone", "address", "postalCode", "avatarUrl", "role", "source", "notes",
+      "passwordHash",
+    ].concat(AUDIT_HEADERS),
+  },
+  Products: {
+    color: "#15803d",
+    idCol: "id",
+    headers: [
+      "id", "name", "variety", "type", "price", "marketPrice", "unit", "isAvailable",
+      "stockQty", "stockKg", "stockUnit", "avgWeightKg", "ripeness", "weight", "origin",
+      "brix", "image", "badge", "description", "maturity", "texture", "flavor",
+    ].concat(AUDIT_HEADERS),
+  },
+  Rounds: {
+    color: "#b45309",
+    idCol: "id",
+    headers: [
+      "id", "name", "truckRoute", "harvestDate", "closeDate", "deliveryDate", "status",
+      "quotaRemaining", "totalQuota",
+    ].concat(AUDIT_HEADERS),
+  },
+  Orders: {
+    color: "#166534",
+    idCol: "id",
+    headers: [
+      "id", "createDate", "roundId", "userId", "customerName", "phone", "address",
+      "lineUserId", "ripenessPref", "itemsJson", "itemSummary", "totalPrice",
+      "shippingMethod", "shippingCost", "grandTotal", "paymentStatus", "orderStatus",
+      "trackingNo", "lotId", "notes", "courier", "slipUrl", "isActive", "createdBy",
+      "updatedAt", "updatedBy",
+    ],
+  },
+  Lots_Cost: {
+    color: "#7c2d12",
+    idCol: "lotId",
+    headers: [
+      "lotId", "roundId", "date", "supplierName", "supplierPhone", "variety", "weightKg",
+      "costPerKg", "totalFruitCost", "packagingCost", "truckFuelCost", "notes",
+    ].concat(AUDIT_HEADERS),
+  },
+  Claims: {
+    color: "#991b1b",
+    idCol: "claimId",
+    headers: [
+      "claimId", "createDate", "orderId", "userId", "phone", "reason", "description",
+      "evidenceName", "status", "resolutionNote", "lotId", "isActive", "createdBy",
+      "updatedAt", "updatedBy",
+    ],
+  },
+  Promotions: {
+    color: "#b45309",
+    idCol: "id",
+    headers: [
+      "id", "title", "badge", "discountText", "conditionText", "promoCode",
+    ].concat(AUDIT_HEADERS),
+  },
+};
+
+// คอลัมน์ที่ต้องเก็บเป็น "ข้อความ" เสมอ (กันเลข 0 นำหน้าหาย / เลขพัสดุกลายเป็น 1.2E+15 / วันที่ถูกแปลง)
+const TEXT_COLUMNS = {
+  phone: 1, supplierPhone: 1, postalCode: 1, trackingNo: 1, promoCode: 1,
+  username: 1, passwordHash: 1, createDate: 1, updatedAt: 1, date: 1,
+};
+
+// ============================================================
+// API KEY
+// ============================================================
+
+/** รันครั้งเดียวจากหน้า Apps Script editor เพื่อสร้าง key แล้วดูค่าใน Execution log */
+function generateApiKey() {
+  const key = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, "");
+  PropertiesService.getScriptProperties().setProperty("API_KEY", key);
+  Logger.log("API key ใหม่ (นำไปใส่ GOOGLE_SHEETS_API_KEY ที่เว็บ): " + key);
+  return key;
 }
 
-function getThureanSpreadsheet() {
-  try {
-    return (
-      SpreadsheetApp.getActiveSpreadsheet() ||
-      SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID)
-    );
-  } catch (e) {
-    return SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID);
-  }
-}
-
-function getTargetSpreadsheetForSheet(sheetName) {
-  if (sheetName === SHEET_NAMES.USERS) {
-    return getUserSpreadsheet();
-  }
-  return getThureanSpreadsheet();
-}
-
-/**
- * 1-Click Auto Setup / Auto-Migrate: สร้างและปรับโครงสร้างตารางใหม่ทั้งหมด
- * พร้อมคอลัมน์ Audit Log: createDate, createdBy, isActive (0/1), updatedAt, updatedBy
- */
-function setupDurianWinkinSheets() {
-  const userSs = getUserSpreadsheet();
-  const thureanSs = getThureanSpreadsheet();
-
-  const userDefinitions = [
-    {
-      name: SHEET_NAMES.USERS,
-      color: "#1e3a8a",
-      headers: [
-        "userId",
-        "lineUserId",
-        "displayName",
-        "firstName",
-        "lastName",
-        "phone",
-        "address",
-        "postalCode",
-        "avatarUrl",
-        "role",
-        "source",
-        "notes",
-        "isActive",
-        "createDate",
-        "createdBy",
-        "updatedAt",
-        "updatedBy",
-      ],
-    },
-  ];
-
-  const thureanDefinitions = [
-    {
-      name: SHEET_NAMES.PRODUCTS,
-      color: "#15803d",
-      headers: [
-        "id",
-        "name",
-        "variety",
-        "type",
-        "price",
-        "marketPrice",
-        "unit",
-        "isAvailable",
-        "stockQty",
-        "stockKg",
-        "stockUnit",
-        "avgWeightKg",
-        "ripeness",
-        "weight",
-        "origin",
-        "brix",
-        "image",
-        "badge",
-        "description",
-        "maturity",
-        "texture",
-        "flavor",
-        "isActive",
-        "createDate",
-        "createdBy",
-        "updatedAt",
-        "updatedBy",
-      ],
-    },
-    {
-      name: SHEET_NAMES.ROUNDS,
-      color: "#b45309",
-      headers: [
-        "id",
-        "name",
-        "truckRoute",
-        "harvestDate",
-        "closeDate",
-        "deliveryDate",
-        "status",
-        "quotaRemaining",
-        "totalQuota",
-        "isActive",
-        "createDate",
-        "createdBy",
-        "updatedAt",
-        "updatedBy",
-      ],
-    },
-    {
-      name: SHEET_NAMES.ORDERS,
-      color: "#166534",
-      headers: [
-        "id",
-        "createDate",
-        "roundId",
-        "userId",
-        "customerName",
-        "phone",
-        "address",
-        "lineUserId",
-        "ripenessPref",
-        "itemsJson",
-        "itemSummary",
-        "totalPrice",
-        "shippingMethod",
-        "shippingCost",
-        "grandTotal",
-        "paymentStatus",
-        "orderStatus",
-        "trackingNo",
-        "lotId",
-        "notes",
-        "courier",
-        "slipUrl",
-        "isActive",
-        "createdBy",
-        "updatedAt",
-        "updatedBy",
-      ],
-    },
-    {
-      name: SHEET_NAMES.LOTS,
-      color: "#7c2d12",
-      headers: [
-        "lotId",
-        "roundId",
-        "date",
-        "supplierName",
-        "supplierPhone",
-        "variety",
-        "weightKg",
-        "costPerKg",
-        "totalFruitCost",
-        "packagingCost",
-        "truckFuelCost",
-        "notes",
-        "isActive",
-        "createDate",
-        "createdBy",
-        "updatedAt",
-        "updatedBy",
-      ],
-    },
-    {
-      name: SHEET_NAMES.CLAIMS,
-      color: "#991b1b",
-      headers: [
-        "claimId",
-        "createDate",
-        "orderId",
-        "userId",
-        "phone",
-        "reason",
-        "description",
-        "evidenceName",
-        "status",
-        "resolutionNote",
-        "lotId",
-        "isActive",
-        "createdBy",
-        "updatedAt",
-        "updatedBy",
-      ],
-    },
-    {
-      name: SHEET_NAMES.PROMOTIONS,
-      color: "#b45309",
-      headers: [
-        "id",
-        "title",
-        "badge",
-        "discountText",
-        "conditionText",
-        "promoCode",
-        "isActive",
-        "createDate",
-        "createdBy",
-        "updatedAt",
-        "updatedBy",
-      ],
-    },
-  ];
-
-  function applyHeadersToSpreadsheet(ss, definitions) {
-    definitions.forEach((def) => {
-      let sheet = ss.getSheetByName(def.name);
-      if (!sheet) sheet = ss.insertSheet(def.name);
-
-      if (sheet.getLastRow() === 0) {
-        sheet.appendRow(def.headers);
-      } else {
-        // Upgrade existing sheet headers if new columns were added
-        const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-        def.headers.forEach((h) => {
-          if (currentHeaders.indexOf(h) === -1) {
-            sheet.getRange(1, sheet.getLastColumn() + 1).setValue(h);
-          }
-        });
-      }
-
-      const totalCols = sheet.getLastColumn();
-      if (totalCols > 0) {
-        const headerRange = sheet.getRange(1, 1, 1, totalCols);
-        headerRange.setBackground(def.color).setFontColor("#ffffff").setFontWeight("bold");
-        sheet.setFrozenRows(1);
-      }
-
-      // Default isActive = 1 for any existing rows that have blank isActive
-      const lastRow = sheet.getLastRow();
-      if (lastRow > 1) {
-        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-        const activeIdx = headers.indexOf("isActive");
-        if (activeIdx !== -1) {
-          const values = sheet.getRange(2, activeIdx + 1, lastRow - 1, 1).getValues();
-          let needsUpdate = false;
-          for (let i = 0; i < values.length; i++) {
-            if (values[i][0] === "" || values[i][0] === undefined || values[i][0] === null) {
-              values[i][0] = 1;
-              needsUpdate = true;
-            }
-          }
-          if (needsUpdate) {
-            sheet.getRange(2, activeIdx + 1, lastRow - 1, 1).setValues(values);
-          }
-        }
-      }
-    });
-  }
-
-  applyHeadersToSpreadsheet(userSs, userDefinitions);
-  applyHeadersToSpreadsheet(thureanSs, thureanDefinitions);
-
-  return "Dual-Sheet Structure Redesigned with Audit Logs (createDate, createdBy, isActive 0/1, updatedAt, updatedBy) Complete!";
-}
-
-/**
- * ลื้อตารางและสร้างใหม่ทั้งหมด (Wipe and Rebuild)
- */
-function resetAndRebuildAllSheets() {
-  const userSs = getUserSpreadsheet();
-  const thureanSs = getThureanSpreadsheet();
-
-  // Clear existing data rows except headers
-  const userSheets = userSs.getSheets();
-  userSheets.forEach((s) => {
-    if (s.getLastRow() > 1) {
-      s.deleteRows(2, s.getLastRow() - 1);
-    }
-  });
-
-  const thureanSheets = thureanSs.getSheets();
-  thureanSheets.forEach((s) => {
-    if (s.getLastRow() > 1) {
-      s.deleteRows(2, s.getLastRow() - 1);
-    }
-  });
-
-  setupDurianWinkinSheets();
-  return "Database Overhauled & Reset Cleanly!";
+function getApiKey() {
+  return PropertiesService.getScriptProperties().getProperty("API_KEY") || "";
 }
 
 // ============================================================
-// HTTP HANDLERS (GET & POST)
-// ============================================================
-
-function doGet(e) {
-  const action = (e && e.parameter && e.parameter.action) || "getAll";
-  try {
-    if (action === "ping") {
-      return jsonResponse({
-        ok: true,
-        message: "Durian Winkin Dual-Sheet Relational API is ready!",
-        userSpreadsheetId: USER_SPREADSHEET_ID,
-        thureanSpreadsheetId: THUREAN_SPREADSHEET_ID,
-      });
-    }
-    if (action === "setup") {
-      return jsonResponse({ ok: true, message: setupDurianWinkinSheets() });
-    }
-    if (action === "rebuild") {
-      return jsonResponse({ ok: true, message: resetAndRebuildAllSheets() });
-    }
-    if (action === "getAll") {
-      return jsonResponse({ ok: true, data: readAllDatabase() });
-    }
-    return jsonResponse({ ok: false, error: "Unknown GET action: " + action });
-  } catch (err) {
-    return jsonResponse({ ok: false, error: String(err) });
-  }
-}
-
-function doPost(e) {
-  try {
-    const body = JSON.parse(e.postData.contents || "{}");
-    const action = body.action;
-    const payload = body.payload || {};
-
-    switch (action) {
-      case "setupSheets":
-        return jsonResponse({ ok: true, message: setupDurianWinkinSheets() });
-      case "rebuildSheets":
-        return jsonResponse({ ok: true, message: resetAndRebuildAllSheets() });
-      case "syncSeed":
-        return jsonResponse({ ok: true, data: syncSeedData(payload) });
-      case "createOrder":
-        return jsonResponse({ ok: true, data: createOrderRow(payload) });
-      case "updateOrder":
-        return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.ORDERS, "id", payload.id, payload) });
-      case "createProduct":
-        return jsonResponse({ ok: true, data: createProductRow(payload) });
-      case "updateProduct":
-        return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.PRODUCTS, "id", payload.id, payload) });
-      case "createRound":
-        return jsonResponse({ ok: true, data: createRoundRow(payload) });
-      case "updateRound":
-        return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.ROUNDS, "id", payload.id, payload) });
-      case "createLot":
-        return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.LOTS, payload) });
-      case "createClaim":
-        return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.CLAIMS, payload) });
-      case "updateClaim":
-        return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.CLAIMS, "claimId", payload.claimId, payload) });
-      case "createPromotion":
-        return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.PROMOTIONS, payload) });
-      case "updatePromotion":
-        return jsonResponse({ ok: true, data: updateRowById(SHEET_NAMES.PROMOTIONS, "id", payload.id, payload) });
-      case "createUser": {
-        const userPayload = {
-          ...payload,
-          userId: payload.userId || payload.id || ("usr_" + new Date().getTime()),
-        };
-        return jsonResponse({ ok: true, data: appendObjectRow(SHEET_NAMES.USERS, userPayload) });
-      }
-      case "updateUser": {
-        const targetId = payload.userId || payload.id;
-        const updated = updateRowById(
-          SHEET_NAMES.USERS,
-          "userId",
-          targetId,
-          payload
-        );
-        return jsonResponse({
-          ok: true,
-          data: updated,
-        });
-      }
-      default:
-        return jsonResponse({ ok: false, error: "Unknown POST action: " + action });
-    }
-  } catch (err) {
-    return jsonResponse({ ok: false, error: String(err) });
-  }
-}
-
-// ============================================================
-// INTERNAL DATA HELPERS
+// HTTP HANDLERS
 // ============================================================
 
 function jsonResponse(obj) {
@@ -411,70 +132,554 @@ function jsonResponse(obj) {
   );
 }
 
-function getSheetOrInit(name) {
-  const ss = getTargetSpreadsheetForSheet(name);
+function errorResponse(err) {
+  const msg = String((err && err.message) || err);
+  const m = msg.match(/^([A-Z_]+):/);
+  return jsonResponse({ ok: false, error: msg, code: m ? m[1] : "ERROR" });
+}
+
+/** GET ใช้เช็กสถานะเท่านั้น ไม่คืนข้อมูลและไม่แก้ไขอะไร */
+function doGet() {
+  return jsonResponse({
+    ok: true,
+    message: "Durian Winkin Sheets API is ready. Use POST with an API key.",
+    secured: Boolean(getApiKey()),
+  });
+}
+
+function doPost(e) {
+  try {
+    const body = JSON.parse((e && e.postData && e.postData.contents) || "{}");
+    const expectedKey = getApiKey();
+    if (!expectedKey) {
+      throw new Error("API_KEY_NOT_SET: ยังไม่ได้ตั้ง API key — รันฟังก์ชัน generateApiKey ใน Apps Script ก่อน");
+    }
+    if (String(body.key || "") !== expectedKey) {
+      throw new Error("UNAUTHORIZED: API key ไม่ถูกต้อง");
+    }
+
+    const action = body.action;
+    const payload = body.payload || {};
+
+    if (action === "ping") return jsonResponse({ ok: true, data: { secured: true } });
+    if (action === "getAll") return jsonResponse({ ok: true, data: readAllDatabase() });
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(25000);
+    try {
+      const data = handleWrite(action, payload);
+      SpreadsheetApp.flush();
+      return jsonResponse({ ok: true, data: data });
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    return errorResponse(err);
+  }
+}
+
+function handleWrite(action, payload) {
+  switch (action) {
+    case "setupSheets":
+      return { message: setupDurianWinkinSheets() };
+    case "rebuildSheets":
+      if (payload.confirm !== "RESET") {
+        throw new Error("CONFIRM_REQUIRED: ต้องส่ง confirm = RESET เพื่อยืนยันการล้างข้อมูล");
+      }
+      return { message: resetAndRebuildAllSheets() };
+    case "syncSeed":
+      return syncSeedData(payload);
+    case "createOrder":
+      return createOrder(payload);
+    case "updateOrder":
+      return updateOrder(payload);
+    case "createProduct":
+      return insertRow(SHEET_NAMES.PRODUCTS, flattenProduct(payload, true));
+    case "updateProduct":
+      return updateById(SHEET_NAMES.PRODUCTS, payload.id, flattenProduct(payload, false));
+    case "createRound":
+      return insertRow(SHEET_NAMES.ROUNDS, payload);
+    case "updateRound":
+      return updateById(SHEET_NAMES.ROUNDS, payload.id, payload);
+    case "createLot":
+      return insertRow(SHEET_NAMES.LOTS, payload);
+    case "createClaim":
+      return insertRow(SHEET_NAMES.CLAIMS, payload);
+    case "updateClaim":
+      return updateById(SHEET_NAMES.CLAIMS, payload.claimId, payload);
+    case "createPromotion":
+      return insertRow(SHEET_NAMES.PROMOTIONS, payload);
+    case "updatePromotion":
+      return updateById(SHEET_NAMES.PROMOTIONS, payload.id, payload);
+    case "createUser":
+      return upsertRow(SHEET_NAMES.USERS, normalizeUser(payload));
+    case "updateUser":
+      return updateById(SHEET_NAMES.USERS, payload.userId || payload.id, normalizeUser(payload));
+    default:
+      throw new Error("UNKNOWN_ACTION: " + action);
+  }
+}
+
+// ============================================================
+// SHEET ACCESS (อ่านครั้งเดียวต่อคำขอ แล้วใช้ cache ในหน่วยความจำ)
+// ============================================================
+
+let _tables = {};
+
+function getUserSpreadsheet() {
+  return SpreadsheetApp.openById(USER_SPREADSHEET_ID);
+}
+
+function getThureanSpreadsheet() {
+  try {
+    return SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID);
+  } catch (e) {
+    return SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID);
+  }
+}
+
+function getSpreadsheetFor(sheetName) {
+  return sheetName === SHEET_NAMES.USERS ? getUserSpreadsheet() : getThureanSpreadsheet();
+}
+
+function styleHeader(sheet, color) {
+  const cols = sheet.getLastColumn();
+  if (cols === 0) return;
+  sheet.getRange(1, 1, 1, cols).setBackground(color).setFontColor("#ffffff").setFontWeight("bold");
+  sheet.setFrozenRows(1);
+}
+
+/** สร้างชีต/เติมหัวคอลัมน์ที่ขาดให้อัตโนมัติ (ไม่ลบหรือย้ายคอลัมน์เดิม) */
+function ensureSheet(name) {
+  const def = SHEET_DEFS[name];
+  const ss = getSpreadsheetFor(name);
   let sheet = ss.getSheetByName(name);
-  if (!sheet) {
-    setupDurianWinkinSheets();
-    sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, def.headers.length).setValues([def.headers]);
+    styleHeader(sheet, def.color);
+    return sheet;
+  }
+
+  const current = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const missing = def.headers.filter((h) => current.indexOf(h) === -1);
+  if (missing.length > 0) {
+    const startCol = current.length + 1;
+    const needCols = startCol + missing.length - 1 - sheet.getMaxColumns();
+    if (needCols > 0) sheet.insertColumnsAfter(sheet.getMaxColumns(), needCols);
+    sheet.getRange(1, startCol, 1, missing.length).setValues([missing]);
+    styleHeader(sheet, def.color);
   }
   return sheet;
 }
 
-function readSheetObjects(sheetName) {
-  const sheet = getSheetOrInit(sheetName);
-  const values = sheet.getDataRange().getValues();
-  if (values.length <= 1) return [];
-  const headers = values[0];
-  return values.slice(1).filter((r) => r[0] !== "").map((row) => {
-    const obj = {};
-    headers.forEach((h, i) => {
-      obj[h] = row[i];
-    });
-    return obj;
-  });
+function normalizeCell(v) {
+  if (v instanceof Date) return v.toISOString();
+  return v;
 }
+
+function readTable(name) {
+  if (_tables[name]) return _tables[name];
+  const def = SHEET_DEFS[name];
+  const sheet = ensureSheet(name);
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  let idIdx = headers.indexOf(def.idCol);
+  if (idIdx === -1 && def.idCol === "userId") idIdx = headers.indexOf("id");
+  if (idIdx === -1) idIdx = 0;
+
+  const rows = [];
+  for (let r = 1; r < values.length; r++) {
+    if (values[r][idIdx] === "" || values[r][idIdx] === null) continue;
+    const obj = { _row: r + 1 };
+    headers.forEach((h, i) => {
+      obj[h] = normalizeCell(values[r][i]);
+    });
+    obj._id = String(values[r][idIdx]);
+    rows.push(obj);
+  }
+  const table = { name: name, def: def, sheet: sheet, headers: headers, rows: rows, lastRow: values.length };
+  _tables[name] = table;
+  return table;
+}
+
+function normalizeActive(v) {
+  return v === 0 || v === "0" || v === false || String(v).toUpperCase() === "FALSE" ? 0 : 1;
+}
+
+function toCell(header, val) {
+  if (val === undefined || val === null) return "";
+  if (header === "isActive") return normalizeActive(val);
+  if (typeof val === "object") return JSON.stringify(val);
+  if (TEXT_COLUMNS[header] && val !== "") return "'" + String(val);
+  return val;
+}
+
+function findRow(table, idValue, lineUserId) {
+  const id = String(idValue || "").toUpperCase();
+  let found = id ? table.rows.find((r) => r._id.toUpperCase() === id) : null;
+  if (!found && lineUserId && table.name === SHEET_NAMES.USERS) {
+    found = table.rows.find((r) => r.lineUserId && String(r.lineUserId) === String(lineUserId));
+  }
+  return found || null;
+}
+
+/** เพิ่มแถวใหม่ — ถ้ารหัสซ้ำจะ error (ไม่เขียนทับ ไม่เกิดแถวซ้ำ) */
+function insertRow(name, obj) {
+  const table = readTable(name);
+  const idVal = obj[table.def.idCol];
+  if (idVal === undefined || idVal === null || idVal === "") {
+    throw new Error("MISSING_ID: ไม่มีรหัส " + table.def.idCol + " สำหรับตาราง " + name);
+  }
+  if (findRow(table, idVal)) {
+    throw new Error("DUPLICATE_ID: รหัส " + idVal + " มีอยู่แล้วในตาราง " + name);
+  }
+
+  const now = new Date().toISOString();
+  const row = Object.assign({}, obj);
+  row.isActive = row.isActive === undefined || row.isActive === "" ? 1 : normalizeActive(row.isActive);
+  row.createDate = row.createDate || row.createdAt || now;
+  row.createdBy = row.createdBy || row.userId || row.lineUserId || "system";
+  row.updatedAt = row.updatedAt || now;
+  row.updatedBy = row.updatedBy || row.createdBy;
+
+  table.sheet.appendRow(table.headers.map((h) => toCell(h, row[h])));
+  table.lastRow = table.sheet.getLastRow();
+
+  const cached = { _row: table.lastRow, _id: String(idVal) };
+  table.headers.forEach((h) => {
+    cached[h] = row[h] === undefined || row[h] === null ? "" : row[h];
+  });
+  table.rows.push(cached);
+  return row;
+}
+
+/** เขียนเฉพาะช่องที่ค่าเปลี่ยนจริง (ไม่แตะช่องอื่น/สูตรที่แอดมินใส่เอง) */
+function applyUpdates(table, rowObj, updates, touchAudit) {
+  const changes = Object.assign({}, updates);
+  delete changes[table.def.idCol];
+  delete changes.createDate;
+  delete changes.createdBy;
+  if (touchAudit !== false) changes.updatedAt = new Date().toISOString();
+
+  let changed = 0;
+  table.headers.forEach((h, c) => {
+    if (changes[h] === undefined) return;
+    const next = h === "isActive" ? normalizeActive(changes[h]) : changes[h];
+    const nextComparable = next !== null && typeof next === "object" ? JSON.stringify(next) : String(next === null ? "" : next);
+    if (String(rowObj[h]) === nextComparable) return;
+    table.sheet.getRange(rowObj._row, c + 1).setValue(toCell(h, next));
+    rowObj[h] = next === null ? "" : next;
+    changed++;
+  });
+  return changed;
+}
+
+function updateById(name, idValue, updates) {
+  const table = readTable(name);
+  const row = findRow(table, idValue, updates && updates.lineUserId);
+  if (!row) return null;
+  applyUpdates(table, row, updates);
+  return Object.assign({}, updates, { updatedAt: row.updatedAt });
+}
+
+/** มีแล้วอัปเดต ไม่มีค่อยเพิ่ม */
+function upsertRow(name, obj, touchAudit) {
+  const table = readTable(name);
+  const row = findRow(table, obj[table.def.idCol], obj.lineUserId);
+  if (row) {
+    applyUpdates(table, row, obj, touchAudit);
+    return obj;
+  }
+  return insertRow(name, obj);
+}
+
+// ============================================================
+// แปลง object จากเว็บให้ตรงกับคอลัมน์ในชีต
+// ============================================================
+
+function normalizeUser(u) {
+  const out = Object.assign({}, u);
+  const id = u.userId || u.id;
+  if (id) out.userId = id;
+  delete out.id;
+  delete out.orderCount;
+  delete out.totalSpent;
+  return out;
+}
+
+function flattenProduct(p, isNew) {
+  const out = {};
+  Object.keys(p || {}).forEach((k) => {
+    if (k === "specs") {
+      const s = p.specs || {};
+      if (s.maturity !== undefined) out.maturity = s.maturity;
+      if (s.texture !== undefined) out.texture = s.texture;
+      if (s.flavor !== undefined) out.flavor = s.flavor;
+    } else {
+      out[k] = p[k];
+    }
+  });
+  if (out.price !== undefined) out.price = Number(out.price) || 0;
+  if (out.isAvailable !== undefined) {
+    out.isAvailable = out.isAvailable === true || String(out.isAvailable).toUpperCase() === "TRUE";
+  }
+  if (isNew) {
+    if (out.isAvailable === undefined) out.isAvailable = true;
+    if (!out.stockUnit) out.stockUnit = out.type === "flesh" ? "qty" : "kg";
+    if (!out.createdBy) out.createdBy = "admin";
+  }
+  return out;
+}
+
+function flattenOrder(o) {
+  const out = {};
+  Object.keys(o || {}).forEach((k) => {
+    if (k === "items") {
+      const items = Array.isArray(o.items) ? o.items : [];
+      out.itemsJson = JSON.stringify(items);
+      out.itemSummary = items.map((it) => it.productName + " x" + it.qty).join(", ");
+    } else if (k !== "createdAt") {
+      out[k] = o[k];
+    }
+  });
+  if (!out.createDate && o.createdAt) out.createDate = o.createdAt;
+  if (out.totalPrice !== undefined) out.totalPrice = Number(out.totalPrice) || 0;
+  if (out.shippingCost !== undefined) out.shippingCost = Number(out.shippingCost) || 0;
+  return out;
+}
+
+// ============================================================
+// ORDERS: บันทึกออเดอร์ + ตัดสต็อก + ตัดโควต้ารอบ ในล็อกเดียวกัน
+// ============================================================
+
+function hasNumber(v) {
+  return v !== "" && v !== undefined && v !== null && !isNaN(Number(v));
+}
+
+/** คืนแผนตัดสต็อกของสินค้า 1 ตัว หรือ error ถ้าของไม่พอ (ช่องสต็อกว่าง = ไม่นับสต็อก) */
+function planStockDeduction(p, qty) {
+  const updates = {};
+  const isQtyBased = p.stockUnit === "qty" || p.type === "flesh";
+  const avg = Number(p.avgWeightKg) > 0 ? Number(p.avgWeightKg) : isQtyBased ? 1 : 3;
+  const unit = p.unit || "ชิ้น";
+
+  if (isQtyBased && hasNumber(p.stockQty)) {
+    const left = Number(p.stockQty);
+    if (qty > left) return { error: "เหลือ " + Math.max(0, left) + " " + unit };
+    updates.stockQty = left - qty;
+    if (updates.stockQty <= 0) updates.isAvailable = false;
+    if (hasNumber(p.stockKg)) {
+      updates.stockKg = Math.max(0, Number((Number(p.stockKg) - qty * avg).toFixed(1)));
+    }
+    return { updates: updates };
+  }
+
+  if (hasNumber(p.stockKg)) {
+    const kg = Number(p.stockKg);
+    const available = kg <= 0 ? 0 : Math.max(1, Math.floor(kg / avg));
+    if (qty > available) return { error: "เหลือประมาณ " + available + " " + unit };
+    updates.stockKg = Math.max(0, Number((kg - qty * avg).toFixed(1)));
+    if (updates.stockKg <= 0) updates.isAvailable = false;
+  }
+  return { updates: updates };
+}
+
+function createOrder(order) {
+  if (!order || !order.id) throw new Error("MISSING_ID: ออเดอร์ไม่มีรหัส");
+  const orders = readTable(SHEET_NAMES.ORDERS);
+  if (findRow(orders, order.id)) {
+    throw new Error("DUPLICATE_ID: รหัสออเดอร์ " + order.id + " ถูกใช้แล้ว");
+  }
+
+  const items = Array.isArray(order.items) ? order.items : [];
+  const need = {};
+  items.forEach((it) => {
+    const pid = String(it.productId);
+    need[pid] = (need[pid] || 0) + Math.max(1, Math.floor(Number(it.qty) || 1));
+  });
+
+  // 1) เช็กสต็อกทุกรายการก่อน ถ้าไม่พอแม้รายการเดียวจะไม่บันทึกอะไรเลย
+  const products = readTable(SHEET_NAMES.PRODUCTS);
+  const plans = [];
+  Object.keys(need).forEach((pid) => {
+    const p = findRow(products, pid);
+    if (!p) return;
+    const plan = planStockDeduction(p, need[pid]);
+    if (plan.error) throw new Error("OUT_OF_STOCK: " + p.name + " " + plan.error);
+    plans.push({ row: p, updates: plan.updates });
+  });
+
+  // 2) บันทึกออเดอร์
+  const flat = flattenOrder(order);
+  flat.grandTotal = (Number(flat.totalPrice) || 0) + (Number(flat.shippingCost) || 0);
+  flat.paymentStatus = flat.paymentStatus || "pending";
+  flat.orderStatus = flat.orderStatus || "received";
+  flat.createdBy = flat.createdBy || flat.userId || "customer";
+  insertRow(SHEET_NAMES.ORDERS, flat);
+
+  // 3) ตัดสต็อก + โควต้ารอบ
+  plans.forEach((pl) => {
+    if (Object.keys(pl.updates).length > 0) applyUpdates(products, pl.row, pl.updates);
+  });
+  if (order.roundId) {
+    const rounds = readTable(SHEET_NAMES.ROUNDS);
+    const round = findRow(rounds, order.roundId);
+    if (round) {
+      const qtySum = Object.keys(need).reduce((s, k) => s + need[k], 0);
+      applyUpdates(rounds, round, {
+        quotaRemaining: Math.max(0, (Number(round.quotaRemaining) || 0) - qtySum),
+      });
+    }
+  }
+  return order;
+}
+
+function updateOrder(payload) {
+  const table = readTable(SHEET_NAMES.ORDERS);
+  const row = findRow(table, payload.id);
+  if (!row) return null;
+  const flat = flattenOrder(payload);
+  if (flat.totalPrice !== undefined || flat.shippingCost !== undefined) {
+    const total = flat.totalPrice !== undefined ? flat.totalPrice : Number(row.totalPrice) || 0;
+    const ship = flat.shippingCost !== undefined ? flat.shippingCost : Number(row.shippingCost) || 0;
+    flat.grandTotal = total + ship;
+  }
+  applyUpdates(table, row, flat);
+  return Object.assign({}, payload, { updatedAt: row.updatedAt });
+}
+
+// ============================================================
+// SETUP / RESET / SYNC
+// ============================================================
+
+function setupDurianWinkinSheets() {
+  _tables = {};
+  Object.keys(SHEET_DEFS).forEach((name) => {
+    const def = SHEET_DEFS[name];
+    const sheet = ensureSheet(name);
+    styleHeader(sheet, def.color);
+
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+    const dataRows = Math.max(1, sheet.getMaxRows() - 1);
+
+    // คอลัมน์ข้อความ: ตั้งรูปแบบเป็น Plain text ทั้งคอลัมน์
+    headers.forEach((h, i) => {
+      if (TEXT_COLUMNS[h]) sheet.getRange(2, i + 1, dataRows, 1).setNumberFormat("@");
+    });
+
+    // แถวเก่าที่ isActive ว่าง ให้เป็น 1
+    const lastRow = sheet.getLastRow();
+    const activeIdx = headers.indexOf("isActive");
+    if (lastRow > 1 && activeIdx !== -1) {
+      const range = sheet.getRange(2, activeIdx + 1, lastRow - 1, 1);
+      const values = range.getValues();
+      let dirty = false;
+      values.forEach((v) => {
+        if (v[0] === "" || v[0] === null) {
+          v[0] = 1;
+          dirty = true;
+        }
+      });
+      if (dirty) range.setValues(values);
+    }
+  });
+  return "ตรวจโครงสร้างตารางครบทั้ง 7 ตารางแล้ว";
+}
+
+/** ล้างข้อมูลเฉพาะตารางของระบบ (ไม่แตะชีตอื่นที่สร้างไว้เอง) */
+function resetAndRebuildAllSheets() {
+  _tables = {};
+  Object.keys(SHEET_DEFS).forEach((name) => {
+    const sheet = ensureSheet(name);
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+    }
+  });
+  _tables = {};
+  return setupDurianWinkinSheets();
+}
+
+/** ส่งข้อมูลจากเว็บขึ้นชีตแบบ upsert — ไม่ตัดสต็อก ไม่เกิดแถวซ้ำ */
+function syncSeedData(seed) {
+  let count = 0;
+  const each = (list, fn) => {
+    (Array.isArray(list) ? list : []).forEach((item) => {
+      fn(item);
+      count++;
+    });
+  };
+
+  each(seed.products, (p) => upsertRow(SHEET_NAMES.PRODUCTS, flattenProduct(p, true), false));
+  each(seed.rounds, (r) => upsertRow(SHEET_NAMES.ROUNDS, r, false));
+  each(seed.orders, (o) => {
+    const flat = flattenOrder(o);
+    flat.grandTotal = (Number(flat.totalPrice) || 0) + (Number(flat.shippingCost) || 0);
+    upsertRow(SHEET_NAMES.ORDERS, flat, false);
+  });
+  each(seed.lots, (l) => upsertRow(SHEET_NAMES.LOTS, l, false));
+  each(seed.claims, (c) => {
+    const flat = Object.assign({}, c);
+    if (!flat.createDate && flat.createdAt) flat.createDate = flat.createdAt;
+    upsertRow(SHEET_NAMES.CLAIMS, flat, false);
+  });
+  each(seed.promotions, (pr) => upsertRow(SHEET_NAMES.PROMOTIONS, pr, false));
+  each(seed.users, (u) => upsertRow(SHEET_NAMES.USERS, normalizeUser(u), false));
+  return { syncedItems: count };
+}
+
+// ============================================================
+// READ ALL
+// ============================================================
 
 function cleanDigits(val) {
   return String(val || "").replace(/[^\d]/g, "");
 }
 
+function optStr(v) {
+  return v === "" || v === undefined || v === null ? undefined : String(v);
+}
+
+function optNum(v) {
+  return hasNumber(v) ? Number(v) : undefined;
+}
+
 function readAllDatabase() {
-  const rawProducts = readSheetObjects(SHEET_NAMES.PRODUCTS);
-  const products = rawProducts.map((p) => ({
+  const products = readTable(SHEET_NAMES.PRODUCTS).rows.map((p) => ({
     id: String(p.id),
     name: String(p.name),
     variety: String(p.variety),
     type: p.type === "flesh" ? "flesh" : "whole",
-    ripeness: String(p.ripeness),
-    weight: String(p.weight),
+    ripeness: String(p.ripeness || ""),
+    weight: String(p.weight || ""),
     price: Number(p.price) || 0,
-    marketPrice: p.marketPrice ? Number(p.marketPrice) : undefined,
+    marketPrice: optNum(p.marketPrice),
     unit: String(p.unit || "ลูก"),
     origin: String(p.origin || ""),
     brix: String(p.brix || ""),
     image: String(p.image || ""),
-    badge: p.badge ? String(p.badge) : undefined,
+    badge: optStr(p.badge),
     isAvailable: p.isAvailable === true || String(p.isAvailable).toUpperCase() === "TRUE",
     description: String(p.description || ""),
     stockUnit: p.stockUnit === "qty" ? "qty" : "kg",
-    stockKg: p.stockKg !== "" && p.stockKg !== undefined ? Number(p.stockKg) : undefined,
-    avgWeightKg: p.avgWeightKg !== "" && p.avgWeightKg !== undefined ? Number(p.avgWeightKg) : undefined,
-    stockQty: p.stockQty !== "" && p.stockQty !== undefined ? Number(p.stockQty) : undefined,
+    stockKg: optNum(p.stockKg),
+    avgWeightKg: optNum(p.avgWeightKg),
+    stockQty: optNum(p.stockQty),
     specs: {
       maturity: String(p.maturity || ""),
       texture: String(p.texture || ""),
       flavor: String(p.flavor || ""),
     },
-    isActive: (p.isActive === 0 || p.isActive === "0" || p.isActive === false) ? 0 : 1,
-    createDate: String(p.createDate || p.createdAt || ""),
+    isActive: normalizeActive(p.isActive),
+    createDate: String(p.createDate || ""),
     createdBy: String(p.createdBy || "admin"),
     updatedAt: String(p.updatedAt || ""),
     updatedBy: String(p.updatedBy || ""),
   }));
 
-  const rawRounds = readSheetObjects(SHEET_NAMES.ROUNDS);
-  const rounds = rawRounds.map((r) => ({
+  const rounds = readTable(SHEET_NAMES.ROUNDS).rows.map((r) => ({
     id: String(r.id),
     name: String(r.name),
     truckRoute: String(r.truckRoute || ""),
@@ -484,170 +689,154 @@ function readAllDatabase() {
     status: String(r.status || "open"),
     quotaRemaining: Number(r.quotaRemaining) || 0,
     totalQuota: Number(r.totalQuota) || 0,
-    isActive: (r.isActive === 0 || r.isActive === "0" || r.isActive === false) ? 0 : 1,
-    createDate: String(r.createDate || r.createdAt || ""),
+    isActive: normalizeActive(r.isActive),
+    createDate: String(r.createDate || ""),
     createdBy: String(r.createdBy || "admin"),
     updatedAt: String(r.updatedAt || ""),
     updatedBy: String(r.updatedBy || ""),
   }));
 
-  // 1. Read Users from USER Sheet
-  const rawUsers = readSheetObjects(SHEET_NAMES.USERS);
-  const users = rawUsers.map((u) => {
+  const users = readTable(SHEET_NAMES.USERS).rows.map((u) => {
     const idVal = String(u.userId || u.id || "");
     return {
       id: idVal,
       userId: idVal,
-      username: String(u.username || (u.lineUserId ? `line_${u.lineUserId}` : idVal)),
-      lineUserId: u.lineUserId ? String(u.lineUserId) : undefined,
-      displayName: u.displayName ? String(u.displayName) : undefined,
+      username: String(u.username || (u.lineUserId ? "line_" + u.lineUserId : idVal)),
+      lineUserId: optStr(u.lineUserId),
+      displayName: optStr(u.displayName),
+      passwordHash: optStr(u.passwordHash),
       firstName: String(u.firstName || ""),
       lastName: String(u.lastName || ""),
       phone: String(u.phone || ""),
       address: String(u.address || ""),
       postalCode: String(u.postalCode || ""),
-      avatarUrl: u.avatarUrl ? String(u.avatarUrl) : undefined,
+      avatarUrl: optStr(u.avatarUrl),
       role: String(u.role || "user"),
-      source: u.source ? String(u.source) : undefined,
-      notes: u.notes ? String(u.notes) : undefined,
-      isActive: (u.isActive === 0 || u.isActive === "0" || u.isActive === false) ? 0 : 1,
-      createDate: String(u.createDate || u.createdAt || ""),
+      source: optStr(u.source),
+      notes: optStr(u.notes),
+      isActive: normalizeActive(u.isActive),
+      createDate: String(u.createDate || ""),
       createdBy: String(u.createdBy || "system"),
-      createdAt: String(u.createdAt || u.createDate || ""),
+      createdAt: String(u.createDate || ""),
       updatedAt: String(u.updatedAt || ""),
       updatedBy: String(u.updatedBy || ""),
     };
   });
 
-  // 2. Read Orders from THUREAN Sheet and JOIN with Users
-  const rawOrders = readSheetObjects(SHEET_NAMES.ORDERS);
-  const orders = rawOrders.map((o) => {
+  const orders = readTable(SHEET_NAMES.ORDERS).rows.map((o) => {
     let items = [];
     try {
       items = JSON.parse(o.itemsJson || "[]");
     } catch (e) {
       items = [];
     }
-
-    // Relational Join to Users sheet
-    const orderPhoneClean = cleanDigits(o.phone);
+    const phoneClean = cleanDigits(o.phone);
     const matchedUser = users.find(
       (u) =>
-        (o.userId && (u.id === String(o.userId) || u.userId === String(o.userId))) ||
+        (o.userId && u.id === String(o.userId)) ||
         (o.lineUserId && u.lineUserId === String(o.lineUserId)) ||
-        (orderPhoneClean && u.phone && cleanDigits(u.phone) === orderPhoneClean)
+        (phoneClean && u.phone && cleanDigits(u.phone) === phoneClean)
     );
-    const userId = o.userId ? String(o.userId) : (matchedUser ? matchedUser.id : undefined);
-
     return {
       id: String(o.id),
-      createdAt: String(o.createdAt || o.createDate || ""),
-      createDate: String(o.createDate || o.createdAt || ""),
+      createdAt: String(o.createDate || ""),
+      createDate: String(o.createDate || ""),
       createdBy: String(o.createdBy || o.userId || "customer"),
-      roundId: String(o.roundId),
-      userId: userId,
-      customerName: String(o.customerName),
-      phone: String(o.phone),
+      roundId: String(o.roundId || ""),
+      userId: o.userId ? String(o.userId) : matchedUser ? matchedUser.id : undefined,
+      customerName: String(o.customerName || ""),
+      phone: String(o.phone || ""),
       address: String(o.address || ""),
-      lineUserId: o.lineUserId ? String(o.lineUserId) : (matchedUser ? matchedUser.lineUserId : undefined),
-      ripenessPref: o.ripenessPref ? String(o.ripenessPref) : undefined,
+      lineUserId: o.lineUserId ? String(o.lineUserId) : matchedUser ? matchedUser.lineUserId : undefined,
+      ripenessPref: optStr(o.ripenessPref),
       items: items,
       totalPrice: Number(o.totalPrice) || 0,
       shippingMethod: String(o.shippingMethod || ""),
       shippingCost: Number(o.shippingCost) || 0,
       paymentStatus: String(o.paymentStatus || "pending"),
       orderStatus: String(o.orderStatus || "received"),
-      trackingNo: o.trackingNo ? String(o.trackingNo) : undefined,
-      courier: o.courier ? String(o.courier) : undefined,
-      slipUrl: o.slipUrl ? String(o.slipUrl) : undefined,
-      lotId: o.lotId ? String(o.lotId) : undefined,
-      notes: o.notes ? String(o.notes) : undefined,
-      isActive: (o.isActive === 0 || o.isActive === "0" || o.isActive === false) ? 0 : 1,
+      trackingNo: optStr(o.trackingNo),
+      courier: optStr(o.courier),
+      slipUrl: optStr(o.slipUrl),
+      lotId: optStr(o.lotId),
+      notes: optStr(o.notes),
+      isActive: normalizeActive(o.isActive),
       updatedAt: String(o.updatedAt || ""),
       updatedBy: String(o.updatedBy || ""),
     };
   });
 
-  // 3. Read Claims and JOIN with Orders & Users
-  const rawClaims = readSheetObjects(SHEET_NAMES.CLAIMS);
-  const claims = rawClaims.map((c) => {
-    const claimPhoneClean = cleanDigits(c.phone);
+  const claims = readTable(SHEET_NAMES.CLAIMS).rows.map((c) => {
+    const phoneClean = cleanDigits(c.phone);
     const matchedOrder = orders.find((o) => o.id === String(c.orderId));
     const matchedUser = users.find(
       (u) =>
-        (c.userId && (u.id === String(c.userId) || u.userId === String(c.userId))) ||
-        (claimPhoneClean && u.phone && cleanDigits(u.phone) === claimPhoneClean)
+        (c.userId && u.id === String(c.userId)) ||
+        (phoneClean && u.phone && cleanDigits(u.phone) === phoneClean)
     );
-    const userId = c.userId
-      ? String(c.userId)
-      : (matchedOrder?.userId || matchedUser?.id || undefined);
-
     return {
       claimId: String(c.claimId),
-      createdAt: String(c.createdAt || c.createDate || ""),
-      createDate: String(c.createDate || c.createdAt || ""),
+      createdAt: String(c.createDate || ""),
+      createDate: String(c.createDate || ""),
       createdBy: String(c.createdBy || c.userId || "customer"),
-      orderId: String(c.orderId),
-      userId: userId,
-      phone: String(c.phone),
-      reason: String(c.reason),
+      orderId: String(c.orderId || ""),
+      userId: c.userId
+        ? String(c.userId)
+        : (matchedOrder && matchedOrder.userId) || (matchedUser && matchedUser.id) || undefined,
+      phone: String(c.phone || ""),
+      reason: String(c.reason || ""),
       description: String(c.description || ""),
-      evidenceName: c.evidenceName ? String(c.evidenceName) : undefined,
+      evidenceName: optStr(c.evidenceName),
       status: String(c.status || "pending"),
-      resolutionNote: c.resolutionNote ? String(c.resolutionNote) : undefined,
-      lotId: c.lotId ? String(c.lotId) : undefined,
-      isActive: (c.isActive === 0 || c.isActive === "0" || c.isActive === false) ? 0 : 1,
+      resolutionNote: optStr(c.resolutionNote),
+      lotId: optStr(c.lotId),
+      isActive: normalizeActive(c.isActive),
       updatedAt: String(c.updatedAt || ""),
       updatedBy: String(c.updatedBy || ""),
     };
   });
 
-  // 4. Calculate Aggregate Stats on Users (Order count & total spent)
   const usersWithStats = users.map((u) => {
     const userOrders = orders.filter(
       (o) =>
-        (o.userId && (o.userId === u.id || o.userId === u.userId)) ||
+        (o.userId && o.userId === u.id) ||
         (u.lineUserId && o.lineUserId === u.lineUserId) ||
         (u.phone && cleanDigits(u.phone) === cleanDigits(o.phone))
     );
-    const totalSpent = userOrders.reduce((sum, o) => sum + (Number(o.totalPrice) || 0) + (Number(o.shippingCost) || 0), 0);
-    return {
-      ...u,
+    return Object.assign({}, u, {
       orderCount: userOrders.length,
-      totalSpent: totalSpent,
-    };
+      totalSpent: userOrders.reduce((sum, o) => sum + o.totalPrice + o.shippingCost, 0),
+    });
   });
 
-  const rawLots = readSheetObjects(SHEET_NAMES.LOTS);
-  const lots = rawLots.map((l) => ({
+  const lots = readTable(SHEET_NAMES.LOTS).rows.map((l) => ({
     lotId: String(l.lotId),
-    roundId: String(l.roundId),
-    date: String(l.date),
-    supplierName: String(l.supplierName),
-    supplierPhone: l.supplierPhone ? String(l.supplierPhone) : undefined,
-    variety: String(l.variety),
+    roundId: String(l.roundId || ""),
+    date: String(l.date || ""),
+    supplierName: String(l.supplierName || ""),
+    supplierPhone: optStr(l.supplierPhone),
+    variety: String(l.variety || ""),
     weightKg: Number(l.weightKg) || 0,
     costPerKg: Number(l.costPerKg) || 0,
     totalFruitCost: Number(l.totalFruitCost) || 0,
     packagingCost: Number(l.packagingCost) || 0,
     truckFuelCost: Number(l.truckFuelCost) || 0,
-    notes: l.notes ? String(l.notes) : undefined,
-    isActive: (l.isActive === 0 || l.isActive === "0" || l.isActive === false) ? 0 : 1,
+    notes: optStr(l.notes),
+    isActive: normalizeActive(l.isActive),
     createDate: String(l.createDate || l.date || ""),
     createdBy: String(l.createdBy || "admin"),
     updatedAt: String(l.updatedAt || ""),
     updatedBy: String(l.updatedBy || ""),
   }));
 
-  const rawPromos = readSheetObjects(SHEET_NAMES.PROMOTIONS);
-  const promotions = rawPromos.map((pr) => ({
+  const promotions = readTable(SHEET_NAMES.PROMOTIONS).rows.map((pr) => ({
     id: String(pr.id),
-    title: String(pr.title),
-    badge: pr.badge ? String(pr.badge) : undefined,
+    title: String(pr.title || ""),
+    badge: optStr(pr.badge),
     discountText: String(pr.discountText || ""),
     conditionText: String(pr.conditionText || ""),
-    promoCode: pr.promoCode ? String(pr.promoCode) : undefined,
-    isActive: (pr.isActive === 0 || pr.isActive === "0" || pr.isActive === false) ? 0 : 1,
+    promoCode: optStr(pr.promoCode),
+    isActive: normalizeActive(pr.isActive),
     createDate: String(pr.createDate || ""),
     createdBy: String(pr.createdBy || "admin"),
     updatedAt: String(pr.updatedAt || ""),
@@ -655,265 +844,12 @@ function readAllDatabase() {
   }));
 
   return {
-    products,
-    rounds,
-    orders,
-    lots,
-    claims,
-    promotions,
+    products: products,
+    rounds: rounds,
+    orders: orders,
+    lots: lots,
+    claims: claims,
+    promotions: promotions,
     users: usersWithStats,
   };
-}
-
-function appendObjectRow(sheetName, obj) {
-  const sheet = getSheetOrInit(sheetName);
-  const now = new Date().toISOString();
-  const enriched = Object.assign({}, obj);
-
-  if (enriched.isActive === undefined || enriched.isActive === null || enriched.isActive === "") {
-    enriched.isActive = 1;
-  } else {
-    enriched.isActive = (enriched.isActive === 0 || enriched.isActive === "0" || enriched.isActive === false) ? 0 : 1;
-  }
-
-  if (!enriched.createDate && !enriched.createdAt) {
-    enriched.createDate = now;
-    enriched.createdAt = now;
-  } else {
-    enriched.createDate = enriched.createDate || enriched.createdAt;
-    enriched.createdAt = enriched.createdAt || enriched.createDate;
-  }
-
-  if (!enriched.createdBy) {
-    enriched.createdBy = enriched.userId || enriched.lineUserId || "system";
-  }
-
-  if (!enriched.updatedAt) {
-    enriched.updatedAt = now;
-  }
-  if (!enriched.updatedBy) {
-    enriched.updatedBy = enriched.createdBy || "system";
-  }
-
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const row = headers.map((h) => {
-    let val = enriched[h];
-    if (val === undefined || val === null) return "";
-    if (h === "phone" && val !== "") return "'" + String(val);
-    return val;
-  });
-  sheet.appendRow(row);
-  return enriched;
-}
-
-function createOrderRow(order) {
-  const itemSummary = (order.items || []).map((it) => `${it.productName} x${it.qty}`).join(", ");
-  const now = new Date().toISOString();
-  const flat = {
-    id: order.id,
-    createDate: order.createDate || order.createdAt || now,
-    roundId: order.roundId,
-    userId: order.userId || "",
-    customerName: order.customerName,
-    phone: "'" + String(order.phone || ""),
-    address: order.address || "",
-    lineUserId: order.lineUserId || "",
-    ripenessPref: order.ripenessPref || "",
-    itemsJson: JSON.stringify(order.items || []),
-    itemSummary: itemSummary,
-    totalPrice: Number(order.totalPrice) || 0,
-    shippingMethod: order.shippingMethod || "",
-    shippingCost: Number(order.shippingCost) || 0,
-    grandTotal: (Number(order.totalPrice) || 0) + (Number(order.shippingCost) || 0),
-    paymentStatus: order.paymentStatus || "pending",
-    orderStatus: order.orderStatus || "received",
-    trackingNo: order.trackingNo || "",
-    lotId: order.lotId || "",
-    notes: order.notes || "",
-    courier: order.courier || "",
-    slipUrl: order.slipUrl || "",
-    isActive: (order.isActive === 0 || order.isActive === "0" || order.isActive === false) ? 0 : 1,
-    createdBy: order.createdBy || order.userId || "customer",
-    updatedAt: order.updatedAt || now,
-    updatedBy: order.updatedBy || order.createdBy || "customer",
-  };
-
-  appendObjectRow(SHEET_NAMES.ORDERS, flat);
-
-  // ตัดโควต้ารอบส่ง + ตัดสต็อก กก./กล่อง ของสินค้า
-  if (order.roundId && order.items) {
-    const qtySum = order.items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
-    const rounds = readSheetObjects(SHEET_NAMES.ROUNDS);
-    const target = rounds.find((r) => String(r.id) === String(order.roundId));
-    if (target) {
-      const nextQuota = Math.max(0, (Number(target.quotaRemaining) || 0) - qtySum);
-      updateRowById(SHEET_NAMES.ROUNDS, "id", order.roundId, { quotaRemaining: nextQuota });
-    }
-  }
-  if (Array.isArray(order.items)) {
-    const prodRows = readSheetObjects(SHEET_NAMES.PRODUCTS);
-    order.items.forEach((it) => {
-      const p = prodRows.find((row) => String(row.id) === String(it.productId));
-      if (!p) return;
-      const updates = {};
-      const qty = Math.max(1, Number(it.qty) || 1);
-      if (p.stockUnit === "qty" && p.stockQty !== "" && p.stockQty !== undefined) {
-        updates.stockQty = Math.max(0, (Number(p.stockQty) || 0) - qty);
-        if (updates.stockQty <= 0) updates.isAvailable = false;
-      }
-      if (p.stockKg !== "" && p.stockKg !== undefined) {
-        const avg = Number(p.avgWeightKg) > 0 ? Number(p.avgWeightKg) : (p.stockUnit === "qty" ? 1 : 3);
-        updates.stockKg = Math.max(0, Number(((Number(p.stockKg) || 0) - qty * avg).toFixed(1)));
-        if (updates.stockKg <= 0) updates.isAvailable = false;
-      }
-      if (Object.keys(updates).length > 0) {
-        updateRowById(SHEET_NAMES.PRODUCTS, "id", p.id, updates);
-      }
-    });
-  }
-  return order;
-}
-
-function createProductRow(product) {
-  const now = new Date().toISOString();
-  const flat = {
-    id: product.id,
-    name: product.name,
-    variety: product.variety,
-    type: product.type,
-    price: Number(product.price) || 0,
-    marketPrice: product.marketPrice || "",
-    unit: product.unit,
-    isAvailable: product.isAvailable === true,
-    stockQty: product.stockQty || "",
-    stockKg: product.stockKg || "",
-    stockUnit: product.stockUnit || (product.type === "flesh" ? "qty" : "kg"),
-    avgWeightKg: product.avgWeightKg || "",
-    ripeness: product.ripeness,
-    weight: product.weight,
-    origin: product.origin,
-    brix: product.brix,
-    image: product.image,
-    badge: product.badge || "",
-    description: product.description,
-    maturity: product.specs ? product.specs.maturity : "",
-    texture: product.specs ? product.specs.texture : "",
-    flavor: product.specs ? product.specs.flavor : "",
-    isActive: (product.isActive === 0 || product.isActive === "0" || product.isActive === false) ? 0 : 1,
-    createDate: product.createDate || now,
-    createdBy: product.createdBy || "admin",
-    updatedAt: product.updatedAt || now,
-    updatedBy: product.updatedBy || "admin",
-  };
-  return appendObjectRow(SHEET_NAMES.PRODUCTS, flat);
-}
-
-function createRoundRow(round) {
-  const now = new Date().toISOString();
-  const flat = {
-    id: round.id,
-    name: round.name,
-    truckRoute: round.truckRoute,
-    harvestDate: round.harvestDate,
-    closeDate: round.closeDate,
-    deliveryDate: round.deliveryDate,
-    status: round.status || "open",
-    quotaRemaining: Number(round.quotaRemaining) || 0,
-    totalQuota: Number(round.totalQuota) || 0,
-    isActive: (round.isActive === 0 || round.isActive === "0" || round.isActive === false) ? 0 : 1,
-    createDate: round.createDate || now,
-    createdBy: round.createdBy || "admin",
-    updatedAt: round.updatedAt || now,
-    updatedBy: round.updatedBy || "admin",
-  };
-  return appendObjectRow(SHEET_NAMES.ROUNDS, flat);
-}
-
-function updateRowById(sheetName, idColName, idValue, updates) {
-  const sheet = getSheetOrInit(sheetName);
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return null;
-  const headers = data[0];
-  let idIdx = headers.indexOf(idColName);
-  if (idIdx === -1 && idColName === "userId") {
-    idIdx = headers.indexOf("id");
-  }
-  const lineUserIdx = headers.indexOf("lineUserId");
-  if (idIdx === -1 && lineUserIdx === -1) return null;
-
-  const enrichedUpdates = Object.assign({}, updates);
-  enrichedUpdates.updatedAt = new Date().toISOString();
-  if (enrichedUpdates.isActive !== undefined) {
-    enrichedUpdates.isActive = (enrichedUpdates.isActive === 0 || enrichedUpdates.isActive === "0" || enrichedUpdates.isActive === false) ? 0 : 1;
-  }
-
-  for (let r = 1; r < data.length; r++) {
-    const rowId = idIdx !== -1 ? String(data[r][idIdx]) : "";
-    const rowLineId = lineUserIdx !== -1 ? String(data[r][lineUserIdx]) : "";
-    const isMatch =
-      (idValue && rowId === String(idValue)) ||
-      (enrichedUpdates.lineUserId && rowLineId && rowLineId === String(enrichedUpdates.lineUserId));
-
-    if (isMatch) {
-      headers.forEach((h, c) => {
-        if (enrichedUpdates[h] !== undefined) {
-          let val = enrichedUpdates[h];
-          if (h === "phone" && val !== "") val = "'" + String(val);
-          sheet.getRange(r + 1, c + 1).setValue(val);
-        }
-      });
-      return enrichedUpdates;
-    }
-  }
-  return null;
-}
-
-function syncSeedData(seed) {
-  let count = 0;
-  if (seed.products) {
-    seed.products.forEach((p) => {
-      createProductRow(p);
-      count++;
-    });
-  }
-  if (seed.rounds) {
-    seed.rounds.forEach((r) => {
-      createRoundRow(r);
-      count++;
-    });
-  }
-  if (seed.orders) {
-    seed.orders.forEach((o) => {
-      createOrderRow(o);
-      count++;
-    });
-  }
-  if (seed.lots) {
-    seed.lots.forEach((l) => {
-      appendObjectRow(SHEET_NAMES.LOTS, l);
-      count++;
-    });
-  }
-  if (seed.claims) {
-    seed.claims.forEach((c) => {
-      appendObjectRow(SHEET_NAMES.CLAIMS, c);
-      count++;
-    });
-  }
-  if (seed.promotions) {
-    seed.promotions.forEach((pr) => {
-      appendObjectRow(SHEET_NAMES.PROMOTIONS, pr);
-      count++;
-    });
-  }
-  if (seed.users) {
-    seed.users.forEach((u) => {
-      appendObjectRow(SHEET_NAMES.USERS, {
-        ...u,
-        userId: u.userId || u.id,
-      });
-      count++;
-    });
-  }
-  return { syncedItems: count };
 }

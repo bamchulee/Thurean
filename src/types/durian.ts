@@ -165,6 +165,7 @@ export interface DatabaseState {
 
 export interface RuntimeConfig {
   googleSheetsWebAppUrl?: string;
+  googleSheetsApiKey?: string;
   googleSheetViewUrl?: string;
   userSheetViewUrl?: string;
   thureanSheetViewUrl?: string;

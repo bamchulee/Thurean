@@ -46,6 +46,23 @@ export function formatProductStock(p: Product): {
   return { summary: "เปิดรับจองตามรอบ", isLowStock: false, isOutOfStock: false };
 }
 
+/**
+ * จำนวนที่ยังสั่งได้ (หน่วยขาย) — undefined = สินค้านี้ไม่ได้นับสต็อก
+ * ต้องตรงกับ planStockDeduction ใน google-apps-script/Code.gs
+ */
+export function getAvailableUnits(p: Product): number | undefined {
+  const isQtyBased = p.stockUnit === "qty" || p.type === "flesh";
+  if (isQtyBased && typeof p.stockQty === "number") {
+    return Math.max(0, p.stockQty);
+  }
+  if (typeof p.stockKg === "number") {
+    if (p.stockKg <= 0) return 0;
+    const avg = p.avgWeightKg && p.avgWeightKg > 0 ? p.avgWeightKg : isQtyBased ? 1 : 3;
+    return Math.max(1, Math.floor(p.stockKg / avg));
+  }
+  return undefined;
+}
+
 export function deductProductStock(product: Product, orderedQty: number): void {
   const qty = Math.max(1, orderedQty);
   if (product.stockUnit === "qty" || product.type === "flesh") {
