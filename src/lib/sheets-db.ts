@@ -779,25 +779,23 @@ export async function getAllUsers(): Promise<User[]> {
 
 export async function getUserByUsername(username: string): Promise<User | null> {
   const clean = username.trim().toLowerCase();
+  const cleanDigits = clean.replace(/[^0-9]/g, "");
+  // ล็อกอินด้วยเบอร์โทรได้เฉพาะบัญชีที่ตั้งรหัสผ่านไว้ (ไม่ใช่ข้อมูลลูกค้าที่บันทึกจากออเดอร์)
+  const matches = (u: User) =>
+    (u.username || "").toLowerCase() === clean ||
+    (cleanDigits.length >= 9 &&
+      Boolean(u.passwordHash?.includes(":")) &&
+      (u.phone || "").replace(/[^0-9]/g, "") === cleanDigits);
+
   const db = readLocalDb();
-  const found = db.users?.find(
-    (u) =>
-      u.username.toLowerCase() === clean ||
-      (u.phone && clean.length >= 9 && u.phone.replace(/[^0-9]/g, "") === clean.replace(/[^0-9]/g, ""))
-  );
+  const found = db.users?.find(matches);
   if (found) return found;
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     try {
       const all = await getAllDatabase();
-      return (
-        all.data.users?.find(
-          (u) =>
-            u.username.toLowerCase() === clean ||
-            (u.phone && clean.length >= 9 && u.phone.replace(/[^0-9]/g, "") === clean.replace(/[^0-9]/g, ""))
-        ) || null
-      );
+      return all.data.users?.find(matches) || null;
     } catch {
       return null;
     }
@@ -928,6 +926,55 @@ export interface UpsertLineUserInput {
   avatarUrl?: string;
   source?: "line-login" | "line-chat" | "web" | string;
   notes?: string;
+}
+
+/**
+ * บันทึกข้อมูลลูกค้าที่สั่งผ่านเว็บโดยไม่ล็อกอิน ลงชีต Users
+ * - เบอร์นี้มีในระบบแล้ว: คืน userId ของคนนั้นเพื่อผูกออเดอร์ แต่ไม่แก้ข้อมูลบัญชีเขา
+ *   (คนสั่งพิมพ์เบอร์อะไรก็ได้ จึงห้ามให้ไปทับที่อยู่ของเจ้าของบัญชี)
+ * - ยังไม่มี: สร้างแถวลูกค้าใหม่พร้อมชื่อ เบอร์ ที่อยู่ (ไม่มีรหัสผ่าน ใช้ล็อกอินไม่ได้)
+ */
+export async function recordGuestCustomer(input: {
+  customerName: string;
+  phone: string;
+  address: string;
+}): Promise<string | undefined> {
+  const digits = (input.phone || "").replace(/[^\d]/g, "");
+  if (digits.length < 9) return undefined;
+
+  const samePhone = (u: User) => (u.phone || "").replace(/[^\d]/g, "") === digits;
+  let existing = (readLocalDb().users || []).find(samePhone);
+  if (!existing) existing = (await getAllUsers()).find(samePhone);
+  if (existing) return existing.id || existing.userId;
+
+  const address = input.address.trim();
+  const postal = address.match(/\b\d{5}\b/)?.[0] || "";
+  const name = input.customerName.trim().replace(/^(คุณ|นาย|นางสาว|นาง)\s*/, "");
+  const [firstName, ...rest] = name.split(/\s+/);
+  const now = new Date().toISOString();
+  const id = `usr_web_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
+
+  const created = await createUserRecord({
+    id,
+    userId: id,
+    username: `guest_${id}`,
+    displayName: input.customerName.trim(),
+    firstName: firstName || input.customerName.trim(),
+    lastName: rest.join(" "),
+    phone: digits,
+    address,
+    postalCode: postal,
+    role: "user",
+    source: "web",
+    notes: "ลูกค้าสั่งซื้อผ่านเว็บ (ไม่ได้สมัครสมาชิก)",
+    isActive: 1,
+    createDate: now,
+    createdBy: "web-order",
+    createdAt: now,
+    updatedAt: now,
+    updatedBy: "web-order",
+  });
+  return created.id;
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   getAllDatabase,
   getRuntimeConfig,
   updateOrderRecord,
+  recordGuestCustomer,
   upsertLineUser,
 } from "./sheets-db";
 import {
@@ -164,6 +165,17 @@ export async function submitNewOrder(
       }
     } catch (err) {
       console.warn("Auto-sync user from order failed:", err);
+    }
+  } else if (!finalUserId) {
+    // ลูกค้าเว็บที่ไม่ล็อกอิน: เก็บชื่อ/เบอร์/ที่อยู่ลงชีต Users เหมือนเดิม
+    try {
+      finalUserId = await recordGuestCustomer({
+        customerName: body.customerName,
+        phone: body.phone,
+        address: body.address,
+      });
+    } catch (err) {
+      console.warn("Saving guest customer failed:", err);
     }
   }
 
