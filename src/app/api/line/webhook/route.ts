@@ -12,6 +12,8 @@ import {
   buildMainQuickReply,
   buildMoreMenuFlex,
   buildOrderSummaryForCustomerFlex,
+  buildOrderCatalogMessages,
+  buildUserOrdersFlex,
   buildPromotionsCarouselFlex,
   buildPromptPayQrPaymentFlex,
   buildStockOverviewMessages,
@@ -20,6 +22,7 @@ import {
   replyLineMessage,
   showLineLoadingAnimation,
 } from "../../../../lib/line-notify";
+import { checkClaimEligibility } from "../../../../lib/claim-policy";
 import { downloadAndVerifyLineImage } from "../../../../lib/line-media";
 import {
   clearLineSession,
@@ -199,7 +202,7 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        if (action === "stock" || action === "order") {
+        if (action === "stock") {
           clearLineSession(userId);
           const { data } = await getAllDatabase();
           const activeRound =
@@ -209,8 +212,135 @@ export async function POST(req: NextRequest) {
             buildStockOverviewMessages(
               activeRound,
               data.products,
-              action === "order" ? "order" : "stock",
+              "stock",
               publicBaseUrl
+            ),
+            token
+          );
+          continue;
+        }
+
+        if (action === "order") {
+          clearLineSession(userId);
+          const { data } = await getAllDatabase();
+          const activeRound =
+            data.rounds.find((r) => r.status === "open") || data.rounds[0];
+          await replyLineMessage(
+            replyToken,
+            buildOrderCatalogMessages(
+              data.products,
+              activeRound,
+              publicBaseUrl
+            ),
+            token
+          );
+          continue;
+        }
+
+        if (action === "my_orders") {
+          clearLineSession(userId);
+          const { data } = await getAllDatabase();
+          const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
+          const users = Array.isArray(data?.users) ? data.users : [];
+          const userObj = users.find((u) => u.lineUserId === userId);
+          const userPhone = cleanPhone(userObj?.phone);
+          const userOrders = (data.orders || []).filter(
+            (o) =>
+              (o.lineUserId && o.lineUserId === userId) ||
+              (o.userId && (o.userId === userId || o.userId === userObj?.id)) ||
+              (userPhone && cleanPhone(o.phone) === userPhone)
+          );
+          await replyLineMessage(
+            replyToken,
+            buildUserOrdersFlex(userOrders, data.claims || [], publicBaseUrl),
+            token
+          );
+          continue;
+        }
+
+        if (action === "track_order") {
+          const orderId = params.get("orderId") || "";
+          const { data } = await getAllDatabase();
+          const order = data.orders.find((o) => o.id.toUpperCase() === orderId.toUpperCase());
+          if (order) {
+            const flex = buildCustomerStatusFlex(order);
+            await replyLineMessage(replyToken, flex, token);
+          } else {
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: `ไม่พบข้อมูลออเดอร์ ${orderId} ในระบบครับ`,
+                  quickReply: buildMainQuickReply(),
+                },
+              ],
+              token
+            );
+          }
+          continue;
+        }
+
+        if (action === "claim_order") {
+          const orderId = params.get("orderId") || "";
+          const { data } = await getAllDatabase();
+          const order = data.orders.find((o) => o.id.toUpperCase() === orderId.toUpperCase());
+          if (!order) {
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: `ไม่พบข้อมูลออเดอร์ ${orderId} ในระบบครับ`,
+                  quickReply: buildMainQuickReply(),
+                },
+              ],
+              token
+            );
+            continue;
+          }
+
+          const eligibility = checkClaimEligibility(order, data.claims || []);
+          if (!eligibility.eligible) {
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: eligibility.reason || "ไม่สามารถแจ้งเคลมออเดอร์นี้ได้ครับ",
+                  quickReply: buildMainQuickReply(),
+                },
+              ],
+              token
+            );
+            continue;
+          }
+
+          setLineSession(userId, {
+            flow: "claim",
+            step: "pick_reason",
+            orderId: order.id,
+            phone: order.phone,
+            updatedAt: Date.now(),
+          });
+
+          const isRipen = eligibility.warrantyType === "ready_to_eat";
+          const policyNote = isRipen
+            ? "🛡️ ทุเรียนสุกพร้อมทาน (รับประกัน 24 ชม. หลังพัสดุส่งถึง)"
+            : "🛡️ ทุเรียนแก่จัด/บ่มเอง (รับประกัน 3 วัน / 72 ชม. หลังพัสดุส่งถึง)";
+
+          await replyLineMessage(
+            replyToken,
+            quickReplyMsg(
+              `✅ ยืนยันสิทธิ์เคลมสำเร็จ!\n${policyNote}\nออเดอร์ #${order.id} — พบปัญหาด้านใดครับ?`,
+              [
+                { label: "ยังไม่สุก / แข็ง", text: "ยังไม่สุก / แข็ง" },
+                { label: "สุกงอม / เน่าเสีย", text: "สุกงอม / เน่าเสีย" },
+                { label: "เนื้อเละ / ขึ้นรา", text: "เนื้อเละ / ขึ้นรา" },
+                { label: "น้ำหนักไม่ครบ", text: "น้ำหนักไม่ครบ" },
+                { label: "กล่องพัสดุเสียหาย", text: "กล่องพัสดุเสียหาย" },
+                { label: "ยกเลิก", text: "ยกเลิก" },
+              ]
             ),
             token
           );
@@ -374,6 +504,46 @@ export async function POST(req: NextRequest) {
         }
 
         if (action === "claim") {
+          const { data } = await getAllDatabase();
+          const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
+          const users = Array.isArray(data?.users) ? data.users : [];
+          const userObj = users.find((u) => u.lineUserId === userId);
+          const userPhone = cleanPhone(userObj?.phone);
+          const userOrders = (data.orders || []).filter(
+            (o) =>
+              (o.lineUserId && o.lineUserId === userId) ||
+              (o.userId && (o.userId === userId || o.userId === userObj?.id)) ||
+              (userPhone && cleanPhone(o.phone) === userPhone)
+          );
+
+          const eligibleOrders = userOrders.filter(
+            (o) => checkClaimEligibility(o, data.claims || []).eligible
+          );
+
+          if (eligibleOrders.length > 0) {
+            setLineSession(userId, {
+              flow: "claim",
+              step: "enter_order",
+              updatedAt: Date.now(),
+            });
+
+            const quickItems = eligibleOrders.slice(0, 5).map((o) => ({
+              label: `เคลม #${o.id}`.slice(0, 20),
+              text: o.id,
+            }));
+            quickItems.push({ label: "ยกเลิก", text: "ยกเลิก" });
+
+            await replyLineMessage(
+              replyToken,
+              quickReplyMsg(
+                `🛡️ ศูนย์รับประกันทุเรียนวินคิน (เคลมฟรี 100%)\n\n📌 เงื่อนไขการรับประกัน:\n• สุกพร้อมทาน/เนื้อล้วน: เคลมได้ภายใน 24 ชม. หลังพัสดุส่งถึง\n• แก่จัด/บ่มเอง: เคลมได้ภายใน 3 วัน (72 ชม.) หลังพัสดุส่งถึง\n\nพบออเดอร์ของคุณ ${eligibleOrders.length} รายการที่อยู่ในระยะเวลารับประกัน กดเลือกออเดอร์ด้านล่าง หรือพิมพ์รหัสคำสั่งซื้อ (เช่น WK-9520) ได้เลยครับ`,
+                quickItems
+              ),
+              token
+            );
+            continue;
+          }
+
           setLineSession(userId, {
             flow: "claim",
             step: "enter_order",
@@ -382,7 +552,7 @@ export async function POST(req: NextRequest) {
           await replyLineMessage(
             replyToken,
             quickReplyMsg(
-              "🛡️ ศูนย์รับประกัน & แจ้งเคลม 100%\n\nกรุณาพิมพ์รหัสคำสั่งซื้อของคุณ (เช่น WK-9520)",
+              "🛡️ ศูนย์รับประกันทุเรียนวินคิน (เคลมฟรี 100%)\n\n📌 เงื่อนไขการรับประกัน:\n• สุกพร้อมทาน/เนื้อล้วน: เคลมได้ภายใน 24 ชม. หลังพัสดุส่งถึง\n• แก่จัด/บ่มเอง: เคลมได้ภายใน 3 วัน (72 ชม.) หลังพัสดุส่งถึง\n\nกรุณาพิมพ์รหัสคำสั่งซื้อ (เช่น WK-9520) หรือเบอร์โทร 10 หลักที่ใช้สั่งซื้อเพื่อตรวจสอบสิทธิ์เคลมครับ",
               [{ label: "ยกเลิก", text: "ยกเลิก" }]
             ),
             token
@@ -391,6 +561,27 @@ export async function POST(req: NextRequest) {
         }
 
         if (action === "status") {
+          const { data } = await getAllDatabase();
+          const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
+          const users = Array.isArray(data?.users) ? data.users : [];
+          const userObj = users.find((u) => u.lineUserId === userId);
+          const userPhone = cleanPhone(userObj?.phone);
+          const userOrders = (data.orders || []).filter(
+            (o) =>
+              (o.lineUserId && o.lineUserId === userId) ||
+              (o.userId && (o.userId === userId || o.userId === userObj?.id)) ||
+              (userPhone && cleanPhone(o.phone) === userPhone)
+          );
+
+          if (userOrders.length > 0) {
+            await replyLineMessage(
+              replyToken,
+              buildUserOrdersFlex(userOrders, data.claims || [], publicBaseUrl),
+              token
+            );
+            continue;
+          }
+
           setLineSession(userId, {
             flow: "track",
             step: "enter_query",
@@ -489,7 +680,34 @@ export async function POST(req: NextRequest) {
             lower === "เช็คพัสดุ" ||
             lower === "สถานะ";
 
-          if (isStockCmd || isOrderMenuCmd) {
+          const isMyOrdersCmd =
+            lower === "ประวัติคำสั่งซื้อ" ||
+            lower === "ออเดอร์ของฉัน" ||
+            lower === "คำสั่งซื้อของฉัน" ||
+            lower.includes("ประวัติการสั่ง");
+
+          if (isMyOrdersCmd) {
+            clearLineSession(userId);
+            const { data } = await getAllDatabase();
+            const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
+            const users = Array.isArray(data?.users) ? data.users : [];
+            const userObj = users.find((u) => u.lineUserId === userId);
+            const userPhone = cleanPhone(userObj?.phone);
+            const userOrders = (data.orders || []).filter(
+              (o) =>
+                (o.lineUserId && o.lineUserId === userId) ||
+                (o.userId && (o.userId === userId || o.userId === userObj?.id)) ||
+                (userPhone && cleanPhone(o.phone) === userPhone)
+            );
+            await replyLineMessage(
+              replyToken,
+              buildUserOrdersFlex(userOrders, data.claims || [], publicBaseUrl),
+              token
+            );
+            continue;
+          }
+
+          if (isStockCmd) {
             clearLineSession(userId);
             try {
               const { data } = await getAllDatabase();
@@ -502,7 +720,7 @@ export async function POST(req: NextRequest) {
                 buildStockOverviewMessages(
                   activeRound,
                   products,
-                  isOrderMenuCmd ? "order" : "stock",
+                  "stock",
                   publicBaseUrl
                 ),
                 token
@@ -520,6 +738,29 @@ export async function POST(req: NextRequest) {
                 ],
                 token
               );
+            }
+            continue;
+          }
+
+          if (isOrderMenuCmd) {
+            clearLineSession(userId);
+            try {
+              const { data } = await getAllDatabase();
+              const rounds = Array.isArray(data?.rounds) ? data.rounds : [];
+              const activeRound =
+                rounds.find((r) => r.status === "open") || rounds[0];
+              const products = Array.isArray(data?.products) ? data.products : [];
+              await replyLineMessage(
+                replyToken,
+                buildOrderCatalogMessages(
+                  products,
+                  activeRound,
+                  publicBaseUrl
+                ),
+                token
+              );
+            } catch (err) {
+              console.error("[LINE Webhook] Order menu error:", err);
             }
             continue;
           }
@@ -560,6 +801,46 @@ export async function POST(req: NextRequest) {
           }
 
           if (isClaimCmd) {
+            const { data } = await getAllDatabase();
+            const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
+            const users = Array.isArray(data?.users) ? data.users : [];
+            const userObj = users.find((u) => u.lineUserId === userId);
+            const userPhone = cleanPhone(userObj?.phone);
+            const userOrders = (data.orders || []).filter(
+              (o) =>
+                (o.lineUserId && o.lineUserId === userId) ||
+                (o.userId && (o.userId === userId || o.userId === userObj?.id)) ||
+                (userPhone && cleanPhone(o.phone) === userPhone)
+            );
+
+            const eligibleOrders = userOrders.filter(
+              (o) => checkClaimEligibility(o, data.claims || []).eligible
+            );
+
+            if (eligibleOrders.length > 0) {
+              setLineSession(userId, {
+                flow: "claim",
+                step: "enter_order",
+                updatedAt: Date.now(),
+              });
+
+              const quickItems = eligibleOrders.slice(0, 5).map((o) => ({
+                label: `เคลม #${o.id}`.slice(0, 20),
+                text: o.id,
+              }));
+              quickItems.push({ label: "ยกเลิก", text: "ยกเลิก" });
+
+              await replyLineMessage(
+                replyToken,
+                quickReplyMsg(
+                  `🛡️ ศูนย์รับประกันทุเรียนวินคิน (เคลมฟรี 100%)\n\n📌 เงื่อนไขการรับประกัน:\n• สุกพร้อมทาน/เนื้อล้วน: เคลมได้ภายใน 24 ชม. หลังพัสดุส่งถึง\n• แก่จัด/บ่มเอง: เคลมได้ภายใน 3 วัน (72 ชม.) หลังพัสดุส่งถึง\n\nพบออเดอร์ของคุณ ${eligibleOrders.length} รายการที่อยู่ในระยะเวลารับประกัน กดเลือกออเดอร์ด้านล่าง หรือพิมพ์รหัสคำสั่งซื้อ (เช่น WK-9520) ได้เลยครับ`,
+                  quickItems
+                ),
+                token
+              );
+              continue;
+            }
+
             setLineSession(userId, {
               flow: "claim",
               step: "enter_order",
@@ -568,7 +849,7 @@ export async function POST(req: NextRequest) {
             await replyLineMessage(
               replyToken,
               quickReplyMsg(
-                "🛡️ ศูนย์รับประกัน & แจ้งเคลม 100%\n\nกรุณาพิมพ์รหัสคำสั่งซื้อของคุณ (เช่น WK-9520)",
+                "🛡️ ศูนย์รับประกันทุเรียนวินคิน (เคลมฟรี 100%)\n\n📌 เงื่อนไขการรับประกัน:\n• สุกพร้อมทาน/เนื้อล้วน: เคลมได้ภายใน 24 ชม. หลังพัสดุส่งถึง\n• แก่จัด/บ่มเอง: เคลมได้ภายใน 3 วัน (72 ชม.) หลังพัสดุส่งถึง\n\nกรุณาพิมพ์รหัสคำสั่งซื้อ (เช่น WK-9520) หรือเบอร์โทร 10 หลักที่ใช้สั่งซื้อเพื่อตรวจสอบสิทธิ์เคลมครับ",
                 [{ label: "ยกเลิก", text: "ยกเลิก" }]
               ),
               token
@@ -577,6 +858,27 @@ export async function POST(req: NextRequest) {
           }
 
           if (isTrackCmd) {
+            const { data } = await getAllDatabase();
+            const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
+            const users = Array.isArray(data?.users) ? data.users : [];
+            const userObj = users.find((u) => u.lineUserId === userId);
+            const userPhone = cleanPhone(userObj?.phone);
+            const userOrders = (data.orders || []).filter(
+              (o) =>
+                (o.lineUserId && o.lineUserId === userId) ||
+                (o.userId && (o.userId === userId || o.userId === userObj?.id)) ||
+                (userPhone && cleanPhone(o.phone) === userPhone)
+            );
+
+            if (userOrders.length > 0) {
+              await replyLineMessage(
+                replyToken,
+                buildUserOrdersFlex(userOrders, data.claims || [], publicBaseUrl),
+                token
+              );
+              continue;
+            }
+
             setLineSession(userId, {
               flow: "track",
               step: "enter_query",
@@ -585,7 +887,7 @@ export async function POST(req: NextRequest) {
             await replyLineMessage(
               replyToken,
               quickReplyMsg(
-                "📦 พิมพ์รหัสออเดอร์ (เช่น WK-9521) หรือเบอร์โทรศัพท์ของคุณเพื่อเช็กบริษัทขนส่งและเลขพัสดุครับ",
+                "📦 ตรวจสอบสถานะ & บริษัทขนส่ง\n\nพิมพ์รหัสออเดอร์ (เช่น WK-9521) หรือเบอร์โทรศัพท์ของคุณเพื่อเช็กบริษัทขนส่งและเลขพัสดุครับ",
                 [{ label: "ยกเลิก", text: "ยกเลิก" }]
               ),
               token
@@ -876,13 +1178,74 @@ export async function POST(req: NextRequest) {
         // Claim Wizard Steps
         if (currentSession?.flow === "claim") {
           if (currentSession.step === "enter_order" && msgType === "text") {
-            const code =
-              text.match(/WK-\d+/i)?.[0]?.toUpperCase() || text.toUpperCase();
-            if (!/^WK-\d+/.test(code)) {
+            const cleanDigits = text.replace(/[^\d]/g, "");
+            const { data } = await getAllDatabase();
+
+            // กรณีลูกค้าพิมพ์เบอร์โทรศัพท์มา
+            if (cleanDigits.length >= 9 && cleanDigits.startsWith("0")) {
+              const ordersByPhone = data.orders.filter(
+                (o) => (o.phone || "").replace(/[^\d]/g, "") === cleanDigits
+              );
+              if (ordersByPhone.length === 0) {
+                await replyLineMessage(
+                  replyToken,
+                  quickReplyMsg(
+                    `ไม่พบประวัติคำสั่งซื้อที่ใช้เบอร์โทร ${cleanDigits} ในระบบครับ กรุณาตรวจสอบเบอร์โทรหรือพิมพ์รหัสออเดอร์ (เช่น WK-9520)`,
+                    [{ label: "ยกเลิก", text: "ยกเลิก" }]
+                  ),
+                  token
+                );
+                continue;
+              }
+
+              const eligible = ordersByPhone.filter(
+                (o) => checkClaimEligibility(o, data.claims || []).eligible
+              );
+
+              if (eligible.length === 0) {
+                const latest = ordersByPhone[0];
+                const check = checkClaimEligibility(latest, data.claims || []);
+                await replyLineMessage(
+                  replyToken,
+                  quickReplyMsg(
+                    `พบออเดอร์ #${latest.id} ของเบอร์ ${cleanDigits} แต่ไม่สามารถแจ้งเคลมได้:\n\n${check.reason || "ไม่เข้าเงื่อนไขการรับประกัน"}`,
+                    [{ label: "ยกเลิก", text: "ยกเลิก" }]
+                  ),
+                  token
+                );
+                continue;
+              }
+
+              const quickButtons = eligible.slice(0, 5).map((o) => ({
+                label: `เคลม #${o.id}`.slice(0, 20),
+                text: o.id,
+              }));
+              quickButtons.push({ label: "ยกเลิก", text: "ยกเลิก" });
+
               await replyLineMessage(
                 replyToken,
                 quickReplyMsg(
-                  "กรุณาพิมพ์รหัสออเดอร์ที่ขึ้นต้นด้วย WK- เช่น WK-9520 ครับ",
+                  `พบ ${eligible.length} ออเดอร์ของเบอร์ ${cleanDigits} ที่อยู่ในระยะเวลารับประกัน กรุณากดเลือกออเดอร์ที่ต้องการเคลมด้านล่างครับ`,
+                  quickButtons
+                ),
+                token
+              );
+              continue;
+            }
+
+            // กรณีพิมพ์รหัสออเดอร์
+            const code =
+              text.match(/WK-\d+/i)?.[0]?.toUpperCase() || text.trim().toUpperCase();
+
+            const targetOrder = data.orders.find(
+              (o) => o.id.toUpperCase() === code
+            );
+
+            if (!targetOrder) {
+              await replyLineMessage(
+                replyToken,
+                quickReplyMsg(
+                  `❌ ไม่พบรหัสคำสั่งซื้อ "${code}" ในระบบครับ\n\nกรุณาตรวจสอบรหัสออเดอร์อีกครั้ง (เช่น WK-9520) หรือพิมพ์เบอร์โทรศัพท์ 10 หลักที่ใช้สั่งซื้อครับ`,
                   [{ label: "ยกเลิก", text: "ยกเลิก" }]
                 ),
                 token
@@ -890,40 +1253,51 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
-            const phoneInline = text.match(/0\d{1,2}[-\s]?\d{3}[-\s]?\d{4}/)?.[0];
-            if (phoneInline) {
-              setLineSession(userId, {
-                ...currentSession,
-                step: "pick_reason",
-                orderId: code,
-                phone: phoneInline.replace(/\s+/g, ""),
-              });
-              await replyLineMessage(
-                replyToken,
-                quickReplyMsg(`ออเดอร์ ${code} — พบปัญหาแบบไหนครับ?`, [
-                  { label: "ยังไม่สุก / แข็ง", text: "unripe" },
-                  { label: "สุกงอม / เน่าเสีย", text: "spoiled" },
-                  { label: "น้ำหนักไม่ครบ", text: "underweight" },
-                  { label: "กล่องเสียหาย", text: "damaged" },
-                  { label: "ยกเลิก", text: "ยกเลิก" },
-                ]),
-                token
-              );
-            } else {
-              setLineSession(userId, {
-                ...currentSession,
-                step: "enter_phone",
-                orderId: code,
-              });
+            // ตรวจสอบสิทธิ์เคลมและเงื่อนไขระยะเวลา (Master Data Claim Policy)
+            const eligibility = checkClaimEligibility(targetOrder, data.claims || []);
+            if (!eligibility.eligible) {
               await replyLineMessage(
                 replyToken,
                 quickReplyMsg(
-                  `รับรหัสออเดอร์ ${code} แล้วครับ พิมพ์เบอร์โทรศัพท์ที่ใช้สั่งซื้อได้เลย`,
-                  [{ label: "ยกเลิก", text: "ยกเลิก" }]
+                  eligibility.reason || "ไม่สามารถแจ้งเคลมออเดอร์นี้ได้ครับ",
+                  [
+                    { label: "เช็กสถานะพัสดุ", text: `สถานะ ${targetOrder.id}` },
+                    { label: "ยกเลิก", text: "ยกเลิก" },
+                  ]
                 ),
                 token
               );
+              continue;
             }
+
+            // ผ่านการตรวจสอบเงื่อนไขเคลมทั้งหมด -> ข้ามไปขั้นตอนเลือกปัญหาทันที!
+            setLineSession(userId, {
+              ...currentSession,
+              step: "pick_reason",
+              orderId: targetOrder.id,
+              phone: targetOrder.phone,
+            });
+
+            const isRipen = eligibility.warrantyType === "ready_to_eat";
+            const policyNote = isRipen
+              ? "🛡️ ทุเรียนสุกพร้อมทาน (รับประกัน 24 ชม. หลังพัสดุส่งถึง)"
+              : "🛡️ ทุเรียนแก่จัด/บ่มเอง (รับประกัน 3 วัน / 72 ชม. หลังพัสดุส่งถึง)";
+
+            await replyLineMessage(
+              replyToken,
+              quickReplyMsg(
+                `✅ ยืนยันสิทธิ์เคลมสำเร็จ!\n${policyNote}\nออเดอร์ #${targetOrder.id} — พบปัญหาด้านใดครับ?`,
+                [
+                  { label: "ยังไม่สุก / แข็ง", text: "ยังไม่สุก / แข็ง" },
+                  { label: "สุกงอม / เน่าเสีย", text: "สุกงอม / เน่าเสีย" },
+                  { label: "เนื้อเละ / ขึ้นรา", text: "เนื้อเละ / ขึ้นรา" },
+                  { label: "น้ำหนักไม่ครบ", text: "น้ำหนักไม่ครบ" },
+                  { label: "กล่องพัสดุเสียหาย", text: "กล่องพัสดุเสียหาย" },
+                  { label: "ยกเลิก", text: "ยกเลิก" },
+                ]
+              ),
+              token
+            );
             continue;
           }
 

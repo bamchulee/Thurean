@@ -22,6 +22,7 @@ import {
 } from "./line-notify";
 import { shopInfo } from "../data/mock";
 import { resolveCourierInfo } from "./courier";
+import { checkClaimEligibility } from "./claim-policy";
 import type { Claim, Order, OrderItem } from "../types/durian";
 
 export interface SubmitOrderInput {
@@ -289,6 +290,24 @@ export async function submitNewClaim(
   const matchedOrder = data.orders.find(
     (o) => o.id.toUpperCase() === orderIdClean
   );
+
+  if (!matchedOrder) {
+    return {
+      ok: false,
+      error: `ไม่พบรหัสคำสั่งซื้อ "${orderIdClean}" ในระบบ กรุณาตรวจสอบตัวเลขอีกครั้ง`,
+      status: 404,
+    };
+  }
+
+  // ตรวจสอบเงื่อนไขการรับประกันเคลม (Master Data Claim Policy)
+  const eligibility = checkClaimEligibility(matchedOrder, data.claims || []);
+  if (!eligibility.eligible) {
+    return {
+      ok: false,
+      error: eligibility.reason || "ไม่สามารถแจ้งเคลมออเดอร์นี้ได้",
+      status: 400,
+    };
+  }
 
   const usedClaimIds = new Set(data.claims.map((c) => c.claimId));
   const newClaim: Claim = {

@@ -81,6 +81,7 @@ export interface Order extends BaseAuditLog {
   shippingCost: number;
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
+  deliveredAt?: string;
   trackingNo?: string;
   courier?: string;
   slipUrl?: string;

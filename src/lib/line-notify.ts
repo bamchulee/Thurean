@@ -12,6 +12,7 @@ import type {
 import { shopInfo } from "../data/mock";
 import { resolveCourierInfo } from "./courier";
 import { formatProductStock } from "./stock";
+import { checkClaimEligibility } from "./claim-policy";
 
 const FALLBACK_FLEX_IMAGE =
   "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80";
@@ -718,10 +719,10 @@ export function buildStockOverviewMessages(
         },
         {
           type: "text",
-          text: "👉 เลื่อนดูการ์ดรูปภาพทุเรียนจริงด้านข้าง แล้วกด \"สั่งซื้อพันธุ์นี้\" ได้เลยครับ",
+          text: "👉 เลื่อนดูข้อมูลสเปกและความสุกทุเรียนแต่ละสายพันธุ์ด้านข้างได้เลยครับ",
           size: "xs",
           weight: "bold",
-          color: "#B45309",
+          color: "#065F46",
           align: "center",
           margin: "xs",
         },
@@ -735,13 +736,14 @@ export function buildStockOverviewMessages(
         {
           type: "button",
           style: "primary",
-          color: "#1B4D31",
+          color: "#166534",
           height: "sm",
           flex: 1,
           action: {
-            type: "message",
-            label: "🛒 สั่งซื้อทุเรียน",
-            text: "สั่งซื้อ",
+            type: "postback",
+            label: "🔄 อัปเดตสต็อกสด",
+            data: "action=stock",
+            displayText: "เช็คสต็อก",
           },
         },
         ...(publicBaseUrl
@@ -763,14 +765,13 @@ export function buildStockOverviewMessages(
     },
   };
 
-  // การ์ดสินค้าแต่ละตัวใน Carousel
+  // การ์ดสินค้าแต่ละตัวใน Carousel (เฉพาะข้อมูลสต็อก ไม่มีปุ่มสั่งซื้อปน)
   const sorted = [...activeProducts]
     .sort((a, b) => Number(b.isAvailable) - Number(a.isAvailable))
     .slice(0, 10);
 
   const bubbles = sorted.map((p) => {
     const stockInfo = formatProductStock(p);
-    const canBuy = p.isAvailable && !stockInfo.isOutOfStock && !isClosed;
     const isLow = stockInfo.isLowStock;
     const isOut = p.isAvailable === false || stockInfo.isOutOfStock;
 
@@ -874,31 +875,16 @@ export function buildStockOverviewMessages(
       footer: {
         type: "box",
         layout: "vertical",
-        paddingAll: "md",
+        paddingAll: "sm",
         contents: [
-          canBuy
-            ? {
-                type: "button",
-                style: "primary",
-                color: "#1B4D31",
-                height: "sm",
-                action: {
-                  type: "postback",
-                  label: "🛒 สั่งซื้อพันธุ์นี้",
-                  data: `action=order_pick&productId=${encodeURIComponent(p.id)}`,
-                  displayText: `เลือกสั่ง ${p.name}`,
-                },
-              }
-            : {
-                type: "button",
-                style: "secondary",
-                height: "sm",
-                action: {
-                  type: "postback",
-                  label: "หมด (ดูพันธุ์อื่น)",
-                  data: "action=stock",
-                },
-              },
+          {
+            type: "text",
+            text: isOut ? "⚪ สินค้าหมดรอบจัดส่งนี้" : isLow ? "🟠 สินค้าเหลือน้อยใกล้หมด" : "🟢 มีสินค้าพร้อมจัดส่ง",
+            size: "xs",
+            align: "center",
+            weight: "bold",
+            color: isOut ? "#9CA3AF" : isLow ? "#D97706" : "#166534",
+          },
         ],
       },
     };
@@ -913,6 +899,433 @@ export function buildStockOverviewMessages(
     {
       type: "flex",
       altText: `🍈 รายการทุเรียนพร้อมส่ง — ${shopInfo.name}`,
+      quickReply: buildMainQuickReply(),
+      contents: {
+        type: "carousel",
+        contents: bubbles,
+      },
+    },
+  ];
+}
+
+/**
+ * แคตตาล็อกสินค้าสำหรับสั่งซื้อโดยเฉพาะ (มีปุ่มสั่งซื้อพันธุ์นี้ชัดเจน ไม่แสดงการ์ดสรุปสต็อกปน)
+ */
+export function buildOrderCatalogMessages(
+  products: Product[],
+  round: Round | undefined,
+  publicBaseUrl?: string
+): unknown[] {
+  const activeProducts = products.filter(
+    (p) => p.isActive !== 0 && (p.isActive as any) !== "0" && p.isActive !== false
+  );
+  const isClosed = round?.status === "closed" || (round?.quotaRemaining ?? 1) <= 0;
+
+  const bubbles = activeProducts.map((p) => {
+    const stockInfo = formatProductStock(p);
+    const canBuy = p.isAvailable && !stockInfo.isOutOfStock && !isClosed;
+    const isLow = stockInfo.isLowStock;
+    const isOut = p.isAvailable === false || stockInfo.isOutOfStock;
+
+    return {
+      type: "bubble",
+      size: "mega",
+      hero: {
+        type: "image",
+        url: safeHttpsImage(p.image),
+        size: "full",
+        aspectRatio: "16:10",
+        aspectMode: "cover",
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "lg",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "text",
+                text: `${p.variety}`,
+                size: "xs",
+                weight: "bold",
+                color: "#15803D",
+                flex: 1,
+              },
+              {
+                type: "text",
+                text: p.badge || (p.type === "flesh" ? "เนื้อล้วน" : "ทั้งลูก"),
+                size: "xs",
+                weight: "bold",
+                color: "#B45309",
+                align: "end",
+                flex: 1,
+              },
+            ],
+          },
+          {
+            type: "text",
+            text: p.name,
+            weight: "bold",
+            size: "md",
+            wrap: true,
+            maxLines: 2,
+            color: "#1C1917",
+          },
+          {
+            type: "text",
+            text: `฿${p.price.toLocaleString()} / ${p.unit}`,
+            weight: "bold",
+            size: "lg",
+            color: "#B45309",
+          },
+          {
+            type: "text",
+            text: `🥑 ${p.specs?.texture || p.ripeness || "กรอบนอกนุ่มใน"} • 🍯 ${p.brix || "32°+ Brix"}`,
+            size: "xs",
+            color: "#57534E",
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "md",
+        contents: [
+          canBuy
+            ? {
+                type: "button",
+                style: "primary",
+                color: "#15803D",
+                height: "sm",
+                action: {
+                  type: "postback",
+                  label: "🛒 สั่งซื้อพันธุ์นี้",
+                  data: `action=order_pick&productId=${encodeURIComponent(p.id)}`,
+                  displayText: `เลือกสั่ง ${p.name}`,
+                },
+              }
+            : {
+                type: "button",
+                style: "secondary",
+                height: "sm",
+                action: {
+                  type: "postback",
+                  label: "หมดรอบนี้ (ดูพันธุ์อื่น)",
+                  data: "action=order",
+                },
+              },
+        ],
+      },
+    };
+  });
+
+  return [
+    {
+      type: "flex",
+      altText: `🛒 เลือกสั่งซื้อทุเรียน — ${shopInfo.name}`,
+      quickReply: buildMainQuickReply(),
+      contents: {
+        type: "carousel",
+        contents: bubbles,
+      },
+    },
+  ];
+}
+
+/**
+ * แสดงประวัติคำสั่งซื้อของลูกค้าใน LINE
+ */
+export function buildUserOrdersFlex(
+  orders: Order[],
+  claims: Claim[] = [],
+  publicBaseUrl?: string
+): unknown[] {
+  if (orders.length === 0) {
+    return [
+      {
+        type: "flex",
+        altText: `ประวัติคำสั่งซื้อของคุณ — ${shopInfo.name}`,
+        quickReply: buildMainQuickReply(),
+        contents: {
+          type: "bubble",
+          size: "mega",
+          header: {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: "#11301F",
+            paddingAll: "lg",
+            contents: [
+              {
+                type: "text",
+                text: "📋 ประวัติคำสั่งซื้อของคุณ",
+                color: "#FDE047",
+                weight: "bold",
+                size: "md",
+              },
+              {
+                type: "text",
+                text: `${shopInfo.name} — ไม่พบคำสั่งซื้อในบัญชีนี้`,
+                color: "#E7E5E4",
+                size: "xs",
+                margin: "xs",
+              },
+            ],
+          },
+          body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "md",
+            paddingAll: "lg",
+            contents: [
+              {
+                type: "text",
+                text: "ยังไม่พบรายการสั่งซื้อที่เชื่อมโยงกับบัญชี LINE นี้ครับ",
+                size: "sm",
+                color: "#374151",
+                wrap: true,
+              },
+              {
+                type: "text",
+                text: "💡 หากคุณเคยสั่งซื้อผ่านเบอร์โทรศัพท์ สามารถพิมพ์เบอร์โทร 10 หลักเพื่อค้นหาประวัติคำสั่งซื้อได้เลยครับ",
+                size: "xs",
+                color: "#6B7280",
+                wrap: true,
+              },
+            ],
+          },
+          footer: {
+            type: "box",
+            layout: "vertical",
+            paddingAll: "md",
+            contents: [
+              {
+                type: "button",
+                style: "primary",
+                color: "#166534",
+                height: "sm",
+                action: {
+                  type: "message",
+                  label: "🛒 สั่งซื้อทุเรียนรอบนี้",
+                  text: "สั่งซื้อ",
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+  }
+
+  const sorted = [...orders]
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+    .slice(0, 10);
+
+  const bubbles = sorted.map((o) => {
+    const grandTotal = o.totalPrice + o.shippingCost;
+    const dateStr = o.createdAt
+      ? new Date(o.createdAt).toLocaleDateString("th-TH", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : "-";
+
+    const isPaid = o.paymentStatus === "confirmed";
+    const isDelivered = o.orderStatus === "delivered";
+
+    const statusBadgeText = isDelivered
+      ? "🚚 จัดส่งสำเร็จ (ถึงมือแล้ว)"
+      : o.orderStatus === "shipped"
+      ? "🚚 กำลังจัดส่ง"
+      : o.orderStatus === "packed"
+      ? "📦 แพ็กกล่องแล้ว"
+      : o.orderStatus === "preparing"
+      ? "✂️ กำลังคัดตัดสด"
+      : "⏳ รับออเดอร์แล้ว";
+
+    const statusBadgeColor = isDelivered
+      ? "#15803D"
+      : o.orderStatus === "shipped"
+      ? "#2563EB"
+      : "#D97706";
+
+    const eligibility = checkClaimEligibility(o, claims);
+
+    const itemsSummary = o.items
+      .map((it) => `• ${it.productName} x${it.qty}`)
+      .join("\n");
+
+    const footerButtons: unknown[] = [
+      {
+        type: "button",
+        style: "primary",
+        color: "#1B4D31",
+        height: "sm",
+        action: {
+          type: "postback",
+          label: "🔍 เช็กสถานะพัสดุ",
+          data: `action=track_order&orderId=${encodeURIComponent(o.id)}`,
+          displayText: `เช็กสถานะ ${o.id}`,
+        },
+      },
+    ];
+
+    if (eligibility.eligible) {
+      footerButtons.push({
+        type: "button",
+        style: "secondary",
+        height: "sm",
+        action: {
+          type: "postback",
+          label: "🛡️ แจ้งเคลมรายการนี้",
+          data: `action=claim_order&orderId=${encodeURIComponent(o.id)}`,
+          displayText: `แจ้งเคลม ${o.id}`,
+        },
+      });
+    }
+
+    return {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#11301F",
+        paddingAll: "lg",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "text",
+                text: `📦 ออเดอร์ #${o.id}`,
+                color: "#FDE047",
+                weight: "bold",
+                size: "md",
+                flex: 6,
+              },
+              {
+                type: "text",
+                text: isPaid ? "✅ ชำระแล้ว" : "⏳ รอชำระ",
+                color: isPaid ? "#86EFAC" : "#FDE047",
+                weight: "bold",
+                size: "xs",
+                align: "end",
+                flex: 4,
+              },
+            ],
+          },
+          {
+            type: "text",
+            text: `วันที่สั่งซื้อ: ${dateStr}`,
+            color: "#E7E5E4",
+            size: "xs",
+            margin: "xs",
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "lg",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            backgroundColor: isDelivered ? "#DCFCE7" : "#EFF6FF",
+            cornerRadius: "md",
+            paddingStart: "md",
+            paddingEnd: "md",
+            paddingTop: "sm",
+            paddingBottom: "sm",
+            contents: [
+              {
+                type: "text",
+                text: statusBadgeText,
+                size: "xs",
+                weight: "bold",
+                color: statusBadgeColor,
+              },
+            ],
+          },
+          {
+            type: "text",
+            text: "รายการสินค้า:",
+            size: "xs",
+            weight: "bold",
+            color: "#6B7280",
+            margin: "sm",
+          },
+          {
+            type: "text",
+            text: itemsSummary,
+            size: "sm",
+            color: "#1F2937",
+            wrap: true,
+          },
+          {
+            type: "separator",
+            margin: "sm",
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            margin: "sm",
+            contents: [
+              {
+                type: "text",
+                text: "ยอดสุทธิ:",
+                size: "sm",
+                color: "#4B5563",
+              },
+              {
+                type: "text",
+                text: `฿${grandTotal.toLocaleString()}`,
+                size: "md",
+                weight: "bold",
+                color: "#B45309",
+                align: "end",
+              },
+            ],
+          },
+          ...(o.trackingNo
+            ? [
+                {
+                  type: "text",
+                  text: `🚚 ขนส่ง: ${o.courier || "พัสดุ"} (${o.trackingNo})`,
+                  size: "xs",
+                  color: "#2563EB",
+                  wrap: true,
+                  margin: "xs",
+                },
+              ]
+            : []),
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "md",
+        contents: footerButtons,
+      },
+    };
+  });
+
+  return [
+    {
+      type: "flex",
+      altText: `ประวัติคำสั่งซื้อของคุณ (${orders.length} รายการ) — ${shopInfo.name}`,
       quickReply: buildMainQuickReply(),
       contents: {
         type: "carousel",
@@ -1459,6 +1872,17 @@ export function buildMoreMenuFlex(
       type: "button",
       style: "primary",
       color: "#1B4D31",
+      height: "sm",
+      action: {
+        type: "postback",
+        label: "📋 ประวัติคำสั่งซื้อของฉัน",
+        data: "action=my_orders",
+        displayText: "ประวัติคำสั่งซื้อ",
+      },
+    },
+    {
+      type: "button",
+      style: "secondary",
       height: "sm",
       action: {
         type: "postback",
