@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createAdminSessionToken, getRuntimeConfig, upsertLineUser } from "../../../../lib/sheets-db";
+import {
+  createAdminSessionToken,
+  getRuntimeConfig,
+  recordUserLogin,
+  upsertLineUser,
+} from "../../../../lib/sheets-db";
 import { createSessionToken, toSafeUser } from "../../../../lib/user-auth";
 import { ADMIN_COOKIE_NAME } from "../../../../lib/admin-auth";
 import { verifyLineAccessToken } from "../../../../lib/line-verify";
@@ -39,6 +44,8 @@ export async function POST(req: NextRequest) {
       source: "line-login",
       notes: "เข้าสู่ระบบผ่าน LINE (LIFF)",
     });
+
+    await recordUserLogin(user);
 
     const safe = toSafeUser(user);
     const token = createSessionToken(safe);

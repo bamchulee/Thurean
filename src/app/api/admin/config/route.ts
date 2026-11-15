@@ -33,9 +33,15 @@ export async function GET(req: NextRequest) {
   const cfg = getRuntimeConfig();
   let appsScriptCode = "";
   try {
-    const gsPath = path.join(process.cwd(), "google-apps-script", "Code.gs");
-    if (fs.existsSync(gsPath)) {
-      appsScriptCode = fs.readFileSync(gsPath, "utf-8");
+    // รวมไฟล์ 1_Config.gs ... 7_Migrate.gs ตามลำดับ ให้วางเป็นไฟล์เดียวได้
+    const gsDir = path.join(process.cwd(), "google-apps-script");
+    if (fs.existsSync(gsDir)) {
+      appsScriptCode = fs
+        .readdirSync(gsDir)
+        .filter((name) => name.endsWith(".gs"))
+        .sort()
+        .map((name) => fs.readFileSync(path.join(gsDir, name), "utf-8"))
+        .join("\n\n");
     }
   } catch {
     appsScriptCode = "";

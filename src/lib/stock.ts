@@ -48,7 +48,7 @@ export function formatProductStock(p: Product): {
 
 /**
  * จำนวนที่ยังสั่งได้ (หน่วยขาย) — undefined = สินค้านี้ไม่ได้นับสต็อก
- * ต้องตรงกับ planStockDeduction ใน google-apps-script/Code.gs
+ * ต้องตรงกับ planStockDeduction ใน google-apps-script/4_Orders.gs
  */
 export function getAvailableUnits(p: Product): number | undefined {
   const isQtyBased = p.stockUnit === "qty" || p.type === "flesh";

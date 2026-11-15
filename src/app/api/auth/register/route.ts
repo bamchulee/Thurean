@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import {
+  getAllUsers,
   getUserByUsername,
   createUserRecord,
+  localNextId,
 } from "../../../../lib/sheets-db";
 import {
   hashPassword,
@@ -88,7 +90,8 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
     const newUser: User = {
-      id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      // เลข USR- จริงออกโดยชีต (createUserRecord คืนค่ากลับมา)
+      id: localNextId("users", (await getAllUsers()).map((u) => u.id)),
       username: cleanUsername,
       passwordHash: hashPassword(cleanPassword),
       firstName: cleanFirst,
@@ -98,14 +101,16 @@ export async function POST(req: NextRequest) {
       postalCode: cleanPostal,
       avatarUrl: avatarUrl ? String(avatarUrl).trim() : undefined,
       role: "user",
+      source: "web",
+      lastLoginAt: now,
       createdAt: now,
       updatedAt: now,
     };
 
     // Save to Google Sheet & Local DB
-    await createUserRecord(newUser);
+    const saved = await createUserRecord(newUser);
 
-    const safe = toSafeUser(newUser);
+    const safe = toSafeUser(saved);
     const token = createSessionToken(safe);
 
     const response = NextResponse.json({

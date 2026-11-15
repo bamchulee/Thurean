@@ -1,12 +1,12 @@
 // ============================================================
 // Shared Order & Claim Business Logic (Web API + LINE Bot)
 // ============================================================
-import crypto from "crypto";
 import { getAvailableUnits } from "./stock";
 import {
   SheetsApiError,
   createClaimRecord,
   createOrderRecord,
+  localNextId,
   getAllDatabase,
   getRuntimeConfig,
   updateOrderRecord,
@@ -23,18 +23,6 @@ import {
 import { shopInfo } from "../data/mock";
 import { resolveCourierInfo } from "./courier";
 import type { Claim, Order, OrderItem } from "../types/durian";
-
-/** สุ่มรหัสตัวเลขที่ยังไม่ถูกใช้ ถ้าช่วงเลขเริ่มแน่นจะขยายจำนวนหลักให้อัตโนมัติ */
-function generateUniqueCode(prefix: string, digits: number, used: Set<string>): string {
-  let len = digits;
-  while (used.size > 0.5 * 9 * 10 ** (len - 1)) len++;
-  for (let i = 0; i < 200; i++) {
-    const min = 10 ** (len - 1);
-    const code = `${prefix}${crypto.randomInt(min, min * 10)}`;
-    if (!used.has(code.toUpperCase())) return code;
-  }
-  return `${prefix}${Date.now()}`;
-}
 
 export interface SubmitOrderInput {
   userId?: string;
@@ -179,9 +167,9 @@ export async function submitNewOrder(
     }
   }
 
-  const usedOrderIds = new Set(data.orders.map((o) => o.id.toUpperCase()));
+  const usedOrderIds = new Set(data.orders.map((o) => o.id));
   const newOrder: Order = {
-    id: generateUniqueCode("WK-", 4, usedOrderIds),
+    id: localNextId("orders", usedOrderIds),
     createdAt: new Date().toISOString(),
     roundId: activeRound?.id || "WK-ROUND-46",
     userId: finalUserId,
@@ -215,8 +203,8 @@ export async function submitNewOrder(
     } catch (err) {
       const code = err instanceof SheetsApiError ? err.code : "";
       if (code === "DUPLICATE_ID" && attempt < 3) {
-        usedOrderIds.add(newOrder.id.toUpperCase());
-        newOrder.id = generateUniqueCode("WK-", 4, usedOrderIds);
+        usedOrderIds.add(newOrder.id);
+        newOrder.id = localNextId("orders", usedOrderIds);
         continue;
       }
       if (code === "OUT_OF_STOCK") {
@@ -302,9 +290,9 @@ export async function submitNewClaim(
     (o) => o.id.toUpperCase() === orderIdClean
   );
 
-  const usedClaimIds = new Set(data.claims.map((c) => c.claimId.toUpperCase()));
+  const usedClaimIds = new Set(data.claims.map((c) => c.claimId));
   const newClaim: Claim = {
-    claimId: generateUniqueCode("CLM-", 5, usedClaimIds),
+    claimId: localNextId("claims", usedClaimIds),
     createdAt: new Date().toISOString(),
     orderId: orderIdClean,
     userId: body.userId?.trim() || matchedOrder?.userId || undefined,

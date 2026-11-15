@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createRoundRecord, getAllDatabase } from "../../../lib/sheets-db";
+import { createRoundRecord, getAllDatabase, localNextId } from "../../../lib/sheets-db";
 import { isAdminRequest, unauthorizedResponse } from "../../../lib/admin-auth";
 import type { Round } from "../../../types/durian";
 
@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json()) as Partial<Round>;
+    const { data } = await getAllDatabase();
     if (!body.name?.trim()) {
       return NextResponse.json(
         { ok: false, error: "กรุณาระบุชื่อรอบจัดส่ง" },
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     const totalQuota = Number(body.totalQuota) || 100;
     const newRound: Round = {
-      id: body.id?.trim() || `WK-ROUND-${Math.floor(47 + Math.random() * 50)}`,
+      id: body.id?.trim() || localNextId("rounds", data.rounds.map((r) => r.id)),
       name: body.name.trim(),
       truckRoute:
         body.truckRoute?.trim() ||
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
       totalQuota,
     };
 
-    const created = await createRoundRecord(newRound);
+    const created = await createRoundRecord(newRound, { autoId: !body.id?.trim() });
     return NextResponse.json({ ok: true, round: created }, { status: 201 });
   } catch (err) {
     return NextResponse.json(

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createProductRecord, getAllDatabase } from "../../../lib/sheets-db";
+import { createProductRecord, getAllDatabase, localNextId } from "../../../lib/sheets-db";
 import { isAdminRequest, unauthorizedResponse } from "../../../lib/admin-auth";
 import type { Product } from "../../../types/durian";
 
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json()) as Partial<Product>;
+    const { data } = await getAllDatabase();
     if (!body.name?.trim() || !body.variety?.trim() || !body.price) {
       return NextResponse.json(
         { ok: false, error: "กรุณาระบุชื่อสินค้า สายพันธุ์ และราคา" },
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     }
 
     const newProduct: Product = {
-      id: body.id?.trim() || `WK-${Math.floor(10 + Math.random() * 89)}`,
+      id: body.id?.trim() || localNextId("products", data.products.map((p) => p.id)),
       name: body.name.trim(),
       variety: body.variety.trim(),
       type: body.type === "flesh" ? "flesh" : "whole",
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    const created = await createProductRecord(newProduct);
+    const created = await createProductRecord(newProduct, { autoId: !body.id?.trim() });
     return NextResponse.json({ ok: true, product: created }, { status: 201 });
   } catch (err) {
     return NextResponse.json(

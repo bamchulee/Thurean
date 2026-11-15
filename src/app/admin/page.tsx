@@ -2175,12 +2175,12 @@ function SettingsTab({
               {copiedCode ? (
                 <>
                   <Check className="w-3.5 h-3.5" />
-                  <span>คัดลอกโค้ด Code.gs แล้ว</span>
+                  <span>คัดลอกโค้ดแล้ว</span>
                 </>
               ) : (
                 <>
                   <Copy className="w-3.5 h-3.5" />
-                  <span>คัดลอกโค้ด Code.gs</span>
+                  <span>คัดลอกโค้ดทั้งหมด (รวม 7 ไฟล์)</span>
                 </>
               )}
             </button>
@@ -2193,30 +2193,25 @@ function SettingsTab({
             <strong className="text-white">ส่วนขยาย (Extensions) → Apps Script</strong>
           </li>
           <li>
-            ลบโค้ดเดิมออกทั้งหมด แล้วกดปุ่ม{" "}
-            <strong className="text-amber-300">&quot;คัดลอกโค้ด Code.gs&quot;</strong>{" "}
-            ด้านบนมาวาง แล้วกดบันทึก (Ctrl+S)
+            ลบไฟล์และโค้ดเดิมออกทั้งหมด แล้วกด{" "}
+            <strong className="text-amber-300">&quot;คัดลอกโค้ดทั้งหมด&quot;</strong>{" "}
+            ด้านบนมาวางในไฟล์เดียว แล้วกดบันทึก (Ctrl+S) — หรือแยกเป็น 7 ไฟล์ตามโฟลเดอร์{" "}
+            <code className="bg-black/30 px-1.5 py-0.5 rounded text-amber-300">google-apps-script/</code> ก็ได้ ผลเหมือนกัน
           </li>
           <li>
-            เลือกฟังก์ชันชื่อ{" "}
-            <code className="bg-black/30 px-1.5 py-0.5 rounded text-amber-300">
-              setupDurianWinkinSheets
-            </code>{" "}
-            ด้านบน แล้วกด <strong>Run (เรียกใช้)</strong> 1 ครั้ง — ระบบจะสร้าง 6 แท็บ (
-            <code className="text-amber-200">
-              Products, Rounds, Orders, Lots_Cost, Claims, Summary
-            </code>
-            ) พร้อมสูตรกำไรให้อัตโนมัติ
+            เลือกฟังก์ชัน <code className="bg-black/30 px-1.5 py-0.5 rounded text-amber-300">generateApiKey</code> แล้วกด <strong>Run</strong> 1 ครั้ง
+            คัดลอก key จาก Execution log ไปใส่ตัวแปร <code className="bg-black/30 px-1.5 py-0.5 rounded text-amber-300">GOOGLE_SHEETS_API_KEY</code> บน Vercel
+            แล้ว Redeploy เว็บ
           </li>
           <li>
-            กดปุ่ม{" "}
-            <strong className="text-white">
-              Deploy → New deployment → Type: Web app
-            </strong>{" "}
-            ตั้งค่า <em>Who has access: Anyone</em> แล้วนำ{" "}
-            <strong>Web app URL</strong> (ขึ้นต้นด้วย{" "}
-            <code className="text-amber-200">https://script.google.com/...</code>)
-            มาวางช่องด้านล่างนี้ได้เลยครับ
+            กด{" "}
+            <strong className="text-white">Deploy → Manage deployments → แก้ไข → New version</strong>{" "}
+            (ถ้ายังไม่เคย Deploy ให้เลือก New deployment → Web app, Execute as: Me, Who has access: Anyone)
+            แล้วนำ <strong>Web app URL</strong> มาวางช่องด้านล่าง
+          </li>
+          <li>
+            ถ้ามีข้อมูลเก่าอยู่แล้ว เลือกฟังก์ชัน <code className="bg-black/30 px-1.5 py-0.5 rounded text-amber-300">migrateToRunningIds</code> แล้วกด <strong>Run</strong> 1 ครั้ง
+            เพื่อลบแถวซ้ำและเปลี่ยนรหัสสมาชิกเป็นเลขรัน
           </li>
         </ol>
       </div>

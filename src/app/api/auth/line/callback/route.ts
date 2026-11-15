@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import {
   createAdminSessionToken,
   getRuntimeConfig,
+  recordUserLogin,
   upsertLineUser,
 } from "../../../../../lib/sheets-db";
 import { createSessionToken, toSafeUser } from "../../../../../lib/user-auth";
@@ -115,6 +116,8 @@ export async function GET(req: NextRequest) {
       source: "line-login",
       notes: "เข้าสู่ระบบผ่าน LINE Login OAuth สำเร็จ",
     });
+
+    await recordUserLogin(user);
 
     // 4. Set session cookie and redirect
     const safe = toSafeUser(user);

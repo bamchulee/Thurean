@@ -4,6 +4,7 @@ import {
   createPromotionRecord,
   getAllDatabase,
   updatePromotionRecord,
+  localNextId,
 } from "../../../lib/sheets-db";
 import { isAdminRequest, unauthorizedResponse } from "../../../lib/admin-auth";
 import type { Promotion } from "../../../types/durian";
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json()) as Partial<Promotion>;
+    const { data } = await getAllDatabase();
     if (!body.title?.trim() || !body.discountText?.trim()) {
       return NextResponse.json(
         { ok: false, error: "กรุณากรอกชื่อโปรโมชั่นและข้อความส่วนลด" },
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const promo: Promotion = {
-      id: body.id?.trim() || `PROMO-${Math.floor(10 + Math.random() * 89)}`,
+      id: body.id?.trim() || localNextId("promotions", (data.promotions || []).map((p) => p.id)),
       title: body.title.trim(),
       badge: body.badge?.trim() || undefined,
       discountText: body.discountText.trim(),
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
       isActive: body.isActive !== false,
     };
 
-    const created = await createPromotionRecord(promo);
+    const created = await createPromotionRecord(promo, { autoId: !body.id?.trim() });
     return NextResponse.json({ ok: true, promotion: created }, { status: 201 });
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });

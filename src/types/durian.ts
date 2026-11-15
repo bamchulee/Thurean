@@ -142,6 +142,7 @@ export interface User extends BaseAuditLog {
   address: string;
   postalCode: string;
   avatarUrl?: string;
+  lastLoginAt?: string;
   role: "user" | "admin";
   source?: "line-login" | "line-chat" | "web" | string;
   notes?: string;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import {
   getUserByUsername,
+  recordUserLogin,
   getRuntimeConfig,
   createAdminSessionToken,
 } from "../../../../lib/sheets-db";
@@ -44,6 +45,8 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
+
+    await recordUserLogin(user);
 
     const safe = toSafeUser(user);
     const token = createSessionToken(safe);

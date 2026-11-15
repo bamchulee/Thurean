@@ -19,6 +19,7 @@ import { createInitialDatabase } from "../data/mock";
 import { deductProductStock } from "./stock";
 import { getWritableDataDir } from "./storage-dir";
 import { getSigningSecret } from "./secrets";
+import { nextRunningId, type IdKind } from "./ids";
 
 // URL ของ Web App ใช้ได้ต่อเมื่อมี API key เท่านั้น (ดู google-apps-script/Code.gs)
 const DEFAULT_SHEETS_WEBAPP_URL =
@@ -310,7 +311,7 @@ async function fetchAllFromSheets(webAppUrl: string): Promise<DatabaseState> {
   try {
     return await callGoogleAppsScriptPost<DatabaseState>(webAppUrl, "getAll", {});
   } catch (err) {
-    // สคริปต์รุ่นเก่า (ยังไม่ได้ Deploy Code.gs รุ่นใหม่) รู้จัก getAll เฉพาะแบบ GET
+    // สคริปต์รุ่นเก่า (ยังไม่ได้ Deploy โค้ดรุ่นใหม่ใน google-apps-script/) รู้จัก getAll เฉพาะแบบ GET
     const legacy =
       err instanceof SheetsApiError && /Unknown POST action/i.test(err.message);
     if (!legacy) throw err;
@@ -469,6 +470,29 @@ export async function getAllDatabase(forceRefresh = false): Promise<{
   return { data: applyDatabaseJoins(readLocalDb()), source: "local" };
 }
 
+/** ส่งแถวใหม่ขึ้นชีต: autoId = ให้ Apps Script ออกเลขรันจริง แล้วคืนรหัสที่ชีตใช้ */
+async function createOnSheets(
+  action: string,
+  record: object,
+  idKey: string,
+  autoId: boolean
+): Promise<string | undefined> {
+  const cfg = getRuntimeConfig();
+  if (!cfg.googleSheetsWebAppUrl) return undefined;
+  const res = await callGoogleAppsScriptPost<Record<string, unknown> | null>(
+    cfg.googleSheetsWebAppUrl,
+    action,
+    autoId ? { ...record, _autoId: true } : record
+  );
+  const assigned = res && typeof res === "object" ? res[idKey] : undefined;
+  return typeof assigned === "string" && assigned ? assigned : undefined;
+}
+
+/** รหัสชั่วคราวสำหรับโหมด local / Apps Script รุ่นเก่า (รุ่นใหม่จะออกเลขจริงทับให้) */
+export function localNextId(kind: IdKind, ids: Iterable<string | undefined>): string {
+  return nextRunningId(kind, ids);
+}
+
 export async function createOrderRecord(order: Order): Promise<Order> {
   const now = new Date().toISOString();
   if (!order.createDate) order.createDate = order.createdAt || now;
@@ -489,15 +513,14 @@ export async function createOrderRecord(order: Order): Promise<Order> {
     );
     if (existing) {
       order.userId = existing.id || existing.userId;
-    } else {
-      order.userId = `usr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     }
   }
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
-    // Apps Script เช็กรหัสซ้ำ + สต็อก และตัดสต็อกภายใต้ล็อกเดียวกัน
-    await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createOrder", order);
+    // Apps Script ออกเลขออเดอร์ เช็กสต็อก และตัดสต็อกภายใต้ล็อกเดียวกัน
+    const assigned = await createOnSheets("createOrder", order, "id", true);
+    if (assigned) order.id = assigned;
   } else if (readLocalDb().orders.some((o) => o.id === order.id)) {
     throw new SheetsApiError(`DUPLICATE_ID: รหัสออเดอร์ ${order.id} ถูกใช้แล้ว`, "DUPLICATE_ID");
   }
@@ -553,7 +576,10 @@ export async function updateOrderRecord(
   return null;
 }
 
-export async function createProductRecord(product: Product): Promise<Product> {
+export async function createProductRecord(
+  product: Product,
+  options: { autoId?: boolean } = {}
+): Promise<Product> {
   const now = new Date().toISOString();
   if (!product.createDate) product.createDate = now;
   if (product.isActive === undefined) product.isActive = 1;
@@ -563,7 +589,8 @@ export async function createProductRecord(product: Product): Promise<Product> {
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
-    await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createProduct", product);
+    const assigned = await createOnSheets("createProduct", product, "id", Boolean(options.autoId));
+    if (assigned) product.id = assigned;
   }
   const db = readLocalDb();
   db.products.push(product);
@@ -603,7 +630,10 @@ export async function updateProductRecord(
   return null;
 }
 
-export async function createRoundRecord(round: Round): Promise<Round> {
+export async function createRoundRecord(
+  round: Round,
+  options: { autoId?: boolean } = {}
+): Promise<Round> {
   const now = new Date().toISOString();
   if (!round.createDate) round.createDate = now;
   if (round.isActive === undefined) round.isActive = 1;
@@ -613,7 +643,8 @@ export async function createRoundRecord(round: Round): Promise<Round> {
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
-    await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createRound", round);
+    const assigned = await createOnSheets("createRound", round, "id", Boolean(options.autoId));
+    if (assigned) round.id = assigned;
   }
   const db = readLocalDb();
   db.rounds.unshift(round);
@@ -653,7 +684,10 @@ export async function updateRoundRecord(
   return null;
 }
 
-export async function createLotRecord(lot: LotCost): Promise<LotCost> {
+export async function createLotRecord(
+  lot: LotCost,
+  options: { autoId?: boolean } = {}
+): Promise<LotCost> {
   const now = new Date().toISOString();
   if (!lot.createDate) lot.createDate = lot.date || now;
   if (lot.isActive === undefined) lot.isActive = 1;
@@ -663,7 +697,8 @@ export async function createLotRecord(lot: LotCost): Promise<LotCost> {
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
-    await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createLot", lot);
+    const assigned = await createOnSheets("createLot", lot, "lotId", Boolean(options.autoId));
+    if (assigned) lot.lotId = assigned;
   }
   const db = readLocalDb();
   db.lots.unshift(lot);
@@ -682,7 +717,8 @@ export async function createClaimRecord(claim: Claim): Promise<Claim> {
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
-    await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createClaim", claim);
+    const assigned = await createOnSheets("createClaim", claim, "claimId", true);
+    if (assigned) claim.claimId = assigned;
   }
   const db = readLocalDb();
   db.claims.unshift(claim);
@@ -722,7 +758,10 @@ export async function updateClaimRecord(
   return null;
 }
 
-export async function createPromotionRecord(promo: Promotion): Promise<Promotion> {
+export async function createPromotionRecord(
+  promo: Promotion,
+  options: { autoId?: boolean } = {}
+): Promise<Promotion> {
   const now = new Date().toISOString();
   if (!promo.createDate) promo.createDate = now;
   if (promo.isActive === undefined) promo.isActive = true;
@@ -732,7 +771,8 @@ export async function createPromotionRecord(promo: Promotion): Promise<Promotion
 
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
-    await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createPromotion", promo);
+    const assigned = await createOnSheets("createPromotion", promo, "id", Boolean(options.autoId));
+    if (assigned) promo.id = assigned;
   }
   const db = readLocalDb();
   const list = Array.isArray(db.promotions) ? db.promotions : [];
@@ -843,6 +883,19 @@ export async function createUserRecord(user: User): Promise<User> {
   if (!user.updatedAt) user.updatedAt = now;
   if (!user.updatedBy) user.updatedBy = user.createdBy;
 
+  // บันทึกลงชีตก่อน ถ้าไม่สำเร็จให้ error ออกไปเลย (ดีกว่าบอกว่าสมัครสำเร็จแต่ข้อมูลหาย)
+  // ชีตเป็นคนออกเลข USR- จริง แล้วเว็บใช้เลขนั้นต่อ
+  const assigned = await createOnSheets(
+    "createUser",
+    { ...user, userId: user.userId || user.id },
+    "userId",
+    true
+  );
+  if (assigned) {
+    user.id = assigned;
+    user.userId = assigned;
+  }
+
   const db = readLocalDb();
   if (!Array.isArray(db.users)) db.users = [];
   const existingIdx = db.users.findIndex((u) => u.id === user.id);
@@ -853,17 +906,6 @@ export async function createUserRecord(user: User): Promise<User> {
   }
   writeLocalDb(db);
   invalidateDatabaseCache();
-
-  const cfg = getRuntimeConfig();
-  if (cfg.googleSheetsWebAppUrl) {
-    // รอผลจริง (บน serverless ถ้าไม่รอ คำขออาจถูกตัดทิ้งก่อนบันทึกเสร็จ)
-    await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "createUser", {
-      ...user,
-      userId: user.userId || user.id,
-    }).catch((err) => {
-      console.error("Google Sheets createUser failed (saved locally only):", err);
-    });
-  }
 
   return user;
 }
@@ -916,6 +958,18 @@ export async function updateUserRecord(
   return updatedUser;
 }
 
+/** บันทึกเวลาล็อกอินล่าสุดลงชีต Users (ไม่ให้ล็อกอินล้มถ้าชีตตอบช้า) */
+export async function recordUserLogin(user: Pick<User, "id" | "lineUserId">): Promise<void> {
+  try {
+    await updateUserRecord(user.id, {
+      lastLoginAt: new Date().toISOString(),
+      ...(user.lineUserId ? { lineUserId: user.lineUserId } : {}),
+    });
+  } catch (err) {
+    console.error("Recording login time failed:", err);
+  }
+}
+
 export interface UpsertLineUserInput {
   lineUserId?: string;
   displayName?: string;
@@ -952,7 +1006,7 @@ export async function recordGuestCustomer(input: {
   const name = input.customerName.trim().replace(/^(คุณ|นาย|นางสาว|นาง)\s*/, "");
   const [firstName, ...rest] = name.split(/\s+/);
   const now = new Date().toISOString();
-  const id = `usr_web_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
+  const id = localNextId("users", (await getAllUsers()).map((u) => u.id));
 
   const created = await createUserRecord({
     id,
@@ -1050,7 +1104,7 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
     return updated || { ...existing, ...updates };
   }
 
-  const genId = `usr_line_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const genId = localNextId("users", (await getAllUsers()).map((u) => u.id));
   const newUser: User = {
     id: genId,
     userId: genId,
