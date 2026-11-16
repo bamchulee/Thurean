@@ -6,7 +6,11 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sheets:pull": "node scripts/sheets-sync.js pull",
+    "sheets:push": "node scripts/sheets-sync.js push",
+    "sheets:to-local": "node scripts/sheets-sync.js to-local",
+    "sheets:from-local": "node scripts/sheets-sync.js from-local"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.5",
