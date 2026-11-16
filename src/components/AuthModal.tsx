@@ -71,7 +71,13 @@ export function AuthModal() {
 
     if (user) {
       // User is already logged in, opening modal to view/edit address & phone
-      setDisplayName(user.firstName || user.username || "");
+      const cleanName =
+        (user.displayName && !user.displayName.startsWith("line_") ? user.displayName : "") ||
+        (`${user.firstName || ""} ${user.lastName || ""}`.trim() && `${user.firstName || ""} ${user.lastName || ""}`.trim() !== "ลูกค้า LINE"
+          ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
+          : "") ||
+        (user.username && !user.username.startsWith("line_") ? user.username : "");
+      setDisplayName(cleanName);
       setPhone(user.phone || "");
       setAddress(user.address || "");
       setPostalCode(user.postalCode || "");
@@ -80,9 +86,9 @@ export function AuthModal() {
       setStep("details");
     } else if (liffProfile) {
       // LIFF detected customer's LINE profile
-      setDisplayName(liffProfile.displayName);
+      setDisplayName(liffProfile.displayName || "");
       setPictureUrl(liffProfile.pictureUrl || "");
-      setLineUserId(liffProfile.userId);
+      setLineUserId(liffProfile.userId || "");
       setStep("details");
     } else {
       setStep("connect");

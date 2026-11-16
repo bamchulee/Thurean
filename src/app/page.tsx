@@ -46,6 +46,18 @@ import { DurianIcon, LineIcon } from "../components/Icons";
 import { LineDirectLink } from "../components/LineDirectLink";
 import { formatProductStock } from "../lib/stock";
 
+// Helper formatting user display name cleanly (never showing raw line_U... ID)
+function formatUserTitle(
+  u: { firstName?: string; lastName?: string; displayName?: string; username?: string } | null | undefined
+): string {
+  if (!u) return "เข้าสู่ระบบ";
+  const fullName = `${u.firstName || ""} ${u.lastName || ""}`.trim();
+  if (fullName && fullName !== "ลูกค้า LINE") return fullName;
+  if (u.displayName && !u.displayName.startsWith("line_")) return u.displayName;
+  if (u.username && !u.username.startsWith("line_")) return u.username;
+  return "สมาชิก LINE";
+}
+
 // ===================== NAVBAR =====================
 function Navbar({
   totalCartItems,
@@ -56,7 +68,7 @@ function Navbar({
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const { user, openAuthModal, logout } = useAuth();
+  const { user, loading: authLoading, openAuthModal, logout } = useAuth();
 
   return (
     <>
@@ -155,7 +167,12 @@ function Navbar({
             )}
 
             {/* User Login / Profile Pill */}
-            {user ? (
+            {authLoading ? (
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100 border border-stone-200 animate-pulse text-stone-400 text-xs">
+                <div className="w-5 h-5 rounded-full bg-stone-200" />
+                <span className="w-16 h-3 bg-stone-200 rounded" />
+              </div>
+            ) : user ? (
               <div className="relative">
                 <button
                   type="button"
@@ -165,16 +182,16 @@ function Navbar({
                   {user.avatarUrl ? (
                     <img
                       src={user.avatarUrl}
-                      alt={user.firstName}
+                      alt={formatUserTitle(user)}
                       className="w-6 h-6 rounded-full object-cover border border-emerald-400 bg-white"
                     />
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-[#1B4D31] text-amber-300 flex items-center justify-center font-black text-[11px]">
-                      {user.firstName ? user.firstName.charAt(0) : "U"}
+                      {(user.displayName || user.firstName || "L").charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <span className="hidden sm:inline max-w-[90px] truncate">
-                    {user.firstName || user.username}
+                  <span className="hidden sm:inline max-w-[110px] truncate">
+                    {formatUserTitle(user)}
                   </span>
                   <ChevronDown className="w-3.5 h-3.5 text-emerald-700" />
                 </button>
@@ -185,13 +202,21 @@ function Navbar({
                       className="fixed inset-0 z-40"
                       onClick={() => setUserDropdownOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-stone-200 py-2 z-50">
+                    <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-stone-200 py-2 z-50">
                       <div className="px-4 py-2.5 border-b border-stone-100">
-                        <p className="text-xs font-extrabold text-[#1B4D31]">
-                          {user.firstName} {user.lastName}
+                        <p className="text-xs font-extrabold text-[#1B4D31] truncate">
+                          {formatUserTitle(user)}
                         </p>
-                        <p className="text-[11px] text-stone-500 font-mono">
-                          @{user.username} • {user.phone}
+                        <p className="text-[11px] text-stone-500 font-medium mt-0.5">
+                          {user.phone ? (
+                            <span>📞 {user.phone}</span>
+                          ) : user.lineUserId ? (
+                            <span className="text-[#06C755] font-semibold inline-flex items-center gap-1">
+                              <LineIcon className="w-3 h-3" /> เชื่อมต่อ LINE สำเร็จ
+                            </span>
+                          ) : (
+                            <span>@{user.username}</span>
+                          )}
                         </p>
                         {user.role === "admin" ? (
                           <p className="text-[10px] text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full mt-1.5 font-black inline-flex items-center gap-1 border border-amber-300">
@@ -319,15 +344,15 @@ function Navbar({
                     />
                   ) : (
                     <div className="w-9 h-9 rounded-full bg-amber-400 text-stone-950 flex items-center justify-center font-black text-xs">
-                      {user.firstName ? user.firstName.charAt(0) : "U"}
+                      {(user.displayName || user.firstName || "L").charAt(0).toUpperCase()}
                     </div>
                   )}
                   <div>
                     <p className="text-xs font-bold text-amber-300">
-                      {user.firstName} {user.lastName}
+                      {formatUserTitle(user)}
                     </p>
-                    <p className="text-[11px] text-stone-300 font-mono">
-                      @{user.username}
+                    <p className="text-[11px] text-stone-300 font-medium">
+                      {user.phone ? `📞 ${user.phone}` : (user.lineUserId ? "💬 บัญชี LINE" : `@${user.username}`)}
                     </p>
                   </div>
                 </div>
@@ -1048,7 +1073,7 @@ function OrderModal({
   );
   const [name, setName] = useState(
     user
-      ? `${user.firstName} ${user.lastName}`.trim() || user.username
+      ? formatUserTitle(user)
       : lineProfile?.displayName || ""
   );
   const [phone, setPhone] = useState(user?.phone || "");
@@ -1062,7 +1087,7 @@ function OrderModal({
 
   useEffect(() => {
     if (user) {
-      if (!name) setName(`${user.firstName} ${user.lastName}`.trim() || user.username);
+      if (!name) setName(formatUserTitle(user));
       if (!phone && user.phone) setPhone(user.phone);
       if (!address && user.address) {
         setAddress(`${user.address} ${user.postalCode}`.trim());
@@ -1252,7 +1277,7 @@ function OrderModal({
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-800 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 font-bold">
                   <LineIcon className="w-4 h-4 text-[#06C755]" />
-                  ดึงข้อมูลจัดส่ง LINE: {user.firstName || user.username}
+                  ดึงข้อมูลจัดส่ง: {formatUserTitle(user)}
                 </span>
                 <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
                   เชื่อมต่อแล้ว
