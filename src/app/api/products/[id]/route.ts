@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { updateProductRecord } from "../../../../lib/sheets-db";
-import { isAdminRequest, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { isAdminRequest, unauthorizedResponse, getAdminOperatorName } from "../../../../lib/admin-auth";
 import type { Product } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,8 @@ export async function PATCH(
     if (body.isActive !== undefined) {
       updates.isActive = (body.isActive === 0 || (body.isActive as any) === "0" || body.isActive === false) ? 0 : 1;
     }
-    if (body.updatedBy !== undefined) updates.updatedBy = body.updatedBy;
+    updates.updatedBy = body.updatedBy?.trim() || getAdminOperatorName(req);
+    updates.updatedAt = new Date().toISOString();
 
     const updated = await updateProductRecord(productId, updates);
     if (!updated) {

@@ -28,6 +28,27 @@ export function isAdminRequest(req: NextRequest): boolean {
   return false;
 }
 
+export function getAdminOperatorName(req: NextRequest): string {
+  const userToken = req.cookies.get(USER_COOKIE_NAME)?.value;
+  if (userToken) {
+    const session = verifySessionToken(userToken);
+    if (session) {
+      const name =
+        session.displayName ||
+        session.username ||
+        (session.firstName ? `${session.firstName} ${session.lastName || ""}`.trim() : "");
+      return name || `Admin (${session.id})`;
+    }
+  }
+
+  const adminToken = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
+  if (adminToken && verifyAdminSessionToken(adminToken)) {
+    return "Admin (PIN)";
+  }
+
+  return "admin";
+}
+
 export function unauthorizedResponse() {
   return NextResponse.json(
     { ok: false, error: "Unauthorized — เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น" },

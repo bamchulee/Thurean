@@ -9,16 +9,33 @@ export function formatProductStock(p: Product): {
   isLowStock: boolean;
   isOutOfStock: boolean;
 } {
-  if (!p.isAvailable) {
-    return { summary: "สินค้าหมดชั่วคราว", isLowStock: false, isOutOfStock: true };
+  // 1. ถ้า IS_ACTIVE เป็น 0 (หรือปิดการขาย) -> ถือว่าหมดสต็อกทันที ไม่สนว่าในสต็อกมีกี่ลูก
+  const isActive = p.isActive !== 0 && (p.isActive as any) !== "0" && p.isActive !== false;
+  if (!isActive || p.isAvailable === false) {
+    return { summary: "หมดสต็อก (ปิดการขาย)", approxUnits: 0, isLowStock: false, isOutOfStock: true };
+  }
+
+  // 2. ถ้า IS_ACTIVE เป็น 1 ค่อยเริ่มนับจริง:
+  // ต้องมี 1 ลูกขึ้นไป (stockQty >= 1) ถึงจะขึ้นว่ามี ถ้า 0 ลูกแสดงว่าหมดเหมือนกัน
+  if (typeof p.stockQty === "number") {
+    if (p.stockQty < 1) {
+      return { summary: "หมดสต็อกรอบนี้ (0 ลูก)", approxUnits: 0, isLowStock: false, isOutOfStock: true };
+    }
+    const unitName = p.unit || "ลูก";
+    return {
+      summary: `เหลือ ${p.stockQty} ${unitName}${typeof p.stockKg === "number" && p.stockKg > 0 ? ` (${p.stockKg} กก.)` : ""}`,
+      approxUnits: p.stockQty,
+      isLowStock: p.stockQty <= 2,
+      isOutOfStock: false,
+    };
   }
 
   if (p.stockUnit === "qty" || p.type === "flesh") {
-    const qty = typeof p.stockQty === "number" ? p.stockQty : typeof p.stockKg === "number" ? Math.round(p.stockKg) : undefined;
+    const qty = typeof p.stockKg === "number" ? Math.round(p.stockKg) : undefined;
     if (qty !== undefined) {
-      if (qty <= 0) return { summary: "หมดสต็อกรอบนี้", approxUnits: 0, isLowStock: false, isOutOfStock: true };
+      if (qty < 1) return { summary: "หมดสต็อกรอบนี้ (0 กล่อง)", approxUnits: 0, isLowStock: false, isOutOfStock: true };
       return {
-        summary: `เหลือ ${qty} ${p.unit}${typeof p.stockKg === "number" && p.stockKg !== qty ? ` (${p.stockKg.toFixed(1)} กก.)` : ""}`,
+        summary: `เหลือ ${qty} ${p.unit || "กล่อง"}`,
         approxUnits: qty,
         isLowStock: qty <= 5,
         isOutOfStock: false,
@@ -35,7 +52,7 @@ export function formatProductStock(p: Product): {
     const approx = avg ? Math.max(1, Math.floor(p.stockKg / avg)) : undefined;
     return {
       summary: approx
-        ? `เหลือ ${kgStr} กก. (~${approx} ${p.unit})`
+        ? `เหลือ ${kgStr} กก. (~${approx} ${p.unit || "ลูก"})`
         : `เหลือ ${kgStr} กก. (ชั่งน้ำหนักจริง)`,
       approxUnits: approx,
       isLowStock: p.stockKg <= 10,
@@ -51,14 +68,18 @@ export function formatProductStock(p: Product): {
  * ต้องตรงกับ planStockDeduction ใน google-apps-script/4_Orders.gs
  */
 export function getAvailableUnits(p: Product): number | undefined {
-  const isQtyBased = p.stockUnit === "qty" || p.type === "flesh";
-  if (isQtyBased && typeof p.stockQty === "number") {
-    return Math.max(0, p.stockQty);
+  const isActive = p.isActive !== 0 && (p.isActive as any) !== "0" && p.isActive !== false;
+  if (!isActive || p.isAvailable === false) return 0;
+
+  if (typeof p.stockQty === "number") {
+    return p.stockQty >= 1 ? p.stockQty : 0;
   }
+
+  const isQtyBased = p.stockUnit === "qty" || p.type === "flesh";
   if (typeof p.stockKg === "number") {
     if (p.stockKg <= 0) return 0;
     const avg = p.avgWeightKg && p.avgWeightKg > 0 ? p.avgWeightKg : isQtyBased ? 1 : 3;
-    return Math.max(1, Math.floor(p.stockKg / avg));
+    return Math.max(0, Math.floor(p.stockKg / avg));
   }
   return undefined;
 }

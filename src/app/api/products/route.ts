@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createProductRecord, getAllDatabase, localNextId } from "../../../lib/sheets-db";
-import { isAdminRequest, unauthorizedResponse } from "../../../lib/admin-auth";
+import { isAdminRequest, unauthorizedResponse, getAdminOperatorName } from "../../../lib/admin-auth";
 import type { Product } from "../../../types/durian";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +55,11 @@ export async function POST(req: NextRequest) {
         "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80",
       badge: body.badge?.trim() || undefined,
       isAvailable: body.isAvailable !== false,
+      isActive: (body.isActive === 0 || (body.isActive as any) === "0" || body.isActive === false) ? 0 : 1,
+      createDate: new Date().toISOString(),
+      createdBy: body.createdBy?.trim() || getAdminOperatorName(req),
+      updatedAt: new Date().toISOString(),
+      updatedBy: body.updatedBy?.trim() || body.createdBy?.trim() || getAdminOperatorName(req),
       description: body.description?.trim() || "ทุเรียนคัดคุณภาพจากสวนโดยทุเรียนวินคิน",
       specs: {
         maturity: body.maturity?.trim() || body.specs?.maturity || "แก่จัด 85%+",

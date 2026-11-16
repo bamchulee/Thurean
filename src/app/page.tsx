@@ -760,27 +760,37 @@ function ProductCard({
   onAddToCart: (p: Product) => void;
 }) {
   const [justAdded, setJustAdded] = useState(false);
+  const stockInfo = formatProductStock(product);
+  const isAvailable = !stockInfo.isOutOfStock;
 
   const handleAdd = () => {
+    if (!isAvailable) return;
     onAddToCart(product);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1200);
   };
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden border-2 border-[#1B4D31]/15 shadow-xs durian-card flex flex-col justify-between">
+    <div className={`bg-white rounded-2xl overflow-hidden border-2 shadow-xs durian-card flex flex-col justify-between transition ${
+      isAvailable ? "border-[#1B4D31]/15 hover:border-[#1B4D31]/30" : "border-stone-200 opacity-90"
+    }`}>
       <div>
         {/* Real Fruit Photo */}
         <div className="relative aspect-[4/3] overflow-hidden bg-stone-100">
           <img
             src={product.image}
             alt={product.name}
-            className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+            className={`w-full h-full object-cover transition-transform duration-500 ${isAvailable ? "hover:scale-105" : "grayscale-30"}`}
           />
           {product.badge && (
             <span className="absolute top-3 left-3 bg-[#1B4D31] text-amber-300 text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-sm border border-white/15 inline-flex items-center gap-1">
               <Flame className="w-3 h-3" />
               <span>{product.badge}</span>
+            </span>
+          )}
+          {stockInfo.isOutOfStock && (
+            <span className="absolute top-3 right-3 bg-rose-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-md border border-white/20">
+              {product.isActive === 0 || (product.isActive as any) === "0" || product.isActive === false ? "ปิดการขาย" : "หมดสต็อก"}
             </span>
           )}
           <span className="absolute bottom-3 left-3 bg-black/70 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg backdrop-blur-xs inline-flex items-center gap-1">
@@ -828,8 +838,8 @@ function ProductCard({
                 <Package className="w-3 h-3" />
                 <span>สต็อกคงเหลือ</span>
               </span>
-              <span className="font-semibold text-amber-800">
-                {formatProductStock(product).summary}
+              <span className={`font-semibold ${isAvailable ? "text-amber-800" : "text-rose-600 font-bold"}`}>
+                {stockInfo.summary}
               </span>
             </div>
           </div>
@@ -856,10 +866,10 @@ function ProductCard({
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              disabled={!product.isAvailable}
+              disabled={!isAvailable}
               onClick={handleAdd}
               className={`px-3 py-2.5 rounded-xl font-bold text-xs transition border inline-flex items-center gap-1 ${
-                product.isAvailable
+                isAvailable
                   ? justAdded
                     ? "bg-[#1B4D31] border-[#1B4D31] text-white"
                     : "bg-white border-stone-300 text-stone-700 hover:border-[#1B4D31] hover:text-[#1B4D31] active:scale-95"
@@ -880,15 +890,15 @@ function ProductCard({
             </button>
             <button
               type="button"
-              disabled={!product.isAvailable}
+              disabled={!isAvailable}
               onClick={() => onOrder(product)}
               className={`px-4 py-2.5 rounded-xl font-bold text-xs shadow-xs transition inline-flex items-center gap-1 ${
-                product.isAvailable
+                isAvailable
                   ? "bg-[#1B4D31] hover:bg-[#143B25] text-[#FFD84D] active:scale-95"
                   : "bg-stone-200 text-stone-500 cursor-not-allowed"
               }`}
             >
-              {product.isAvailable ? (
+              {isAvailable ? (
                 <>
                   <Zap className="w-3.5 h-3.5" />
                   <span>สั่งเลย</span>

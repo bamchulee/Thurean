@@ -620,6 +620,7 @@ export async function updateOrderRecord(
   const normalized = {
     ...updates,
     updatedAt: new Date().toISOString(),
+    updatedBy: updates.updatedBy || "admin",
     ...(updates.isActive !== undefined
       ? { isActive: (updates.isActive === 0 || (updates.isActive as any) === "0" || updates.isActive === false) ? 0 : 1 }
       : {}),
@@ -676,6 +677,7 @@ export async function updateProductRecord(
   const normalized = {
     ...updates,
     updatedAt: new Date().toISOString(),
+    updatedBy: updates.updatedBy || "admin",
     ...(updates.isActive !== undefined
       ? { isActive: (updates.isActive === 0 || (updates.isActive as any) === "0" || updates.isActive === false) ? 0 : 1 }
       : {}),
@@ -730,6 +732,7 @@ export async function updateRoundRecord(
   const normalized = {
     ...updates,
     updatedAt: new Date().toISOString(),
+    updatedBy: updates.updatedBy || "admin",
     ...(updates.isActive !== undefined
       ? { isActive: (updates.isActive === 0 || (updates.isActive as any) === "0" || updates.isActive === false) ? 0 : 1 }
       : {}),
@@ -804,6 +807,7 @@ export async function updateClaimRecord(
   const normalized = {
     ...updates,
     updatedAt: new Date().toISOString(),
+    updatedBy: updates.updatedBy || "admin",
     ...(updates.isActive !== undefined
       ? { isActive: (updates.isActive === 0 || (updates.isActive as any) === "0" || updates.isActive === false) ? 0 : 1 }
       : {}),
@@ -991,6 +995,7 @@ export async function updateUserRecord(
   const normalized = {
     ...updates,
     updatedAt: new Date().toISOString(),
+    updatedBy: updates.updatedBy || "admin",
     ...(updates.isActive !== undefined
       ? { isActive: (updates.isActive === 0 || (updates.isActive as any) === "0" || updates.isActive === false) ? 0 : 1 }
       : {}),

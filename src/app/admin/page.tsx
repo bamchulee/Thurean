@@ -2121,6 +2121,8 @@ function ProductsTab({
   const [image, setImage] = useState("https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80");
   const [description, setDescription] = useState("หมอนทองคัดผลแก่จัด 85%+ หวานมันกลมกล่อม เม็ดลีบ ไม่ป้ายยาเร่งสุก");
   const [pricePerKg, setPricePerKg] = useState("220");
+  const [isActiveState, setIsActiveState] = useState<number>(1);
+  const [updatedByInput, setUpdatedByInput] = useState<string>("Admin");
   const [saving, setSaving] = useState(false);
 
   const openAddModal = () => {
@@ -2136,6 +2138,8 @@ function ProductsTab({
     setImage("https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80");
     setDescription("หมอนทองคัดผลแก่จัด 85%+ หวานมันกลมกล่อม เม็ดลีบ ไม่ป้ายยาเร่งสุก");
     setPricePerKg("220");
+    setIsActiveState(1);
+    setUpdatedByInput("Admin");
     setShowModal(true);
   };
 
@@ -2152,6 +2156,9 @@ function ProductsTab({
     setImage(p.image || "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80");
     setDescription(p.description || "");
     setPricePerKg(String(p.pricePerKg || p.price || 220));
+    const active = p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false ? 0 : 1;
+    setIsActiveState(active);
+    setUpdatedByInput(p.updatedBy || "Admin");
     setShowModal(true);
   };
 
@@ -2159,7 +2166,7 @@ function ProductsTab({
     const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isAvailable: !p.isAvailable }),
+      body: JSON.stringify({ isAvailable: !p.isAvailable, updatedBy: "Admin" }),
     });
     const json = (await res.json()) as { ok: boolean; product?: Product };
     if (res.ok && json.ok && json.product) {
@@ -2176,7 +2183,11 @@ function ProductsTab({
     const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: nextVal }),
+      body: JSON.stringify({ 
+        isActive: nextVal, 
+        isAvailable: nextVal === 1,
+        updatedBy: "Admin" 
+      }),
     });
     const json = (await res.json()) as { ok: boolean; product?: Product };
     if (res.ok && json.ok && json.product) {
@@ -2196,7 +2207,7 @@ function ProductsTab({
     const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pricePerKg: nextPrice, price: nextPrice }),
+      body: JSON.stringify({ pricePerKg: nextPrice, price: nextPrice, updatedBy: "Admin" }),
     });
     const json = (await res.json()) as { ok: boolean; product?: Product };
     if (res.ok && json.ok && json.product) {
@@ -2217,7 +2228,7 @@ function ProductsTab({
     const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stockQty: val, isAvailable: val > 0 }),
+      body: JSON.stringify({ stockQty: val, isAvailable: val > 0, updatedBy: "Admin" }),
     });
     const json = (await res.json()) as { ok: boolean; product?: Product };
     if (res.ok && json.ok && json.product) {
@@ -2243,6 +2254,9 @@ function ProductsTab({
         description: description.trim(),
         pricePerKg: Number(pricePerKg || 0),
         price: Number(pricePerKg || 0),
+        isActive: isActiveState,
+        isAvailable: isActiveState === 1 && Number(stockQty || 0) >= 1,
+        updatedBy: updatedByInput.trim() || "Admin",
       };
 
       if (editingProduct) {
@@ -2294,143 +2308,187 @@ function ProductsTab({
       </div>
 
       <div className="grid gap-3">
-        {products.map((p) => (
-          <div
-            key={p.id}
-            className="bg-white rounded-2xl shadow-xs border border-stone-200 p-4 sm:p-5 flex flex-col md:flex-row md:items-center gap-4 hover:border-stone-300 transition"
-          >
-            <img
-              src={p.image}
-              alt={p.name}
-              className="w-20 h-20 rounded-2xl object-cover shrink-0 bg-stone-100 border border-stone-200 shadow-xs"
-            />
-            <div className="flex-1 min-w-0 space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-mono bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-md font-bold text-stone-700">
-                  {p.id}
-                </span>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    p.productType === "รับมาเป็นโลแล้วขายเลย"
-                      ? "bg-purple-50 text-purple-800 border-purple-200"
-                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
+        {products.map((p) => {
+          const isActive = p.isActive !== 0 && (p.isActive as any) !== "0" && p.isActive !== false;
+          const stockNum = p.stockQty ?? 0;
+          const hasStock = isActive && stockNum >= 1;
+
+          return (
+            <div
+              key={p.id}
+              className={`bg-white rounded-2xl shadow-xs border p-4 sm:p-5 flex flex-col md:flex-row md:items-center gap-4 transition ${
+                isActive ? "border-stone-200 hover:border-stone-300" : "border-rose-200 bg-rose-50/20"
+              }`}
+            >
+              <div className="relative shrink-0">
+                <img
+                  src={p.image}
+                  alt={p.name}
+                  className={`w-20 h-20 rounded-2xl object-cover bg-stone-100 border shadow-xs ${
+                    isActive ? "border-stone-200" : "border-rose-200 opacity-70"
                   }`}
-                >
-                  {p.productType || "รับคัดลูก"}
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200">
-                  {p.grade || "เกรด A+ พรีเมียม"}
-                </span>
+                />
+                {!isActive && (
+                  <span className="absolute inset-x-0 bottom-0 bg-rose-600/90 text-white text-[9px] font-bold text-center py-0.5 rounded-b-2xl">
+                    ปิดการขาย
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-mono bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-md font-bold text-stone-700">
+                    {p.id}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      p.productType === "รับมาเป็นโลแล้วขายเลย"
+                        ? "bg-purple-50 text-purple-800 border-purple-200"
+                        : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    }`}
+                  >
+                    {p.productType || "รับคัดลูก"}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                    {p.grade || "เกรด A+ พรีเมียม"}
+                  </span>
+                  {isActive ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      IS_ACTIVE: 1 (เปิดขาย)
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                      IS_ACTIVE: 0 (ปิดขาย — หมดสต็อกทันที)
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="font-extrabold text-base text-stone-900 flex items-center gap-2">
+                  <span>{p.name}</span>
+                  {!isActive && (
+                    <span className="text-xs text-rose-600 font-bold bg-rose-100 px-2 py-0.5 rounded-md">
+                      [หมดสต็อกทันที]
+                    </span>
+                  )}
+                </h3>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-stone-600 pt-1">
+                  <div>
+                    <span className="text-stone-400 block text-[10px]">ระดับความสุก:</span>
+                    <span className="font-bold text-amber-800">
+                      {p.maturity || p.specs?.maturity || "แก่จัด 85%+"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-stone-400 block text-[10px]">Texture:</span>
+                    <span className="font-bold text-teal-800">
+                      {p.texture || p.specs?.texture || "กรอบนอกนุ่มใน"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-stone-400 block text-[10px]">น้ำหนักต่อลูก:</span>
+                    <span className="font-bold text-stone-800">{p.weight}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-400 block text-[10px]">จำนวนคงเหลือ:</span>
+                    <span className={`font-bold font-mono text-sm ${hasStock ? "text-emerald-800" : "text-rose-600"}`}>
+                      {stockNum} ลูก
+                    </span>
+                    <span className="text-[10px] block font-semibold">
+                      {!isActive ? (
+                        <span className="text-rose-600">หมดทันที (ปิดขาย)</span>
+                      ) : stockNum >= 1 ? (
+                        <span className="text-emerald-700">✓ มีสินค้าพร้อมขาย</span>
+                      ) : (
+                        <span className="text-rose-600">✕ หมดสต็อก (0 ลูก)</span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {p.description && (
+                  <p className="text-xs text-stone-500 pt-1 line-clamp-2">
+                    📝 {p.description}
+                  </p>
+                )}
+
+                {/* Audit: Update By & Last Update Time */}
+                <div className="flex items-center gap-2 text-[11px] text-stone-600 pt-1.5 font-mono flex-wrap bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200">
+                  <span className="font-bold text-stone-700 inline-flex items-center gap-1">
+                    👤 Update By: <span className="text-emerald-800 underline font-semibold">{p.updatedBy || p.createdBy || "Admin"}</span>
+                  </span>
+                  <span className="text-stone-300">•</span>
+                  <span>🕒 อัปเดตเมื่อ: {p.updatedAt ? new Date(p.updatedAt).toLocaleString("th-TH") : (p.createDate ? new Date(p.createDate).toLocaleString("th-TH") : "-")}</span>
+                  <span className="text-stone-300">•</span>
+                  <span className="text-stone-400">สร้าง: {p.createdBy || "admin"}</span>
+                </div>
               </div>
 
-              <h3 className="font-extrabold text-base text-stone-900">
-                {p.name}
-              </h3>
+              <div className="flex items-center justify-between md:justify-end gap-2.5 shrink-0 flex-wrap pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
+                <div className="text-right pr-2">
+                  <span className="text-[10px] text-stone-400 block">ราคาต่อโล</span>
+                  <p className="font-black text-[#1B4D31] text-lg font-mono">
+                    ฿{(p.pricePerKg || p.price).toLocaleString()}
+                    <span className="text-xs font-normal text-stone-500"> /กก.</span>
+                  </p>
+                </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-stone-600 pt-1">
-                <div>
-                  <span className="text-stone-400 block text-[10px]">ระดับความสุก:</span>
-                  <span className="font-bold text-amber-800">
-                    {p.maturity || p.specs?.maturity || "แก่จัด 85%+"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-stone-400 block text-[10px]">Texture:</span>
-                  <span className="font-bold text-teal-800">
-                    {p.texture || p.specs?.texture || "กรอบนอกนุ่มใน"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-stone-400 block text-[10px]">น้ำหนักต่อลูก:</span>
-                  <span className="font-bold text-stone-800">{p.weight}</span>
-                </div>
-                <div>
-                  <span className="text-stone-400 block text-[10px]">จำนวนคงเหลือ:</span>
-                  <span className="font-bold text-emerald-800 font-mono">
-                    {p.stockQty ?? 0} ลูก
-                  </span>
-                </div>
-              </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(p)}
+                    className="bg-stone-100 hover:bg-stone-200 text-stone-800 px-3 py-1.5 rounded-xl text-xs font-bold transition"
+                    title="แก้ไขข้อมูลสินค้าครบทุกช่อง"
+                  >
+                    แก้ไข
+                  </button>
 
-              {p.description && (
-                <p className="text-xs text-stone-500 pt-1 line-clamp-2">
-                  📝 {p.description}
-                </p>
-              )}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickEditStock(p)}
+                    className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 px-2.5 py-1.5 rounded-xl text-xs font-bold transition font-mono"
+                    title="แก้จำนวนลูกคงเหลือด่วน"
+                  >
+                    แก้สต็อก ({stockNum})
+                  </button>
 
-              <div className="flex items-center gap-2 text-[10px] text-stone-400 pt-1 font-mono">
-                <span>สร้างเมื่อ: {p.createDate ? new Date(p.createDate).toLocaleDateString("th-TH") : "-"}</span>
-                <span>• ผู้บันทึก: {p.createdBy || "admin"}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickEditPrice(p)}
+                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 px-2.5 py-1.5 rounded-xl text-xs font-bold transition font-mono"
+                    title="แก้ราคาต่อโลด่วน"
+                  >
+                    แก้ราคา
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => toggleProductActive(p)}
+                    title="คลิกเพื่อสลับเปิดขาย (1) หรือ ปิดการขายหมดสต็อกทันที (0)"
+                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition border shadow-xs inline-flex items-center gap-1 ${
+                      isActive
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700"
+                        : "bg-rose-600 hover:bg-rose-700 text-white border-rose-700"
+                    }`}
+                  >
+                    {isActive ? (
+                      <>
+                        <span>🟢 เปิดขายอยู่</span>
+                        <span className="text-[10px] opacity-80">(คลิกเพื่อปิด)</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🔴 ปิดการขาย</span>
+                        <span className="text-[10px] opacity-80">(คลิกเพื่อเปิด)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-
-            <div className="flex items-center justify-between md:justify-end gap-2.5 shrink-0 flex-wrap pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
-              <div className="text-right pr-2">
-                <span className="text-[10px] text-stone-400 block">ราคาต่อโล</span>
-                <p className="font-black text-[#1B4D31] text-lg font-mono">
-                  ฿{(p.pricePerKg || p.price).toLocaleString()}
-                  <span className="text-xs font-normal text-stone-500"> /กก.</span>
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => openEditModal(p)}
-                  className="bg-stone-100 hover:bg-stone-200 text-stone-800 px-3 py-1.5 rounded-xl text-xs font-bold transition"
-                  title="แก้ไขข้อมูลสินค้าครบทุกช่อง"
-                >
-                  แก้ไข
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickEditStock(p)}
-                  className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 px-2.5 py-1.5 rounded-xl text-xs font-bold transition font-mono"
-                  title="แก้จำนวนลูกคงเหลือด่วน"
-                >
-                  แก้สต็อก ({p.stockQty ?? 0})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickEditPrice(p)}
-                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 px-2.5 py-1.5 rounded-xl text-xs font-bold transition font-mono"
-                  title="แก้ราคาต่อโลด่วน"
-                >
-                  แก้ราคา
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => toggleAvailability(p)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
-                    p.isAvailable
-                      ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                      : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
-                  }`}
-                >
-                  {p.isAvailable ? "เปิดขาย" : "ปิดขาย"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => toggleProductActive(p)}
-                  title="สลับสถานะ Is Active (1 = ใช้งาน, 0 = ปิดใช้งาน/ซ่อน)"
-                  className={`px-2 py-1.5 rounded-xl text-xs font-bold transition border ${
-                    p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false
-                      ? "bg-stone-100 text-stone-500 border-stone-300"
-                      : "bg-emerald-100/60 text-emerald-900 border-emerald-300"
-                  }`}
-                >
-                  {p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false
-                    ? "Active: 0"
-                    : "Active: 1"}
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* MODAL: ADD / EDIT PRODUCT */}
@@ -2620,6 +2678,44 @@ function ProductsTab({
                 placeholder="อธิบายระดับความหวาน ความมัน เม็ดลีบ หรือความพิเศษของทุเรียนล็อตนี้..."
                 className="w-full border border-stone-300 rounded-xl p-3 text-xs leading-relaxed"
               />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-stone-50 rounded-2xl border border-stone-200">
+              <div>
+                <label className="block text-xs font-bold text-stone-800 mb-1">
+                  สถานะการขาย (IS_ACTIVE) *
+                </label>
+                <select
+                  value={isActiveState}
+                  onChange={(e) => setIsActiveState(Number(e.target.value))}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold bg-white"
+                >
+                  <option value={1}>1: เปิดขาย (นับสต็อกจริง ต้องมี 1 ลูกขึ้นไป)</option>
+                  <option value={0}>0: ปิดการขาย (หมดสต็อกทันที ไม่สนสต็อก)</option>
+                </select>
+                <p className="text-[10px] text-stone-500 mt-1">
+                  {isActiveState === 1
+                    ? "✓ เริ่มนับตามสต็อกจริง (ถ้าสต็อก 0 แสดงว่าหมด, 1 ลูกขึ้นไปแสดงว่ามี)"
+                    : "✕ ระบบจะขึ้นว่าหมดสต็อกทันที ไม่สนว่าจะมีในสต็อกกี่ลูก"}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-800 mb-1">
+                  ผู้บันทึก / อัปเดตสถานะ (Update By) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={updatedByInput}
+                  onChange={(e) => setUpdatedByInput(e.target.value)}
+                  placeholder="เช่น Admin, ผู้จัดการร้าน"
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold font-mono"
+                />
+                <p className="text-[10px] text-stone-500 mt-1">
+                  บันทึกลงคอลัมน์ UpdatedBy เพื่อตรวจเช็คว่าใครเป็นคนเปลี่ยนสถานะ
+                </p>
+              </div>
             </div>
 
             <div className="flex gap-2 pt-2 border-t border-stone-100">
