@@ -8,6 +8,9 @@ import {
   updateOrderRecord,
 } from "./sheets-db";
 import {
+  type AdminAlertLinks,
+  adminOrderUrl,
+  getLineChatUrl,
   buildCancelledNoticeFlex,
   buildDeliveredNoticeFlex,
   buildPaymentConfirmedFlex,
@@ -51,6 +54,15 @@ export async function notifyAdmins(messages: unknown[]): Promise<void> {
   }
 }
 
+/** ปุ่มในการ์ดกลุ่มแอดมิน: เปิดหน้าออเดอร์นี้ / แชทลูกค้าคนนี้ */
+export async function adminAlertLinks(order: Order): Promise<AdminAlertLinks> {
+  const cfg = getRuntimeConfig();
+  return {
+    orderUrl: adminOrderUrl(order.id, cfg.publicBaseUrl),
+    chatUrl: await getLineChatUrl(order.lineUserId, cfg.lineChannelAccessToken),
+  };
+}
+
 async function notifyCustomer(order: Order, messages: unknown[]): Promise<void> {
   if (!order.lineUserId) return;
   const res = await pushLineMessage(order.lineUserId, messages, getRuntimeConfig().lineChannelAccessToken);
@@ -79,11 +91,10 @@ function publicBaseUrl(): string | undefined {
 // ------------------------------------------------------------
 
 /**
- * totalKg: น้ำหนักรวมทั้งออเดอร์ (ใช้ได้เมื่อมีสินค้ารายการเดียว)
- * fruitKgs: น้ำหนักทีละลูก (รวมกันเป็นน้ำหนักรวม)
- * itemKgs: น้ำหนักรวมของแต่ละรายการตามลำดับ items (ออเดอร์หลายรายการ)
+ * ฟอร์มชั่งในหน้าออเดอร์: แต่ละรายการกรอก "กี่ลูก ลูกละกี่กิโล" + ราคาต่อกิโล (ค่าเริ่มต้นจากชีต Products)
+ * ยอด = น้ำหนักรวม × ราคาต่อกิโล — จำนวนลูกจริงอาจต่างจากที่จองได้ (ใช้ตามที่ชั่ง)
  */
-export type WeighInput = { totalKg?: number; fruitKgs?: number[]; itemKgs?: number[] };
+export type WeighInput = { items: { fruitKgs: number[]; pricePerKg?: number }[] };
 
 export function priceItemsByWeight(
   order: Order,
@@ -92,38 +103,33 @@ export function priceItemsByWeight(
 ): { items: OrderItem[]; totalPrice: number; totalKg: number } | { error: string } {
   const items = order.items || [];
   if (items.length === 0) return { error: "ออเดอร์นี้ไม่มีรายการสินค้า" };
-
-  let kgs: number[];
-  if (input.itemKgs) {
-    kgs = input.itemKgs;
-  } else if (items.length > 1) {
-    return { error: `ออเดอร์ #${order.id} มี ${items.length} รายการ — กรุณาชั่งแยกรายการในหน้าแอดมิน` };
-  } else if (input.fruitKgs && input.fruitKgs.length > 0) {
-    kgs = [input.fruitKgs.reduce((s, n) => s + n, 0)];
-  } else {
-    kgs = [input.totalKg || 0];
-  }
-  if (kgs.length !== items.length || kgs.some((n) => !Number.isFinite(n) || n <= 0 || n > 500)) {
-    return { error: "น้ำหนักไม่ถูกต้อง (ต้องเป็นตัวเลขมากกว่า 0 กก.)" };
+  if (!input?.items || input.items.length !== items.length) {
+    return { error: "ต้องกรอกน้ำหนักให้ครบทุกรายการ" };
   }
 
   let totalPrice = 0;
-  const priced = items.map((it, i) => {
+  let totalKg = 0;
+  const priced: OrderItem[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const fruitKgs = (input.items[i].fruitKgs || []).map((n) => Math.round(Number(n) * 100) / 100);
+    if (fruitKgs.length === 0 || fruitKgs.length > 50) {
+      return { error: `${it.productName}: ต้องมีอย่างน้อย 1 ลูก` };
+    }
+    if (fruitKgs.some((n) => !Number.isFinite(n) || n <= 0 || n > 30)) {
+      return { error: `${it.productName}: น้ำหนักต่อลูกต้องอยู่ระหว่าง 0–30 กก.` };
+    }
     const prod = products.find((p) => p.id === it.productId);
-    const pricePerKg = Number(prod?.pricePerKg || it.pricePerKg || 0);
-    if (!pricePerKg) return null;
-    const kg = Math.round(kgs[i] * 100) / 100;
+    const override = Number(input.items[i].pricePerKg);
+    const pricePerKg = override > 0 ? override : Number(prod?.pricePerKg || it.pricePerKg || 0);
+    if (!pricePerKg) return { error: `${it.productName}: ยังไม่มีราคาต่อกิโล` };
+
+    const kg = Math.round(fruitKgs.reduce((s, n) => s + n, 0) * 100) / 100;
+    totalKg += kg;
     totalPrice += Math.round(kg * pricePerKg);
-    return { ...it, pricePerKg, actualWeightKg: kg };
-  });
-  if (priced.some((p) => p === null)) {
-    return { error: "สินค้าบางรายการไม่มีราคาต่อกิโล — ตั้ง pricePerKg ในชีต Products ก่อน" };
+    priced.push({ ...it, qty: fruitKgs.length, fruitKgs, actualWeightKg: kg, pricePerKg, price: pricePerKg });
   }
-  return {
-    items: priced as OrderItem[],
-    totalPrice,
-    totalKg: kgs.reduce((s, n) => s + n, 0),
-  };
+  return { items: priced, totalPrice, totalKg: Math.round(totalKg * 100) / 100 };
 }
 
 export async function weighOrder(orderRef: string, input: WeighInput, actor: string): Promise<WorkflowResult> {
@@ -143,6 +149,7 @@ export async function weighOrder(orderRef: string, input: WeighInput, actor: str
       totalPrice: priced.totalPrice,
       grandTotal: priced.totalPrice + (order.shippingCost || 0),
       pricePerItem: priced.items[0].pricePerKg,
+      quantity: qty,
       weightPerItem: `${(priced.totalKg / qty).toFixed(2)} กก.`,
       orderStatus: "รอชำระเงิน",
       paymentStatus: "pending",
@@ -154,12 +161,15 @@ export async function weighOrder(orderRef: string, input: WeighInput, actor: str
   return { ok: true, order: updated, changed: true };
 }
 
-/** สินค้าราคาตายตัว (เช่น เนื้อแกะกล่อง) ไม่ต้องชั่ง: ส่งยอดตามราคาที่จองไว้ได้เลย */
+/** ออเดอร์ที่แอดมินคีย์ราคาเหมาไว้แล้ว (ไม่ต้องชั่ง): ส่งยอดตามนั้นได้เลย */
 export async function quoteAtBookedPrice(orderRef: string, actor: string): Promise<WorkflowResult> {
   const { order } = await loadFresh(orderRef);
   if (!order) return fail(`ไม่พบออเดอร์ "${orderRef}"`, 404);
   if (orderStatusOf(order) !== "สั่งจอง") {
     return fail(`ออเดอร์ #${order.id} อยู่สถานะ "${orderStatusOf(order)}" แล้ว`);
+  }
+  if (!(order.totalPrice > 0)) {
+    return fail(`ออเดอร์ #${order.id} ยังไม่มียอดเงิน — ต้องชั่งน้ำหนักก่อน`, 400);
   }
   const updated = await save(
     order,
@@ -203,7 +213,7 @@ export async function submitSlip(orderRef: string, slipPath: string, actor: stri
     actor
   );
   await notifyCustomer(updated, buildSlipSubmittedReceiptFlex(updated));
-  await notifyAdmins(buildSlipAlertForAdmin(updated, slipPath, publicBaseUrl()));
+  await notifyAdmins(buildSlipAlertForAdmin(updated, await adminAlertLinks(updated), slipPath));
   return { ok: true, order: updated, changed: true };
 }
 

@@ -19,7 +19,7 @@ import type { Order } from "../types/durian";
 import { OrderSuccessModal } from "./OrderSuccessModal";
 import { LineIcon } from "./Icons";
 import { MapLocationPicker } from "./MapLocationPicker";
-import { estimateUnitPrice } from "../lib/stock";
+import { pricePerKgOf } from "../lib/stock";
 
 export function CartDrawerModal({
   roundId,
@@ -32,7 +32,7 @@ export function CartDrawerModal({
   onSuccess: (order: Order) => void;
   onClose: () => void;
 }) {
-  const { items, updateQty, removeItem, clearCart, totalPrice } = useCart();
+  const { items, updateQty, removeItem, clearCart } = useCart();
   const { user, openAuthModal } = useAuth();
   const [name, setName] = useState(
     user
@@ -74,7 +74,6 @@ export function CartDrawerModal({
 
   const shippingCost =
     shopInfo.shippingMethods.find((s) => s.name === shipping)?.price || 0;
-  const grandTotal = totalPrice + shippingCost;
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,7 +187,7 @@ export function CartDrawerModal({
                       <span className="truncate">{it.ripenessPref}</span>
                     </p>
                     <p className="text-xs font-bold text-[#1B4D31] mt-0.5">
-                      ~฿{(estimateUnitPrice(it.product) * it.qty).toLocaleString()}
+                      ฿{pricePerKgOf(it.product).toLocaleString()}/กก. • {it.qty} {it.product.unit || "ลูก"}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -309,14 +308,14 @@ export function CartDrawerModal({
             <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 space-y-1.5">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-semibold text-amber-950">
-                  ยอดประเมินเบื้องต้น (รวมค่าส่ง ฿{shippingCost})
+                  ยอดเงิน = น้ำหนักจริง × ราคาต่อกิโล
                 </span>
-                <span className="text-xl font-black text-[#1B4D31]">
-                  ~฿{grandTotal.toLocaleString()}
+                <span className="text-sm font-black text-[#1B4D31]">
+                  + ค่าส่ง ฿{shippingCost}
                 </span>
               </div>
               <p className="text-[11px] text-amber-800 leading-relaxed">
-                ⚖️ <strong>ทุเรียนแต่ละผลมีน้ำหนักต่างกัน:</strong> แอดมินจะชั่งน้ำหนักจริงต่อลูก และส่งสรุปยอดเงินสุทธิที่แท้จริง พร้อม QR ชำระเงินให้ท่านทาง LINE ทันทีครับ
+                ⚖️ <strong>ทุเรียนแต่ละผลมีน้ำหนักต่างกัน:</strong> จองไว้ก่อน ยังไม่ต้องโอน — แอดมินชั่งน้ำหนักจริงแล้วจะส่งยอดเงินพร้อม QR ให้ทาง LINE ครับ
               </p>
             </div>
 

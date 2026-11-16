@@ -21,9 +21,11 @@ export function OrderSuccessModal({
   const summaryText = [
     `สั่งซื้อ ${shopInfo.name} (${order.id})`,
     `ผู้รับ: ${order.customerName} (${order.phone})`,
-    `รายการ: ${order.items.map((it) => `${it.productName} x${it.qty}`).join(", ")}`,
+    `รายการ: ${order.items.map((it) => `${it.productName} x${it.qty} (฿${(it.pricePerKg || it.price).toLocaleString()}/กก.)`).join(", ")}`,
     `ความสุก: ${order.ripenessPref || "ตามมาตรฐานร้าน"}`,
-    `ยอดโอนสุทธิ: ฿${grandTotal.toLocaleString()}`,
+    order.orderStatus === "สั่งจอง"
+      ? `ยอดเงิน: รอชั่งน้ำหนัก (+ ค่าส่ง ฿${order.shippingCost})`
+      : `ยอดโอนสุทธิ: ฿${grandTotal.toLocaleString()}`,
     `จัดส่ง: ${order.shippingMethod}`,
     `ที่อยู่: ${order.address || "-"}`,
   ].join("\n");

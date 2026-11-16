@@ -145,6 +145,20 @@ export function allowedNextStatuses(current: CanonicalOrderStatus): CanonicalOrd
   return NEXT[current];
 }
 
+/** ยังไม่ได้ชั่ง = ยังไม่มียอดเงิน แสดงแค่ราคาต่อกิโล */
+export function isAwaitingWeigh(order: { orderStatus?: string; paymentStatus?: string }): boolean {
+  return orderStatusOf(order) === "สั่งจอง";
+}
+
+/** ราคาต่อกิโลของแต่ละรายการ เช่น "หมอนทอง ฿220/กก." */
+export function perKgSummary(order: {
+  items: { productName: string; qty: number; pricePerKg?: number; price: number }[];
+}): string {
+  return order.items
+    .map((it) => `${it.productName} x${it.qty} • ฿${(it.pricePerKg || it.price).toLocaleString()}/กก.`)
+    .join("\n");
+}
+
 /** ชั่งน้ำหนัก / แก้ยอดได้เฉพาะก่อนลูกค้าจ่าย */
 export function canWeigh(order: { orderStatus?: string; paymentStatus?: string }): boolean {
   const s = orderStatusOf(order);

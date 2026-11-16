@@ -69,6 +69,8 @@ export interface OrderItem {
   weightPerItem?: string | number;
   pricePerKg?: number;
   actualWeightKg?: number;
+  /** น้ำหนักที่ชั่งได้ทีละลูก (กก.) — กรอกจากหน้าออเดอร์ของแอดมิน */
+  fruitKgs?: number[];
 }
 
 export type PaymentStatus = "pending" | "slip_submitted" | "confirmed" | "refunded" | string;

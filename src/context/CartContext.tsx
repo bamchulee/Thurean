@@ -9,7 +9,6 @@ import React, {
   type ReactNode,
 } from "react";
 import type { Product } from "../types/durian";
-import { estimateUnitPrice } from "../lib/stock";
 
 export interface CartItem {
   key: string; // `${product.id}__${ripenessPref}`
@@ -25,7 +24,6 @@ interface CartContextType {
   updateQty: (key: string, qty: number) => void;
   clearCart: () => void;
   totalItems: number;
-  totalPrice: number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -91,8 +89,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const clearCart = useCallback(() => setItems([]), []);
 
   const totalItems = items.reduce((s, i) => s + i.qty, 0);
-  // ราคาประเมิน (ราคา/กก. × น้ำหนักเฉลี่ย) — ยอดจริงแจ้งหลังชั่ง
-  const totalPrice = items.reduce((s, i) => s + estimateUnitPrice(i.product) * i.qty, 0);
 
   return (
     <CartContext.Provider
@@ -103,7 +99,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
         updateQty,
         clearCart,
         totalItems,
-        totalPrice,
       }}
     >
       {children}

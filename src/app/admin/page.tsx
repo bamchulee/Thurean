@@ -51,7 +51,7 @@ import { shopInfo } from "../../data/mock";
 import { ShippingLabelModal } from "../../components/ShippingLabelModal";
 import { LineIcon } from "../../components/Icons";
 import { COURIER_OPTIONS, resolveCourierInfo } from "../../lib/courier";
-import { estimateUnitPrice, formatProductStock } from "../../lib/stock";
+import { formatProductStock, pricePerKgOf } from "../../lib/stock";
 import {
   ORDER_STATUSES,
   allowedNextStatuses,
@@ -868,13 +868,11 @@ function ManualOrderModal({
 
   const [productId, setProductId] = useState(products[0]?.id || "");
   const [qty, setQty] = useState(1);
-  const [customPrice, setCustomPrice] = useState(products[0] ? estimateUnitPrice(products[0]) : 590);
+  const [customPrice, setCustomPrice] = useState(products[0] ? pricePerKgOf(products[0]) : 220);
   const [ripenessPref, setRipenessPref] = useState("กรอบนอกนุ่มใน");
   const [roundId, setRoundId] = useState(rounds[0]?.id || "");
   const [shippingMethod, setShippingMethod] = useState("ควบคุมอุณหภูมิ (เย็น)");
   const [shippingCost, setShippingCost] = useState(120);
-  const [paymentStatus, setPaymentStatus] = useState<"confirmed" | "pending">("confirmed");
-  const [orderStatus, setOrderStatus] = useState<OrderStatus>("ชำระเงินแล้ว/เตรียมจัดส่ง");
   const [notifyLine, setNotifyLine] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -883,7 +881,7 @@ function ManualOrderModal({
     setProductId(id);
     const prod = products.find((p) => p.id === id);
     if (prod) {
-      setCustomPrice(estimateUnitPrice(prod));
+      setCustomPrice(pricePerKgOf(prod));
     }
   };
 
@@ -897,8 +895,6 @@ function ManualOrderModal({
   };
 
   const selectedProd = products.find((p) => p.id === productId) || products[0];
-  const itemsTotal = customPrice * qty;
-  const grandTotal = itemsTotal + Number(shippingCost || 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -925,7 +921,6 @@ function ManualOrderModal({
             productId: selectedProd ? selectedProd.id : "manual",
             productName: selectedProd ? selectedProd.name : "ทุเรียนสั่งพิเศษ",
             qty: Number(qty),
-            price: Number(customPrice),
             variety: selectedProd ? selectedProd.variety : "หมอนทอง",
           },
         ],
@@ -933,8 +928,6 @@ function ManualOrderModal({
         shippingCost: Number(shippingCost || 0),
         ripenessPref: ripenessPref || "กรอบนอกนุ่มใน",
         roundId: roundId || undefined,
-        paymentStatus,
-        orderStatus,
         userId: selectedUserId || undefined,
         lineUserId: lineUserId.trim() || undefined,
         isAdminRequest: true,
@@ -1154,7 +1147,7 @@ function ManualOrderModal({
               >
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({p.variety}) - ~฿{estimateUnitPrice(p)}/ลูก [คงเหลือ: {formatProductStock(p).summary}]
+                    {p.name} ({p.variety}) - ฿{pricePerKgOf(p)}/กก. [คงเหลือ: {formatProductStock(p).summary}]
                   </option>
                 ))}
               </select>
@@ -1176,14 +1169,11 @@ function ManualOrderModal({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-stone-700 mb-1">
-                ราคาต่อหน่วย (฿)
+                ราคาต่อกิโล (แก้ได้ตอนชั่ง)
               </label>
-              <input
-                type="number"
-                value={customPrice}
-                onChange={(e) => setCustomPrice(Number(e.target.value))}
-                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold font-mono"
-              />
+              <div className="w-full border border-stone-200 rounded-xl px-3 py-2 text-xs bg-stone-50 font-bold font-mono">
+                ฿{customPrice.toLocaleString()}/กก.
+              </div>
             </div>
             <div>
               <label className="block text-[11px] font-bold text-stone-700 mb-1">
@@ -1255,35 +1245,9 @@ function ManualOrderModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-stone-700 mb-1">
-                สถานะการชำระเงิน
-              </label>
-              <select
-                value={paymentStatus}
-                onChange={(e) => setPaymentStatus(e.target.value as any)}
-                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
-              >
-                <option value="confirmed">ชำระแล้ว (เงินสด / โอนเรียบร้อย)</option>
-                <option value="pending">ยังไม่ชำระ</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-stone-700 mb-1">
-                สถานะออเดอร์
-              </label>
-              <select
-                value={orderStatus}
-                onChange={(e) => setOrderStatus(e.target.value as OrderStatus)}
-                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
-              >
-                <option value="สั่งจอง">สั่งจอง (ต้องชั่งน้ำหนักก่อน)</option>
-                <option value="รอชำระเงิน">รอชำระเงิน (ยอดตามที่กรอก)</option>
-                <option value="ชำระเงินแล้ว/เตรียมจัดส่ง">ชำระแล้ว / เตรียมจัดส่ง</option>
-              </select>
-            </div>
-          </div>
+          <p className="text-[11px] text-stone-500 bg-stone-50 border border-stone-200 rounded-xl p-2.5">
+            ออเดอร์จะเป็น &quot;สั่งจอง&quot; — เปิดหน้าออเดอร์เพื่อชั่งน้ำหนัก (ระบบคิดยอดจากราคาต่อกิโล) แล้วค่อยยืนยันรับเงิน
+          </p>
 
           {lineUserId && (
             <label className="flex items-center gap-2 text-xs text-stone-700 pt-1">
@@ -1301,14 +1265,9 @@ function ManualOrderModal({
         {/* Total Summary */}
         <div className="bg-[#1B4D31]/5 border border-[#1B4D31]/20 rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-stone-500 font-bold">ยอดสุทธิที่ต้องชำระ (รวมค่าส่ง)</p>
-            <p className="text-xs text-stone-400">
-              ค่าสินค้า ฿{itemsTotal.toLocaleString()} + ค่าส่ง ฿{shippingCost.toLocaleString()}
-            </p>
+            <p className="text-xs text-stone-500 font-bold">ยอดเงิน = น้ำหนักที่ชั่ง × ฿{customPrice.toLocaleString()}/กก.</p>
+            <p className="text-xs text-stone-400">+ ค่าส่ง ฿{shippingCost.toLocaleString()} — คิดยอดตอนชั่งในหน้าออเดอร์</p>
           </div>
-          <p className="text-2xl font-black text-[#1B4D31] font-mono">
-            ฿{grandTotal.toLocaleString()}
-          </p>
         </div>
 
         {/* Buttons */}
@@ -1369,48 +1328,6 @@ function OrdersTab({
   const [cancelReason, setCancelReason] = useState("");
   const [notifyLine, setNotifyLine] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
-
-  // ชั่งน้ำหนัก: กรอกน้ำหนักรวมของแต่ละรายการ — เซิร์ฟเวอร์คิดยอดจาก ราคา/กก. ในชีต แล้วส่ง QR ให้ลูกค้า
-  const [weighingOrder, setWeighingOrder] = useState<Order | null>(null);
-  const [weighKgs, setWeighKgs] = useState<string[]>([]);
-  const [weighSaving, setWeighSaving] = useState<boolean>(false);
-
-  const pricePerKgOf = (productId: string, fallback?: number) =>
-    products.find((p) => p.id === productId)?.pricePerKg || fallback || 0;
-
-  const openWeighModal = (order: Order) => {
-    setWeighingOrder(order);
-    setWeighKgs(order.items.map((it) => (it.actualWeightKg ? String(it.actualWeightKg) : "")));
-  };
-
-  const weighPreview = weighingOrder
-    ? weighingOrder.items.reduce(
-        (sum, it, i) => sum + Math.round((parseFloat(weighKgs[i]) || 0) * pricePerKgOf(it.productId, it.pricePerKg)),
-        0
-      )
-    : 0;
-
-  const handleSaveWeighing = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!weighingOrder) return;
-    setWeighSaving(true);
-    try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(weighingOrder.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weigh: { itemKgs: weighKgs.map((v) => parseFloat(v) || 0) } }),
-      });
-      const json = await res.json();
-      if (res.ok && json.ok && json.order) {
-        onOrderUpdated(json.order);
-        setWeighingOrder(null);
-      } else {
-        alert(json.error || "เกิดข้อผิดพลาดในการบันทึก");
-      }
-    } finally {
-      setWeighSaving(false);
-    }
-  };
 
   // Top alert metrics:
   const toWeighOrders = orders.filter((o) => orderStatusOf(o) === "สั่งจอง");
@@ -1828,7 +1745,7 @@ function OrdersTab({
                   )}
                 </div>
                 <p className="text-xl font-extrabold text-[#1B4D31] shrink-0">
-                  ฿{(order.totalPrice + order.shippingCost).toLocaleString()}
+                  {orderStatusOf(order) === "สั่งจอง" ? "รอชั่ง" : `฿${(order.totalPrice + order.shippingCost).toLocaleString()}`}
                 </p>
               </div>
 
@@ -1842,7 +1759,7 @@ function OrdersTab({
                     <span className="font-mono">
                       {it.actualWeightKg && it.pricePerKg
                         ? `${it.actualWeightKg} กก. × ฿${it.pricePerKg} = ฿${Math.round(it.actualWeightKg * it.pricePerKg).toLocaleString()}`
-                        : `~฿${(it.price * it.qty).toLocaleString()}`}
+                        : `฿${(it.pricePerKg || it.price).toLocaleString()}/กก. (รอชั่ง)`}
                     </span>
                   </div>
                 ))}
@@ -1943,18 +1860,15 @@ function OrdersTab({
 
               {/* Actions row: Chat LINE, Call, Map, Update, Label, Confirm */}
               <div className="flex flex-wrap gap-2 pt-3 border-t border-stone-100">
-                {/* ⚖️ Weighing & Pricing Button (เฉพาะก่อนลูกค้าจ่าย) */}
-                {canWeigh(order) && (
-                <button
-                  type="button"
-                  onClick={() => openWeighModal(order)}
+                {/* ⚖️ หน้าออเดอร์เดี่ยว: ชั่ง / ยืนยันสลิป / จัดส่ง / ยกเลิก */}
+                <a
+                  href={`/admin/orders/${encodeURIComponent(order.id)}`}
                   className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-xs inline-flex items-center gap-1.5"
-                  title="ชั่งน้ำหนักจริงต่อลูก คำนวณราคาสรุป และส่งยอดพร้อม QR ให้ลูกค้าทาง LINE"
+                  title="เปิดหน้าออเดอร์นี้ — ชั่งน้ำหนัก ยืนยันสลิป จัดส่ง"
                 >
                   <Scale className="w-3.5 h-3.5 text-amber-300" />
-                  <span>{orderStatusOf(order) === "สั่งจอง" ? "⚖️ ชั่ง & ส่งยอดให้ลูกค้า" : "⚖️ แก้น้ำหนัก/ยอด"}</span>
-                </button>
-                )}
+                  <span>{canWeigh(order) ? "⚖️ ชั่ง / เปิดออเดอร์" : "เปิดออเดอร์"}</span>
+                </a>
 
                 {/* 💬 LINE Chat button */}
                 <button
@@ -2206,122 +2120,6 @@ function OrdersTab({
         </div>
       )}
 
-      {/* MODAL: ชั่งน้ำหนักจริง → รอชำระเงิน (ส่ง QR ยอดจริงให้ลูกค้าทาง LINE) */}
-      {weighingOrder && (
-        <div
-          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
-          onClick={() => setWeighingOrder(null)}
-        >
-          <form
-            onSubmit={handleSaveWeighing}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white w-full max-w-lg rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl border border-stone-200 my-8 max-h-[90vh] overflow-y-auto"
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-800">
-                  <Scale className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-base text-stone-900">
-                    ชั่งน้ำหนักจริง ({weighingOrder.id})
-                  </h3>
-                  <p className="text-[11px] text-stone-500">
-                    ลูกค้า: {weighingOrder.customerName} ({weighingOrder.phone})
-                    {weighingOrder.ripenessPref ? ` • ${weighingOrder.ripenessPref}` : ""}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setWeighingOrder(null)}
-                className="text-stone-400 hover:text-stone-600 text-sm p-1"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {weighingOrder.items.map((it, i) => {
-                const perKg = pricePerKgOf(it.productId, it.pricePerKg);
-                return (
-                  <div key={i} className="bg-amber-50 rounded-2xl p-3.5 border border-amber-200">
-                    <div className="flex justify-between text-xs mb-2">
-                      <span className="font-bold text-stone-900">
-                        {it.productName} x{it.qty}
-                      </span>
-                      <span className="text-amber-900 font-semibold">
-                        {perKg ? `฿${perKg.toLocaleString()}/กก.` : "⚠️ สินค้าไม่มีราคา/กก. ในชีต"}
-                      </span>
-                    </div>
-                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
-                      ⚖️ น้ำหนักรวมของรายการนี้ ({it.qty} ลูก) กก. *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      min={0.1}
-                      max={500}
-                      value={weighKgs[i] || ""}
-                      onChange={(e) => {
-                        const next = [...weighKgs];
-                        next[i] = e.target.value;
-                        setWeighKgs(next);
-                      }}
-                      placeholder={it.qty > 1 ? "รวมทุกลูก เช่น 7.65" : "เช่น 3.85"}
-                      className="w-full border-2 border-emerald-500 rounded-xl px-3 py-2 text-base font-black font-mono text-emerald-900 bg-emerald-50/30 text-center"
-                    />
-                    <p className="text-[10px] text-stone-500 mt-1 text-right font-mono">
-                      = ฿{Math.round((parseFloat(weighKgs[i]) || 0) * perKg).toLocaleString()}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="bg-emerald-900 text-white rounded-2xl p-4 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-emerald-200 block">ยอดสินค้าตามน้ำหนักจริง</span>
-                <span className="text-[11px] text-emerald-300">
-                  + ค่าจัดส่ง: ฿{(weighingOrder.shippingCost || 0).toLocaleString()}
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-2xl font-black font-mono text-amber-300">
-                  ฿{(weighPreview + (weighingOrder.shippingCost || 0)).toLocaleString()}
-                </span>
-                <span className="text-[10px] text-emerald-200 block">ยอดที่ลูกค้าต้องโอน</span>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-stone-600 bg-stone-50 rounded-xl p-2.5 border border-stone-200">
-              กดบันทึกแล้ว สถานะเป็น &quot;รอชำระเงิน&quot;{" "}
-              {weighingOrder.lineUserId
-                ? "และระบบส่งยอดจริง + QR PromptPay ให้ลูกค้าทาง LINE ทันที"
-                : "— ลูกค้าไม่ได้สั่งผ่าน LINE ต้องแจ้งยอดเอง"}
-            </p>
-
-            <div className="flex gap-2 pt-2 border-t border-stone-100">
-              <button
-                type="submit"
-                disabled={weighSaving}
-                className="flex-1 bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold py-3 rounded-xl text-xs transition shadow-md disabled:opacity-50 inline-flex items-center justify-center gap-2"
-              >
-                <Scale className="w-4 h-4 text-amber-300" />
-                <span>{weighSaving ? "กำลังบันทึก..." : "บันทึกน้ำหนัก & ส่งยอดให้ลูกค้า"}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setWeighingOrder(null)}
-                className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-xs transition"
-              >
-                ยกเลิก
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   );
 }

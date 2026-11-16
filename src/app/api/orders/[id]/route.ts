@@ -8,11 +8,12 @@ import {
 import { isAdminRequest, unauthorizedResponse, getAdminOperatorName } from "../../../../lib/admin-auth";
 import {
   buildCustomerStatusFlex,
+  getLineChatUrl,
   pushLineMessage,
 } from "../../../../lib/line-notify";
 import { resolveCourierInfo } from "../../../../lib/courier";
 import { findOrderById } from "../../../../lib/ids";
-import { setOrderStatus, weighOrder, type WeighInput } from "../../../../lib/order-workflow";
+import { rejectSlip, setOrderStatus, weighOrder, type WeighInput } from "../../../../lib/order-workflow";
 import { normalizeOrderStatus, orderStatusOf } from "../../../../lib/order-status";
 import type { Order } from "../../../../types/durian";
 
@@ -26,7 +27,9 @@ export async function GET(
   try {
     const { id } = await context.params;
     const q = decodeURIComponent(id).trim().toUpperCase();
-    const { data } = await getAllDatabase();
+    const isAdmin = isAdminRequest(req);
+    // แอดมินอ่านสด (เพิ่งมีสลิป/ชั่งจากเครื่องอื่น) — ลูกค้าทั่วไปใช้แคชได้
+    const { data } = await getAllDatabase(isAdmin);
 
     const order =
       data.orders.find(
@@ -48,8 +51,15 @@ export async function GET(
       order.shippingMethod
     );
 
-    if (isAdminRequest(req)) {
-      return NextResponse.json({ ok: true, order, courierInfo, isAdmin: true });
+    if (isAdmin) {
+      const cfg = getRuntimeConfig();
+      // หน้าออเดอร์ของแอดมิน: ราคาต่อกิโลปัจจุบันของสินค้าในออเดอร์ + ลิงก์แชทลูกค้าคนนี้
+      const products = order.items.map((it) => {
+        const p = data.products.find((x) => x.id === it.productId);
+        return { id: it.productId, name: p?.name || it.productName, pricePerKg: p?.pricePerKg || it.pricePerKg || 0 };
+      });
+      const chatUrl = await getLineChatUrl(order.lineUserId, cfg.lineChannelAccessToken);
+      return NextResponse.json({ ok: true, order, courierInfo, isAdmin: true, products, chatUrl });
     }
 
     // Mask phone and omit full street address for public tracking privacy
@@ -98,6 +108,9 @@ export async function PATCH(
       lotId?: string;
       notes?: string;
       cancelReason?: string;
+      /** ตีกลับสลิป (ยอดไม่ตรง) → ลูกค้าได้ QR ให้โอนใหม่ */
+      rejectSlip?: boolean;
+      rejectReason?: string;
       isActive?: number | string | boolean;
       notifyLine?: boolean;
     };
@@ -106,6 +119,12 @@ export async function PATCH(
     let order = findOrderById(data.orders, orderId);
     if (!order) {
       return NextResponse.json({ ok: false, error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });
+    }
+
+    if (body.rejectSlip) {
+      const res = await rejectSlip(order.id, actor, body.rejectReason || "ยอดในสลิปไม่ตรงกับยอดที่ต้องชำระ");
+      if (!res.ok) return NextResponse.json({ ok: false, error: res.error }, { status: res.status });
+      return NextResponse.json({ ok: true, order: res.order });
     }
 
     // 1) ชั่งน้ำหนัก

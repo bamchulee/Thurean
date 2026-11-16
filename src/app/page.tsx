@@ -44,7 +44,7 @@ import { OrderSuccessModal } from "../components/OrderSuccessModal";
 import { CartDrawerModal } from "../components/CartDrawerModal";
 import { DurianIcon, LineIcon } from "../components/Icons";
 import { LineDirectLink } from "../components/LineDirectLink";
-import { estimateUnitPrice, formatProductStock } from "../lib/stock";
+import { formatProductStock, pricePerKgOf } from "../lib/stock";
 
 // Helper formatting user display name cleanly (never showing raw line_U... ID)
 function formatUserTitle(
@@ -857,12 +857,9 @@ function ProductCard({
             )}
             <div className="price-tag inline-flex items-baseline px-2.5 py-0.5">
               <span className="text-2xl font-semibold">
-                ฿{(product.pricePerKg || product.price).toLocaleString()}
+                ฿{pricePerKgOf(product).toLocaleString()}
               </span>
               <span className="text-xs font-medium ml-1">/กก.</span>
-              <span className="text-[11px] text-stone-500 ml-1.5">
-                (~฿{estimateUnitPrice(product).toLocaleString()}/{product.unit})
-              </span>
             </div>
           </div>
 
@@ -1114,7 +1111,6 @@ function OrderModal({
 
   const shippingCost =
     shopInfo.shippingMethods.find((s) => s.name === shipping)?.price || 0;
-  const totalPrice = estimateUnitPrice(product) * qty + shippingCost;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1209,7 +1205,7 @@ function OrderModal({
                 {product.origin} • {product.weight}
               </p>
               <p className="font-extrabold text-[#1B4D31] text-base mt-0.5">
-                ฿{(product.pricePerKg || product.price).toLocaleString()}/กก. (~฿{estimateUnitPrice(product).toLocaleString()}/{product.unit})
+                ฿{pricePerKgOf(product).toLocaleString()}/กก. (คิดตามน้ำหนักจริง)
               </p>
             </div>
           </div>
@@ -1401,10 +1397,10 @@ function OrderModal({
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-[10px] text-amber-900 font-bold uppercase block">
-                  ยอดประเมินเบื้องต้น (รวมค่าส่ง)
+                  ยอดเงิน = น้ำหนักจริง × ฿{pricePerKgOf(product).toLocaleString()}/กก.
                 </span>
-                <span className="text-2xl font-extrabold text-[#1B4D31]">
-                  ~฿{totalPrice.toLocaleString()}
+                <span className="text-sm font-extrabold text-[#1B4D31]">
+                  + ค่าส่ง ฿{shippingCost} • แจ้งยอดหลังชั่ง
                 </span>
               </div>
               <span className="text-xs font-bold text-emerald-800 bg-white px-3 py-1 rounded-full border border-emerald-200 inline-flex items-center gap-1 shadow-xs">

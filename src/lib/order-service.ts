@@ -1,7 +1,7 @@
 // ============================================================
 // Shared Order & Claim Business Logic (Web API + LINE Bot)
 // ============================================================
-import { estimateUnitPrice, getAvailableUnits } from "./stock";
+import { getAvailableUnits, pricePerKgOf } from "./stock";
 import {
   SheetsApiError,
   createClaimRecord,
@@ -20,7 +20,7 @@ import {
   buildOrderAlertForAdmin,
   pushLineMessage,
 } from "./line-notify";
-import { notifyAdmins } from "./order-workflow";
+import { adminAlertLinks, notifyAdmins } from "./order-workflow";
 import { shopInfo } from "../data/mock";
 import { resolveCourierInfo } from "./courier";
 import { checkClaimEligibility } from "./claim-policy";
@@ -55,11 +55,6 @@ export interface SubmitOrderInput {
 export type SubmitOrderResult =
   | { ok: true; order: Order; duplicate?: boolean }
   | { ok: false; error: string; status: number };
-
-/** ราคาประเมินตอนจอง = ราคาประเมินต่อลูก (stock.ts estimateUnitPrice) × จำนวน — ยอดจริงคิดใหม่ตอนชั่ง */
-export function estimateItemPrice(price: number, qty: number): number {
-  return Math.round((Number(price) || 0) * qty);
-}
 
 export async function submitNewOrder(
   body: SubmitOrderInput,
@@ -120,18 +115,20 @@ export async function submitNewOrder(
     if (reqItem.ripenessPref) {
       ripenessSummarySet.push(`${prod.variety || prod.name}: ${reqItem.ripenessPref} x${qty}`);
     }
-    const unitPrice = trusted && typeof reqItem.price === "number" && reqItem.price >= 0 ? reqItem.price : estimateUnitPrice(prod);
+    // ขายตามน้ำหนักจริง: ตอนจองยังไม่มียอด (คิดตอนแอดมินชั่ง) — แอดมินคีย์ราคาเหมาเองได้ (ขายหน้าร้าน)
+    const perKg = pricePerKgOf(prod);
+    const fixedPrice = trusted && typeof reqItem.price === "number" && reqItem.price > 0 ? reqItem.price : undefined;
     verifiedItems.push({
       productId: prod.id,
       productName: itemLabel,
       qty,
-      price: unitPrice,
+      price: fixedPrice ?? perKg,
       productType: prod.productType,
       grade: prod.grade,
       weightPerItem: prod.weight,
-      pricePerKg: prod.pricePerKg,
+      pricePerKg: perKg,
     });
-    totalPrice += estimateItemPrice(unitPrice, qty);
+    if (fixedPrice !== undefined) totalPrice += Math.round(fixedPrice * qty);
   }
 
   // เช็กสต็อกรวมต่อสินค้า (สินค้าเดียวกันอาจอยู่หลายบรรทัดคนละระดับความสุก)
@@ -294,7 +291,7 @@ export async function submitNewOrder(
     );
     if (!res.sent) console.warn("Failed to push booking receipt via LINE:", res.reason);
   }
-  await notifyAdmins(buildOrderAlertForAdmin(created, cfg.publicBaseUrl));
+  await notifyAdmins(buildOrderAlertForAdmin(created, await adminAlertLinks(created)));
 
   return { ok: true, order: created };
 }

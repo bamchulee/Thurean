@@ -37,25 +37,8 @@ import { checkClaimEligibility } from "../../../../lib/claim-policy";
 import { downloadAndVerifyLineImage } from "../../../../lib/line-media";
 import { clearLineSession, getLineSession, setLineSession } from "../../../../lib/line-sessions";
 import { submitNewClaim, submitNewOrder } from "../../../../lib/order-service";
-import {
-  cancelOrder,
-  confirmPayment,
-  findAwaitingPaymentOrders,
-  markDelivered,
-  markShipped,
-  notifyAdmins,
-  quoteAtBookedPrice,
-  rejectSlip,
-  submitSlip,
-  weighOrder,
-  type WorkflowResult,
-} from "../../../../lib/order-workflow";
-import {
-  ORDER_STATUS_META,
-  ORDER_STATUSES,
-  normalizePaymentStatus,
-  orderStatusOf,
-} from "../../../../lib/order-status";
+import { findAwaitingPaymentOrders, notifyAdmins, submitSlip } from "../../../../lib/order-workflow";
+import { ORDER_STATUS_META, orderStatusOf } from "../../../../lib/order-status";
 import {
   RIPENESS_OPTIONS,
   type BookingDraft,
@@ -283,8 +266,8 @@ async function handleEvent(ctx: Ctx) {
     const params = new URLSearchParams(ev.postback?.data || "");
     const action = params.get("action") || "";
     if (action.startsWith("admin_")) {
-      if (ctx.userId === ctx.cfg.lineAdminUserId) return handleAdminPostback(ctx, action, params);
-      await ctx.reply([text("ปุ่มนี้สำหรับแอดมินเท่านั้นครับ")]);
+      // ปุ่มแอดมินรุ่นเก่า — ตอนนี้ทำรายการในหน้าออเดอร์บนเว็บแทน
+      await ctx.reply([text("การ์ดนี้เป็นรุ่นเก่า ใช้ปุ่ม “เปิดออเดอร์” ในการ์ดแจ้งเตือนใหม่แทนครับ", false)]);
       return;
     }
     return handleCustomerPostback(ctx, action, params);
@@ -302,19 +285,13 @@ function isAdminGroup(ctx: Ctx, groupId: string): boolean {
   return Boolean(groupId && ctx.cfg.lineAdminGroupId && groupId === ctx.cfg.lineAdminGroupId);
 }
 
-const ADMIN_HELP = [
-  "🍈 คำสั่งแอดมินในกลุ่มนี้",
+const ADMIN_GROUP_INTRO = [
+  "✅ กลุ่มนี้เป็นกลุ่มแจ้งเตือนแอดมินแล้ว",
   "",
-  "⚖️ ชั่ง <เลขออเดอร์> <น้ำหนักรวม กก.>",
-  "   เช่น ชั่ง OD000012 7.6",
-  "   หรือทีละลูก: ชั่ง 12 3.8 3.9",
-  "   → คิดยอดจริง + ส่ง QR ให้ลูกค้าทันที",
-  "🚚 ส่ง <เลขออเดอร์> <เลขพัสดุ>",
-  "✅ ถึง <เลขออเดอร์>  (ลูกค้าได้รับของแล้ว)",
-  "📋 สรุป — ออเดอร์ที่ค้างแต่ละขั้น",
-  "📦 สต็อก — ของเหลือ",
-  "",
-  "ปุ่มในการ์ด: ส่งยอดเลย (ไม่ต้องชั่ง) / ยืนยันสลิป / ยอดไม่ตรง / ยกเลิก",
+  "กลุ่มนี้รับแค่การแจ้งเตือน (ออเดอร์ใหม่ / สลิป / เคลม / ลูกค้าทักแอดมิน)",
+  "ทุกการ์ดมีปุ่ม:",
+  "⚖️ เปิดออเดอร์ — ชั่งน้ำหนัก ยืนยันสลิป จัดส่ง ยกเลิก ในหน้าเว็บ (ล็อกอินแอดมินครั้งแรกด้วย PIN)",
+  "💬 แชทลูกค้า — เปิดห้องแชทใน LINE OA Manager",
 ].join("\n");
 
 async function handleGroupEvent(ctx: Ctx, groupId: string) {
@@ -331,18 +308,12 @@ async function handleGroupEvent(ctx: Ctx, groupId: string) {
     ]);
     return;
   }
-
-  const admin = isAdminGroup(ctx, groupId);
-
-  if (ev.type === "postback") {
-    if (!admin) return;
-    const params = new URLSearchParams(ev.postback?.data || "");
-    return handleAdminPostback({ ...ctx, reply: replyGroup }, params.get("action") || "", params);
-  }
+  // กลุ่มรับแค่การแจ้งเตือน: ไม่มีคำสั่งหรือปุ่มทำรายการ (การ์ดรุ่นเก่าที่มีปุ่ม postback กดแล้วไม่มีผล)
   if (ev.type !== "message" || ev.message?.type !== "text") return;
 
   const raw = (ev.message.text || "").trim();
   const lower = raw.toLowerCase();
+  const admin = isAdminGroup(ctx, groupId);
 
   if (lower.startsWith("/bind-admin")) {
     const pin = raw.replace(/^\/bind-admin/i, "").trim();
@@ -352,7 +323,7 @@ async function handleGroupEvent(ctx: Ctx, groupId: string) {
       await replyGroup([text("❌ PIN ไม่ถูกต้อง (พิมพ์ /bind-admin <PIN>)", false)]);
     } else {
       await setLineAdminTarget("group", groupId);
-      await replyGroup([text(`✅ ผูกกลุ่มนี้เป็นกลุ่มแจ้งเตือนแอดมินแล้ว\n\n${ADMIN_HELP}`, false)]);
+      await replyGroup([text(ADMIN_GROUP_INTRO, false)]);
     }
     return;
   }
@@ -360,101 +331,8 @@ async function handleGroupEvent(ctx: Ctx, groupId: string) {
     await replyGroup([
       text(`📌 Group ID: ${groupId}\n${admin ? "✅ เป็นกลุ่มแอดมิน" : "❌ ยังไม่ได้ผูก (พิมพ์ /bind-admin <PIN>)"}`, false),
     ]);
-    return;
   }
-  // กลุ่มอื่นที่ไม่ใช่กลุ่มแอดมิน: เงียบ ไม่ตอบคำสั่งใด ๆ
-  if (!admin) return;
-
-  const actor = "แอดมิน (LINE กลุ่ม)";
-  const replyResult = async (res: WorkflowResult, okText: (o: Order) => string) =>
-    replyGroup([text(res.ok ? (res.changed ? okText(res.order) : `ℹ️ ออเดอร์ #${res.order.id} ทำรายการนี้ไปแล้ว`) : `❌ ${res.error}`, false)]);
-
-  const weigh = raw.match(/^(?:ชั่ง|นน|weight)\s+(\S+)\s+([\d.\s,]+)$/i);
-  if (weigh) {
-    const kgs = weigh[2].split(/[\s,]+/).map(Number).filter((n) => n > 0);
-    const res = await weighOrder(weigh[1], kgs.length > 1 ? { fruitKgs: kgs } : { totalKg: kgs[0] }, actor);
-    await replyResult(res, (o) => {
-      const lines = o.items.map(
-        (it) => `• ${it.productName} x${it.qty}: ${it.actualWeightKg} กก. × ฿${it.pricePerKg}/กก.`
-      );
-      return `✅ ชั่งออเดอร์ #${o.id} แล้ว\n${lines.join("\n")}\n💰 สินค้า ฿${o.totalPrice.toLocaleString()} + ส่ง ฿${o.shippingCost} = ฿${(o.totalPrice + o.shippingCost).toLocaleString()}\n📲 ${o.lineUserId ? "ส่ง QR ยอดจริงให้ลูกค้าแล้ว" : "ลูกค้าไม่ได้สั่งผ่าน LINE — แจ้งยอดเองนะครับ"}`;
-    });
-    return;
-  }
-
-  const ship = raw.match(/^(?:ส่ง|ship)\s+(\S+)(?:\s+(\S+))?$/i);
-  if (ship) {
-    const res = await markShipped(ship[1], { trackingNo: ship[2] }, actor);
-    await replyResult(res, (o) => `🚚 ออเดอร์ #${o.id} กำลังจัดส่ง${o.trackingNo ? ` (${o.courier || ""} ${o.trackingNo})` : ""} — แจ้งลูกค้าแล้ว`);
-    return;
-  }
-
-  const delivered = raw.match(/^(?:ถึง|ส่งถึง|delivered)\s+(\S+)$/i);
-  if (delivered) {
-    const res = await markDelivered(delivered[1], actor);
-    await replyResult(res, (o) => `✅ ออเดอร์ #${o.id} จัดส่งสำเร็จ — เริ่มนับประกันเคลม 24 ชม.`);
-    return;
-  }
-
-  if (["สรุป", "ออเดอร์", "order", "orders"].includes(lower)) {
-    const { data } = await getAllDatabase(true);
-    const lines = ["📋 ออเดอร์ที่ค้าง"];
-    for (const status of ORDER_STATUSES.slice(0, 4)) {
-      const list = data.orders.filter((o) => orderStatusOf(o) === status);
-      const waitingSlip = list.filter((o) => normalizePaymentStatus(o.paymentStatus) === "slip_submitted").length;
-      lines.push(
-        `\n${ORDER_STATUS_META[status].emoji} ${status}: ${list.length}${waitingSlip ? ` (สลิปรอตรวจ ${waitingSlip})` : ""}`
-      );
-      for (const o of list.slice(0, 5)) {
-        lines.push(`• #${o.id} ${o.customerName} ${o.items.map((it) => `${it.productName} x${it.qty}`).join(", ")}`.slice(0, 90));
-      }
-    }
-    await replyGroup([text(lines.join("\n"), false)]);
-    return;
-  }
-
-  if (lower === "สต็อก" || lower === "stock") {
-    const { data } = await getAllDatabase();
-    await replyGroup(buildStockOverviewMessages(activeRoundOf(data), data.products, "stock", ctx.baseUrl));
-    return;
-  }
-
-  if (["คำสั่ง", "help", "?", "ช่วยเหลือ"].includes(lower)) {
-    await replyGroup([text(ADMIN_HELP, false)]);
-  }
-  // ข้อความคุยกันทั่วไปในกลุ่ม: ไม่ตอบ
-}
-
-async function handleAdminPostback(ctx: Ctx, action: string, params: URLSearchParams) {
-  const orderId = params.get("orderId") || "";
-  const actor = `แอดมิน (LINE ${ctx.userId ? ctx.userId.slice(-4) : "กลุ่ม"})`;
-  let res: WorkflowResult;
-  let okText: (o: Order) => string;
-
-  switch (action) {
-    case "admin_quote":
-      res = await quoteAtBookedPrice(orderId, actor);
-      okText = (o) => `💳 ส่งยอด ฿${(o.totalPrice + o.shippingCost).toLocaleString()} + QR ให้ลูกค้า #${o.id} แล้ว (ไม่ได้ชั่ง)`;
-      break;
-    case "admin_confirm_slip":
-      res = await confirmPayment(orderId, actor);
-      okText = (o) => `✅ ยืนยันยอด #${o.id} แล้ว → เตรียมจัดส่ง (แจ้งลูกค้าแล้ว)`;
-      break;
-    case "admin_reject_slip":
-      res = await rejectSlip(orderId, actor, "ยอดในสลิปไม่ตรงกับยอดที่ต้องชำระ");
-      okText = (o) => `↩️ ตีกลับสลิป #${o.id} แล้ว — ส่ง QR ให้ลูกค้าโอนใหม่`;
-      break;
-    case "admin_cancel_order":
-      res = await cancelOrder(orderId, actor, "ร้านยกเลิกออเดอร์");
-      okText = (o) =>
-        `❌ ยกเลิก #${o.id} แล้ว คืนสต็อกให้เรียบร้อย${o.paymentStatus === "refunded" ? "\n💸 ลูกค้าจ่ายแล้ว — อย่าลืมโอนคืน" : ""}`;
-      break;
-    default:
-      return;
-  }
-  await ctx.reply([
-    text(res.ok ? (res.changed ? okText(res.order) : `ℹ️ ออเดอร์ #${res.order.id} ทำรายการนี้ไปแล้ว`) : `❌ ${res.error}`, false),
-  ]);
+  // ข้อความอื่นในกลุ่ม: ไม่ตอบ
 }
 
 // ============================================================

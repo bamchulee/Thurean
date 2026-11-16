@@ -3,6 +3,7 @@ import path from "path";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getWritableDataDir } from "../../../../lib/storage-dir";
+import { getRuntimeConfig } from "../../../../lib/sheets-db";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,27 @@ export async function GET(
 
     const filePath = path.join(getWritableDataDir("slips"), safeName);
     if (!fs.existsSync(filePath)) {
+      // บน Vercel ไฟล์อยู่แค่ใน /tmp ของ instance ที่รับรูป — instance อื่นดึงรูปจาก LINE ใหม่
+      // (ชื่อไฟล์ = <slip|claim>-<LINE messageId>.<ext>)
+      const messageId = safeName.match(/^(?:slip|claim)-(\d+)\./)?.[1];
+      const token = getRuntimeConfig().lineChannelAccessToken;
+      if (messageId && token) {
+        const res = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const buf = Buffer.from(await res.arrayBuffer());
+          try {
+            fs.writeFileSync(filePath, buf);
+          } catch {
+            // แคชไม่ได้ก็ไม่เป็นไร
+          }
+          return new NextResponse(new Uint8Array(buf), {
+            status: 200,
+            headers: { "Content-Type": res.headers.get("content-type") || "image/jpeg", "Cache-Control": "private, max-age=3600" },
+          });
+        }
+      }
       return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
     }
 

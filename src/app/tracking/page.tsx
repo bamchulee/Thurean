@@ -488,7 +488,7 @@ export default function TrackingPage() {
                     </div>
                     <div className="text-right shrink-0">
                       <span className="font-mono font-bold text-sm text-stone-900">
-                        ฿{(order.totalPrice + (order.shippingCost || 0)).toLocaleString()}
+                        {normalizeOrderStatus(order.orderStatus, order.paymentStatus) === "สั่งจอง" ? "รอชั่งน้ำหนัก" : `฿${(order.totalPrice + (order.shippingCost || 0)).toLocaleString()}`}
                       </span>
                       <p className="text-[10px] text-stone-400 mt-0.5">
                         {new Date(order.createdAt).toLocaleDateString("th-TH", {
@@ -810,7 +810,9 @@ export default function TrackingPage() {
                       )}
                     </div>
                     <span className="font-mono font-bold text-stone-900">
-                      ฿{(it.price * it.qty).toLocaleString()}
+                      {it.actualWeightKg
+                        ? `฿${Math.round(it.actualWeightKg * (it.pricePerKg || it.price)).toLocaleString()}`
+                        : `฿${(it.pricePerKg || it.price).toLocaleString()}/กก.`}
                     </span>
                   </div>
                 ))}
@@ -829,7 +831,7 @@ export default function TrackingPage() {
                   ยอดรวมทั้งสิ้น
                 </span>
                 <span className="text-2xl font-black text-[#1B4D31] font-mono">
-                  ฿{(displayOrder.totalPrice + (displayOrder.shippingCost || 0)).toLocaleString()}
+                  {normalizeOrderStatus(displayOrder.orderStatus, displayOrder.paymentStatus) === "สั่งจอง" ? "รอชั่งน้ำหนัก" : `฿${(displayOrder.totalPrice + (displayOrder.shippingCost || 0)).toLocaleString()}`}
                 </span>
               </div>
             </div>
@@ -982,7 +984,7 @@ export default function TrackingPage() {
 
                         <div className="text-right">
                           <span className="font-mono font-black text-base text-stone-900">
-                            ฿{(order.totalPrice + (order.shippingCost || 0)).toLocaleString()}
+                            {normalizeOrderStatus(order.orderStatus, order.paymentStatus) === "สั่งจอง" ? "รอชั่งน้ำหนัก" : `฿${(order.totalPrice + (order.shippingCost || 0)).toLocaleString()}`}
                           </span>
                           <p className="text-[10px] text-stone-400">
                             {order.paymentStatus === "confirmed" ? "ชำระแล้ว" : "รอชำระเงิน"}

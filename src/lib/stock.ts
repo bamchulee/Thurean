@@ -85,14 +85,11 @@ export function getAvailableUnits(p: Product): number | undefined {
 }
 
 /**
- * ราคาประเมินต่อลูก/ชิ้นตอนจอง = ราคา/กก. × น้ำหนักเฉลี่ยต่อลูก (ยอดจริงคิดใหม่หลังชั่ง)
- * หมายเหตุ: ชั้นข้อมูลตั้ง product.price = ราคาต่อกิโล จึงห้ามใช้ price × จำนวน เป็นราคาต่อลูก
+ * ร้านขายตามน้ำหนักจริงแบบหน้าร้าน: แสดง/เก็บเฉพาะราคาต่อกิโล ไม่มีราคาต่อลูกหรือยอดประเมิน
+ * (ชั้นข้อมูลตั้ง product.price = ราคาต่อกิโลอยู่แล้ว — ดู applyDatabaseJoins)
  */
-export function estimateUnitPrice(p: Pick<Product, "price" | "pricePerKg" | "avgWeightKg">): number {
-  const perKg = Number(p.pricePerKg) || 0;
-  const avg = Number(p.avgWeightKg) || 0;
-  if (perKg > 0 && avg > 0) return Math.round(perKg * avg);
-  return Math.round(Number(p.price) || 0);
+export function pricePerKgOf(p: Pick<Product, "price" | "pricePerKg">): number {
+  return Number(p.pricePerKg) || Number(p.price) || 0;
 }
 
 /** คืนสต็อกเมื่อออเดอร์ถูกยกเลิก (ต้องตรงกับ restoreStock ใน google-apps-script/4_Orders.gs) */

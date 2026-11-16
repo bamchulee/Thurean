@@ -3,7 +3,6 @@
 // และ /api/address (ลูกค้าเพิ่งกรอกฟอร์มที่อยู่)
 // ============================================================
 import { buildBookingReviewFlex } from "./line-notify";
-import { estimateItemPrice } from "./order-service";
 import {
   type BookingDraft,
   buildAddressLinkQuery,
@@ -11,7 +10,6 @@ import {
   newBookingKey,
   ripenessLabel,
 } from "./booking-draft";
-import { estimateUnitPrice } from "./stock";
 import { shopInfo } from "../data/mock";
 import type { Product } from "../types/durian";
 
@@ -36,7 +34,6 @@ export function bookingReviewMessages(
     ripenessLabel: ripenessLabel(withKey.ripeness),
     shippingName: ship.name,
     shippingCost: ship.price,
-    estimate: estimateItemPrice(estimateUnitPrice(product), withKey.qty),
     customer: contact,
     confirmData: `action=order_confirm&${draftToParams(withKey)}`,
     // เปลี่ยนวิธีส่งแล้วใช้ bookingKey เดิม: กดยืนยันการ์ดใบเก่าหรือใบใหม่ก็ได้ออเดอร์เดียว

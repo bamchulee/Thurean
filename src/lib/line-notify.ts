@@ -11,7 +11,7 @@ import type {
 } from "../types/durian";
 import { shopInfo } from "../data/mock";
 import { resolveCourierInfo } from "./courier";
-import { estimateUnitPrice, formatProductStock } from "./stock";
+import { formatProductStock, pricePerKgOf } from "./stock";
 import { checkClaimEligibility } from "./claim-policy";
 import { ORDER_STATUS_META, PAYMENT_STATUS_LABEL, normalizePaymentStatus, orderStatusOf } from "./order-status";
 
@@ -161,17 +161,74 @@ export async function showLineLoadingAnimation(
   }
 }
 
-export function buildOrderAlertForAdmin(order: Order, publicBaseUrl?: string): unknown[] {
+// รหัสบัญชี OA (bot userId) สำหรับทำลิงก์ห้องแชทใน LINE OA Manager — ดึงครั้งเดียวต่อ instance
+let botUserIdCache: string | undefined;
+
+/** ลิงก์เปิดห้องแชทกับลูกค้าคนนี้ใน LINE OA Manager (chat.line.biz) */
+export async function getLineChatUrl(lineUserId?: string, channelAccessToken?: string): Promise<string | undefined> {
+  if (!lineUserId) return undefined;
+  if (!botUserIdCache && channelAccessToken) {
+    try {
+      const res = await fetch("https://api.line.me/v2/bot/info", {
+        headers: { Authorization: `Bearer ${channelAccessToken}` },
+      });
+      if (res.ok) botUserIdCache = ((await res.json()) as { userId?: string }).userId;
+    } catch {
+      // ไม่ได้ก็ใช้หน้ารวมแชทแทน
+    }
+  }
+  return botUserIdCache ? `https://chat.line.biz/${botUserIdCache}/chat/${lineUserId}` : "https://chat.line.biz/";
+}
+
+/** ลิงก์ในการ์ดแจ้งเตือนกลุ่มแอดมิน — กลุ่มมีแค่การแจ้งเตือน งานทุกอย่างทำในหน้าออเดอร์บนเว็บ */
+export interface AdminAlertLinks {
+  /** หน้าออเดอร์เดี่ยวในหลังบ้าน (ต้องล็อกอินแอดมิน) */
+  orderUrl: string;
+  /** ห้องแชทลูกค้าใน LINE OA Manager (มีเฉพาะลูกค้าที่สั่งผ่าน LINE) */
+  chatUrl?: string;
+}
+
+export function adminOrderUrl(orderId: string, publicBaseUrl?: string): string {
+  const base = (publicBaseUrl || "https://durianwinkin.vercel.app").replace(/\/+$/, "");
+  return `${base}/admin/orders/${encodeURIComponent(orderId)}`;
+}
+
+function adminAlertFooter(links: AdminAlertLinks, primaryLabel: string): Record<string, unknown> {
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "xs",
+    contents: [
+      {
+        type: "button",
+        style: "primary",
+        color: "#15803D",
+        height: "sm",
+        action: { type: "uri", label: primaryLabel, uri: links.orderUrl },
+      },
+      ...(links.chatUrl
+        ? [
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              action: { type: "uri", label: "💬 แชทลูกค้า", uri: links.chatUrl },
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
+export function buildOrderAlertForAdmin(order: Order, links: AdminAlertLinks): unknown[] {
   const itemLines = order.items
-    .map((it) => `• ${it.productName} x${it.qty}`)
+    .map((it) => `• ${it.productName} x${it.qty} — ฿${(it.pricePerKg || it.price).toLocaleString()}/กก.`)
     .join("\n");
-  const grandTotal = order.totalPrice + order.shippingCost;
-  const baseUrl = publicBaseUrl || "https://durianwinkin.vercel.app";
 
   return [
     {
       type: "flex",
-      altText: `🍈 แจ้งเตือนออเดอร์ใหม่ #${order.id} (฿${grandTotal.toLocaleString()})`,
+      altText: `🍈 ออเดอร์ใหม่ #${order.id} — ${order.customerName} (รอชั่ง)`,
       contents: {
         type: "bubble",
         header: {
@@ -180,20 +237,8 @@ export function buildOrderAlertForAdmin(order: Order, publicBaseUrl?: string): u
           backgroundColor: "#14532d",
           paddingAll: "lg",
           contents: [
-            {
-              type: "text",
-              text: "🍈 แจ้งเตือนออเดอร์ใหม่! (ทีมงาน)",
-              color: "#fde047",
-              weight: "bold",
-              size: "md",
-            },
-            {
-              type: "text",
-              text: `รหัสคำสั่งซื้อ: #${order.id}`,
-              color: "#ffffff",
-              size: "xs",
-              margin: "xs",
-            },
+            { type: "text", text: "🍈 ออเดอร์ใหม่ รอชั่งน้ำหนัก", color: "#fde047", weight: "bold", size: "md" },
+            { type: "text", text: `#${order.id}`, color: "#ffffff", size: "sm", margin: "xs", weight: "bold" },
           ],
         },
         body: {
@@ -201,151 +246,38 @@ export function buildOrderAlertForAdmin(order: Order, publicBaseUrl?: string): u
           layout: "vertical",
           spacing: "sm",
           contents: [
-            {
-              type: "text",
-              text: `ลูกค้า: ${order.customerName}`,
-              weight: "bold",
-              size: "sm",
-              color: "#111827",
-            },
-            {
-              type: "text",
-              text: `โทร: ${order.phone}`,
-              size: "xs",
-              color: "#4b5563",
-            },
+            { type: "text", text: `👤 ${order.customerName}`, weight: "bold", size: "sm", color: "#111827", wrap: true },
+            { type: "text", text: `📞 ${order.phone}`, size: "xs", color: "#4b5563" },
             ...(order.address
-              ? [
-                  {
-                    type: "text",
-                    text: `ที่อยู่: ${order.address}`,
-                    size: "xs",
-                    color: "#6b7280",
-                    wrap: true,
-                  },
-                ]
+              ? [{ type: "text", text: `📍 ${order.address}`, size: "xs", color: "#6b7280", wrap: true }]
               : []),
+            { type: "separator", margin: "sm" },
+            { type: "text", text: itemLines, wrap: true, size: "xs", margin: "sm" },
             {
               type: "text",
               text: `ความสุก: ${order.ripenessPref || "ตามมาตรฐานร้าน"}`,
               size: "xs",
               color: "#b45309",
-              weight: "bold",
-            },
-            { type: "separator", margin: "sm" },
-            {
-              type: "text",
-              text: itemLines,
               wrap: true,
-              size: "xs",
-              margin: "sm",
             },
-            { type: "separator", margin: "sm" },
-            {
-              type: "box",
-              layout: "horizontal",
-              margin: "sm",
-              contents: [
-                { type: "text", text: "ราคาประเมินเบื้องต้น", size: "sm", weight: "bold", color: "#4B5563" },
-                {
-                  type: "text",
-                  text: `~฿${grandTotal.toLocaleString()}`,
-                  size: "md",
-                  weight: "bold",
-                  color: "#B45309",
-                  align: "end",
-                },
-              ],
-            },
-            {
-              type: "box",
-              layout: "vertical",
-              backgroundColor: "#FEF3C7",
-              borderColor: "#FDE68A",
-              borderWidth: "1px",
-              cornerRadius: "md",
-              paddingAll: "sm",
-              margin: "sm",
-              contents: [
-                {
-                  type: "text",
-                  text: `สถานะ: 🟡 ${order.orderStatus || "สั่งจอง (รอชั่งน้ำหนัก)"}`,
-                  size: "xs",
-                  weight: "bold",
-                  color: "#92400E",
-                },
-                {
-                  type: "text",
-                  text: `💡 ชั่งแล้วพิมพ์ในกลุ่มนี้:\nชั่ง ${order.id} <น้ำหนักรวม กก.>\nหรือทีละลูก: ชั่ง ${order.id} 3.8 4.1\nระบบส่ง QR ยอดจริงให้ลูกค้าเอง`,
-                  size: "xxs",
-                  color: "#B45309",
-                  wrap: true,
-                  margin: "xs",
-                },
-              ],
-            },
+            { type: "text", text: `🚚 ${order.shippingMethod} (฿${order.shippingCost})`, size: "xs", color: "#4b5563", wrap: true },
           ],
         },
-        footer: {
-          type: "box",
-          layout: "vertical",
-          spacing: "xs",
-          contents: [
-            {
-              type: "button",
-              style: "primary",
-              color: "#B45309",
-              height: "sm",
-              action: {
-                type: "postback",
-                label: "💳 ส่งยอดเลย",
-                data: `action=admin_quote&orderId=${order.id}`,
-                displayText: `ส่งยอดตามราคาจอง #${order.id}`,
-              },
-            },
-            {
-              type: "button",
-              style: "secondary",
-              height: "sm",
-              action: {
-                type: "postback",
-                label: "❌ ปฏิเสธ/ยกเลิก",
-                data: `action=admin_cancel_order&orderId=${order.id}`,
-                displayText: `ยกเลิกออเดอร์ #${order.id}`,
-              },
-            },
-            {
-              type: "button",
-              style: "link",
-              height: "sm",
-              action: {
-                type: "uri",
-                label: "📦 เปิดเว็บ Admin",
-                uri: `${baseUrl}/admin`,
-              },
-            },
-          ],
-        },
+        footer: adminAlertFooter(links, "⚖️ เปิดออเดอร์"),
       },
     },
   ];
 }
 
-export function buildSlipAlertForAdmin(
-  order: Order,
-  slipUrl?: string,
-  publicBaseUrl?: string
-): unknown[] {
-  const baseUrl = publicBaseUrl || "https://durianwinkin.vercel.app";
+export function buildSlipAlertForAdmin(order: Order, links: AdminAlertLinks, slipUrl?: string): unknown[] {
+  const base = links.orderUrl.replace(/\/admin\/orders\/.*$/, "");
   const grandTotal = order.totalPrice + (order.shippingCost || 0);
-  const fullSlipUrl = slipUrl
-    ? (slipUrl.startsWith("http") ? slipUrl : `${baseUrl}${slipUrl}`)
-    : undefined;
+  const fullSlipUrl = slipUrl ? (slipUrl.startsWith("http") ? slipUrl : `${base}${slipUrl}`) : undefined;
 
   return [
     {
       type: "flex",
-      altText: `🧾 แจ้งเตือนสลิปโอนเงิน #${order.id} (฿${grandTotal.toLocaleString()})`,
+      altText: `🧾 สลิปโอนเงิน #${order.id} (฿${grandTotal.toLocaleString()}) รอตรวจ`,
       contents: {
         type: "bubble",
         header: {
@@ -353,20 +285,8 @@ export function buildSlipAlertForAdmin(
           layout: "vertical",
           backgroundColor: "#1E3A8A",
           contents: [
-            {
-              type: "text",
-              text: "🧾 แจ้งเตือนสลิปโอนเงิน! (ทีมงาน)",
-              color: "#FDE047",
-              weight: "bold",
-              size: "sm",
-            },
-            {
-              type: "text",
-              text: `รหัสคำสั่งซื้อ: #${order.id}`,
-              color: "#FFFFFF",
-              size: "xs",
-              margin: "xs",
-            },
+            { type: "text", text: "🧾 ลูกค้าส่งสลิปแล้ว รอตรวจ", color: "#FDE047", weight: "bold", size: "sm" },
+            { type: "text", text: `#${order.id}`, color: "#FFFFFF", size: "xs", margin: "xs" },
           ],
         },
         body: {
@@ -374,19 +294,13 @@ export function buildSlipAlertForAdmin(
           layout: "vertical",
           spacing: "xs",
           contents: [
-            {
-              type: "text",
-              text: `ลูกค้า: ${order.customerName} (${order.phone})`,
-              size: "xs",
-              weight: "bold",
-              wrap: true,
-            },
+            { type: "text", text: `👤 ${order.customerName} (${order.phone})`, size: "xs", weight: "bold", wrap: true },
             {
               type: "box",
               layout: "horizontal",
               margin: "xs",
               contents: [
-                { type: "text", text: "💰 ยอดที่ต้องตรวจ:", size: "xs", color: "#4B5563", flex: 6 },
+                { type: "text", text: "💰 ยอดที่ต้องได้รับ", size: "xs", color: "#4B5563", flex: 6 },
                 {
                   type: "text",
                   text: `฿${grandTotal.toLocaleString()}`,
@@ -404,44 +318,15 @@ export function buildSlipAlertForAdmin(
                     type: "image",
                     url: fullSlipUrl,
                     size: "full",
-                    aspectRatio: "16:9",
-                    aspectMode: "cover",
+                    aspectRatio: "3:4",
+                    aspectMode: "fit",
                     margin: "sm",
                   },
                 ]
               : []),
           ],
         },
-        footer: {
-          type: "box",
-          layout: "vertical",
-          spacing: "xs",
-          contents: [
-            {
-              type: "button",
-              style: "primary",
-              color: "#16A34A",
-              height: "sm",
-              action: {
-                type: "postback",
-                label: "✅ ยอดถูกต้อง",
-                data: `action=admin_confirm_slip&orderId=${order.id}`,
-                displayText: `ยืนยันสลิป #${order.id}`,
-              },
-            },
-            {
-              type: "button",
-              style: "secondary",
-              height: "sm",
-              action: {
-                type: "postback",
-                label: "❌ ยอดไม่ตรง",
-                data: `action=admin_reject_slip&orderId=${order.id}`,
-                displayText: `ยอดไม่ตรง #${order.id}`,
-              },
-            },
-          ],
-        },
+        footer: adminAlertFooter(links, "✅ ตรวจสลิป"),
       },
     },
   ];
@@ -499,8 +384,8 @@ ${ORDER_STATUS_META[orderStatusOf(order)].customerHint}`,
     type: "box",
     layout: "horizontal",
     contents: [
-      { type: "text", text: orderStatusOf(order) === "สั่งจอง" ? "💰 ราคาประเมิน:" : "💰 ยอดรวมสุทธิ:", size: "xs", color: "#6B7280", flex: 4 },
-      { type: "text", text: `${orderStatusOf(order) === "สั่งจอง" ? "~" : ""}฿${grandTotal.toLocaleString()}`, size: "sm", weight: "bold", color: "#15803d", flex: 6 },
+      { type: "text", text: orderStatusOf(order) === "สั่งจอง" ? "💰 ยอดเงิน:" : "💰 ยอดรวมสุทธิ:", size: "xs", color: "#6B7280", flex: 4 },
+      { type: "text", text: orderStatusOf(order) === "สั่งจอง" ? "รอชั่งน้ำหนัก" : `฿${grandTotal.toLocaleString()}`, size: "sm", weight: "bold", color: "#15803d", flex: 6 },
     ],
   });
 
@@ -2096,13 +1981,13 @@ export function buildUserOrdersFlex(
             contents: [
               {
                 type: "text",
-                text: "ยอดสุทธิ:",
+                text: status === "สั่งจอง" ? "ยอดเงิน:" : "ยอดสุทธิ:",
                 size: "sm",
                 color: "#4B5563",
               },
               {
                 type: "text",
-                text: `฿${grandTotal.toLocaleString()}`,
+                text: status === "สั่งจอง" ? "รอชั่งน้ำหนัก" : `฿${grandTotal.toLocaleString()}`,
                 size: "md",
                 weight: "bold",
                 color: "#B45309",
@@ -2148,9 +2033,8 @@ export function buildUserOrdersFlex(
 }
 
 export function buildBookingReceiptFlex(order: Order): unknown[] {
-  const grandTotal = order.totalPrice + order.shippingCost;
   const itemText = order.items
-    .map((it) => `• ${it.productName} x${it.qty}`)
+    .map((it) => `• ${it.productName} x${it.qty}\n   ฿${(it.pricePerKg || it.price).toLocaleString()}/กก.`)
     .join("\n");
 
   return [
@@ -2200,25 +2084,11 @@ export function buildBookingReceiptFlex(order: Order): unknown[] {
             { type: "text", text: `ขนส่ง: ${order.shippingMethod} (฿${order.shippingCost})`, size: "xs", color: "#57534E", wrap: true },
             { type: "separator", margin: "sm" },
             {
-              type: "box",
-              layout: "horizontal",
-              contents: [
-                { type: "text", text: "ราคาประเมินเบื้องต้น", size: "xs", color: "#4B5563" },
-                {
-                  type: "text",
-                  text: `~฿${grandTotal.toLocaleString()}`,
-                  size: "sm",
-                  weight: "bold",
-                  color: "#B45309",
-                  align: "end",
-                },
-              ],
-            },
-            {
               type: "text",
-              text: "*ราคาประเมินเบื้องต้น (ยังไม่ใช่ยอดจริง)",
-              size: "xxs",
-              color: "#9CA3AF",
+              text: "💰 ยอดเงิน = น้ำหนักที่ชั่งจริง × ราคาต่อกิโล + ค่าส่ง",
+              size: "xs",
+              color: "#4B5563",
+              wrap: true,
             },
             {
               type: "box",
@@ -2239,7 +2109,7 @@ export function buildBookingReceiptFlex(order: Order): unknown[] {
                 },
                 {
                   type: "text",
-                  text: "แอดมินจะคัดผลแก่จัดและชั่งน้ำหนักจริง จากนั้นจะส่งสรุปยอดเงินสุทธิพร้อม QR PromptPay ให้คุณทางแชทนี้ครับ 🍈✨",
+                  text: "แอดมินจะคัดผลและชั่งน้ำหนักจริงให้ จากนั้นส่งยอดเงินพร้อม QR PromptPay ให้ทางแชทนี้ครับ 🍈✨",
                   size: "xxs",
                   color: "#B45309",
                   wrap: true,
@@ -2294,7 +2164,11 @@ export function buildPaymentQrForCustomerFlex(order: Order, publicBaseUrl?: stri
       : "https://durianwinkin.vercel.app";
   const qrUrl = `${baseUrl}/api/promptpay-qr?amount=${encodeURIComponent(String(grandTotal))}`;
   const itemText = order.items
-    .map((it) => `• ${it.productName} x${it.qty}`)
+    .map((it) =>
+      it.actualWeightKg && it.pricePerKg
+        ? `• ${it.productName} ${it.qty} ลูก${it.fruitKgs?.length ? ` (${it.fruitKgs.join(" + ")} กก.)` : ""}\n   รวม ${it.actualWeightKg} กก. × ฿${it.pricePerKg.toLocaleString()} = ฿${Math.round(it.actualWeightKg * it.pricePerKg).toLocaleString()}`
+        : `• ${it.productName} x${it.qty}`
+    )
     .join("\n");
 
   return [
@@ -3468,7 +3342,6 @@ export interface BookingReviewParams {
   ripenessLabel: string;
   shippingName: string;
   shippingCost: number;
-  estimate: number; // ราคาประเมินสินค้า (ยังไม่รวมค่าส่ง)
   customer: { name: string; phone: string; address: string };
   /** postback data ของปุ่มยืนยัน (มี bookingKey แล้ว) */
   confirmData: string;
@@ -3483,7 +3356,7 @@ const cancelQuickItem = qrItem({ type: "message", label: "ยกเลิก", t
 
 export function buildQtyPickerMessage(product: Product, stockSummary?: string): unknown[] {
   const unit = product.unit || "ลูก";
-  const perKg = product.pricePerKg ? `฿${product.pricePerKg.toLocaleString()}/กก.` : "";
+
   const items = [1, 2, 3, 4, 5].map((n) =>
     qrItem({
       type: "postback",
@@ -3494,7 +3367,7 @@ export function buildQtyPickerMessage(product: Product, stockSummary?: string): 
   );
   const lines = [
     `🍈 ${product.name}`,
-    `💰 ประมาณ ฿${estimateUnitPrice(product).toLocaleString()}/${unit}${perKg ? ` (คิดจริง ${perKg} หลังชั่ง)` : ""}`,
+    `💰 ฿${pricePerKgOf(product).toLocaleString()}/กก. — คิดตามน้ำหนักที่ชั่งจริง`,
     product.weight ? `⚖️ น้ำหนักประมาณ ${product.weight}` : "",
     stockSummary ? `📦 ${stockSummary}` : "",
   ].filter(Boolean);
@@ -3551,11 +3424,10 @@ export function buildBookingReviewFlex(p: BookingReviewParams): unknown[] {
       },
     ],
   });
-  const total = p.estimate + p.shippingCost;
   return [
     {
       type: "flex",
-      altText: `ยืนยันการจอง ${p.product.name} x${p.qty} (ประเมิน ~฿${total.toLocaleString()})`.slice(0, 400),
+      altText: `ยืนยันการจอง ${p.product.name} x${p.qty} (฿${pricePerKgOf(p.product).toLocaleString()}/กก.)`.slice(0, 400),
       contents: {
         type: "bubble",
         header: {
@@ -3588,12 +3460,10 @@ export function buildBookingReviewFlex(p: BookingReviewParams): unknown[] {
             row("โทร", p.customer.phone),
             row("ที่อยู่", p.customer.address),
             { type: "separator", margin: "md" },
-            row("ราคาประเมิน", `~฿${total.toLocaleString()}`, true),
+            row("ราคา", `฿${pricePerKgOf(p.product).toLocaleString()}/กก.`, true),
             {
               type: "text",
-              text: p.product.pricePerKg
-                ? `คิดจริง ฿${p.product.pricePerKg.toLocaleString()}/กก. ตามน้ำหนักที่ชั่ง + ค่าส่ง`
-                : "แจ้งยอดจริงอีกครั้งก่อนโอน",
+              text: "ยอดเงิน = น้ำหนักที่ชั่งจริง × ราคาต่อกิโล + ค่าส่ง",
               size: "xxs",
               color: "#B45309",
               wrap: true,
