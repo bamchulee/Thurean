@@ -79,6 +79,7 @@ export type OrderStatus =
   | "shipped"
   | "delivered"
   | "claimed"
+  | "สั่งจอง"
   | "รอชั่งน้ำหนัก/สรุปยอด"
   | "รอชำระเงิน"
   | "ชำระเงินแล้ว/เตรียมจัดส่ง"

@@ -211,7 +211,7 @@ export async function submitNewOrder(
     shippingMethod: shipMethod.name,
     shippingCost: typeof body.shippingCost === "number" ? body.shippingCost : shipMethod.price,
     paymentStatus: body.paymentStatus || "pending",
-    orderStatus: body.orderStatus || "รอชั่งน้ำหนัก/สรุปยอด",
+    orderStatus: body.orderStatus || "สั่งจอง",
     createdBy: body.createdBy || "customer",
     updatedBy: body.createdBy || "customer",
     isActive: 1,

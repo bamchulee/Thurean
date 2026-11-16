@@ -99,28 +99,40 @@ export async function pushLineMessage(
 export async function replyLineMessage(
   replyToken: string,
   messages: unknown[],
-  channelAccessToken?: string
+  channelAccessToken?: string,
+  fallbackUserId?: string
 ): Promise<boolean> {
-  if (!channelAccessToken || !replyToken) return false;
-  try {
-    const res = await fetch("https://api.line.me/v2/bot/message/reply", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${channelAccessToken}`,
-      },
-      body: JSON.stringify({ replyToken, messages }),
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("[LINE Reply Error]", res.status, errText);
-      return false;
+  if (!channelAccessToken) return false;
+  let replySuccess = false;
+  if (replyToken) {
+    try {
+      const res = await fetch("https://api.line.me/v2/bot/message/reply", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${channelAccessToken}`,
+        },
+        body: JSON.stringify({ replyToken, messages }),
+      });
+      if (res.ok) {
+        replySuccess = true;
+      } else {
+        const errText = await res.text();
+        console.warn("[LINE Reply Error]", res.status, errText);
+      }
+    } catch (err) {
+      console.warn("[LINE Reply Network Error]", err);
     }
-    return true;
-  } catch (err) {
-    console.error("[LINE Reply Network Error]", err);
-    return false;
   }
+
+  // If reply failed (e.g. 400 Invalid reply token / timeout) and we have fallbackUserId: push instead!
+  if (!replySuccess && fallbackUserId) {
+    console.log(`[LINE Reply Fallback] Pushing directly to user ${fallbackUserId}`);
+    const pushRes = await pushLineMessage(fallbackUserId, messages, channelAccessToken);
+    return pushRes.sent;
+  }
+
+  return replySuccess;
 }
 
 /** แสดงสถานะ "กำลังพิมพ์..." (Loading Animation จุดสามจุดขยับได้) ให้ลูกค้าเห็นในหน้าแชททันที */
@@ -250,6 +262,33 @@ export function buildOrderAlertForAdmin(order: Order, publicBaseUrl?: string): u
               size: "xs",
               color: order.paymentStatus === "confirmed" ? "#15803d" : "#b45309",
               weight: "bold",
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              backgroundColor: "#FEF3C7",
+              borderColor: "#FDE68A",
+              borderWidth: "1px",
+              cornerRadius: "md",
+              paddingAll: "sm",
+              margin: "sm",
+              contents: [
+                {
+                  type: "text",
+                  text: `สถานะ: 🟡 ${order.orderStatus || "สั่งจอง (รอชั่งน้ำหนัก)"}`,
+                  size: "xs",
+                  weight: "bold",
+                  color: "#92400E",
+                },
+                {
+                  type: "text",
+                  text: `💡 พิมพ์ในกลุ่มเพื่อบันทึกน้ำหนักจริง:\nชั่ง ${order.id} <กก.>\n(เช่น: ชั่ง ${order.id} 3.85)`,
+                  size: "xxs",
+                  color: "#B45309",
+                  wrap: true,
+                  margin: "xs",
+                },
+              ],
             },
           ],
         },
@@ -1256,6 +1295,7 @@ export function buildStockOverviewMessages(
         type: "box",
         layout: "vertical",
         paddingAll: "sm",
+        spacing: "xs",
         contents: [
           {
             type: "text",
@@ -1265,6 +1305,22 @@ export function buildStockOverviewMessages(
             weight: "bold",
             color: isOut ? "#9CA3AF" : isLow ? "#D97706" : "#166534",
           },
+          ...(!isOut && !isClosed
+            ? [
+                {
+                  type: "button",
+                  style: "primary",
+                  color: "#15803D",
+                  height: "sm",
+                  action: {
+                    type: "postback",
+                    label: "🛒 สั่งจองพันธุ์นี้",
+                    data: `action=order_step&step=qty&pid=${encodeURIComponent(p.id)}`,
+                    displayText: `สั่งจอง ${p.name}`,
+                  },
+                },
+              ]
+            : []),
         ],
       },
     };
@@ -1420,9 +1476,9 @@ export function buildOrderCatalogMessages(
                 height: "sm",
                 action: {
                   type: "postback",
-                  label: "🛒 สั่งซื้อพันธุ์นี้",
+                  label: "🛒 สั่งจองพันธุ์นี้",
                   data: `action=order_step&step=qty&pid=${encodeURIComponent(p.id)}`,
-                  displayText: `เลือกสั่ง ${p.name}`,
+                  displayText: `สั่งจอง ${p.name}`,
                 },
               }
             : {
@@ -1967,16 +2023,24 @@ export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
           contents: [
             {
               type: "text",
-              text: "บันทึกคำสั่งจองสำเร็จ",
+              text: "🍈 บันทึกคำสั่งจองสำเร็จ (Pre-order)",
               color: "#FDE047",
               weight: "bold",
               size: "md",
             },
             {
               type: "text",
-              text: `รหัสออเดอร์: ${order.id}`,
+              text: `รหัสออเดอร์: #${order.id}`,
               color: "#FFFFFF",
               size: "xs",
+              margin: "xs",
+            },
+            {
+              type: "text",
+              text: `สถานะ: 🟡 ${order.orderStatus || "สั่งจอง (รอชั่งน้ำหนัก)"}`,
+              color: "#FEF08A",
+              size: "xs",
+              weight: "bold",
               margin: "xs",
             },
           ],
@@ -2042,15 +2106,40 @@ export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
         footer: {
           type: "box",
           layout: "vertical",
+          spacing: "xs",
           contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#15803D",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "📸 แนบสลิปโอนเงิน (แจ้งชำระ)",
+                data: `action=attach_slip&orderId=${order.id}`,
+                displayText: `แนบสลิปออเดอร์ #${order.id}`,
+              },
+            },
             {
               type: "button",
               style: "secondary",
               height: "sm",
               action: {
-                type: "message",
-                label: "เช็กสถานะออเดอร์",
-                text: order.id,
+                type: "postback",
+                label: "📦 เช็กสถานะการจอง",
+                data: `action=track_order&orderId=${order.id}`,
+                displayText: `เช็กสถานะ #${order.id}`,
+              },
+            },
+            {
+              type: "button",
+              style: "link",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "💬 สอบถาม / คุยกับแอดมิน",
+                data: `action=open_ticket&orderId=${order.id}`,
+                displayText: "คุยกับแอดมิน",
               },
             },
           ],
@@ -2141,7 +2230,7 @@ export function buildPromptPayQrPaymentFlex(params: {
       contents: [
         {
           type: "text",
-          text: "🍈 สแกน QR ชำระเงิน (PromptPay)",
+          text: "🍈 สั่งจองทุเรียนสำเร็จ! (Pre-order)",
           color: "#FDE047",
           weight: "bold",
           size: "md",
@@ -2149,7 +2238,7 @@ export function buildPromptPayQrPaymentFlex(params: {
         {
           type: "text",
           text: params.orderId
-            ? `รหัสคำสั่งซื้อ: #${params.orderId} • ยอด ฿${params.grandTotal.toLocaleString()}`
+            ? `รหัสคำสั่งซื้อ: #${params.orderId} • สถานะ: 🟡 สั่งจอง`
             : `ยอดโอนสุทธิ ฿${params.grandTotal.toLocaleString()} (PromptPay)`,
           color: "#FFFFFF",
           size: "xs",
@@ -2199,13 +2288,6 @@ export function buildPromptPayQrPaymentFlex(params: {
                     color: "#B45309",
                     weight: "bold",
                   },
-                  {
-                    type: "text",
-                    text: `*ยอดคำนวณจากน้ำหนักเฉลี่ย เมื่อตัดส่งจริงแอดมินจะชั่งน้ำหนักเป๊ะๆ ให้อีกครั้งครับ`,
-                    size: "xxs",
-                    color: "#9CA3AF",
-                    wrap: true,
-                  },
                 ],
               },
             ]
@@ -2233,8 +2315,35 @@ export function buildPromptPayQrPaymentFlex(params: {
           layout: "horizontal",
           margin: "xs",
           contents: [
-            { type: "text", text: "ยอดสุทธิที่ต้องโอน:", size: "sm", weight: "bold", color: "#166534", flex: 6 },
+            { type: "text", text: "ยอดประมาณการสุทธิ:", size: "sm", weight: "bold", color: "#166534", flex: 6 },
             { type: "text", text: `฿${params.grandTotal.toLocaleString()}`, size: "md", weight: "bold", color: "#B45309", align: "end", flex: 4 },
+          ],
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#FEF3C7",
+          borderColor: "#FDE68A",
+          borderWidth: "1px",
+          cornerRadius: "md",
+          paddingAll: "sm",
+          margin: "sm",
+          contents: [
+            {
+              type: "text",
+              text: "📌 สถานะ: 🟡 สั่งจองสำเร็จ (รอชั่งน้ำหนักจริง)",
+              size: "xs",
+              color: "#92400E",
+              weight: "bold",
+            },
+            {
+              type: "text",
+              text: "*แอดมินจะคัดทุเรียนแก่จัด ชั่งน้ำหนักจริง และส่งบิลยอดชำระที่แน่นอนให้คุณทางแชทนี้ครับ (หรือสามารถสแกน QR โอนยอดประมาณการล่วงหน้าได้เลยครับ)",
+              size: "xxs",
+              color: "#B45309",
+              wrap: true,
+              margin: "xs",
+            },
           ],
         },
         { type: "separator", margin: "sm" },
@@ -2272,13 +2381,13 @@ export function buildPromptPayQrPaymentFlex(params: {
         {
           type: "button",
           style: "primary",
-          color: "#06C755",
+          color: "#15803D",
           height: "sm",
           action: {
             type: "postback",
-            label: "💬 สอบถาม / คุยกับแอดมิน",
-            data: `action=open_ticket&orderId=${params.orderId || ""}`,
-            displayText: "คุยกับแอดมิน",
+            label: "📸 แนบสลิปโอนเงิน (แจ้งชำระ)",
+            data: `action=attach_slip&orderId=${params.orderId || ""}`,
+            displayText: params.orderId ? `แนบสลิปออเดอร์ #${params.orderId}` : "ส่งรูปสลิปโอนเงิน",
           },
         },
         {
@@ -2287,9 +2396,9 @@ export function buildPromptPayQrPaymentFlex(params: {
           height: "sm",
           action: {
             type: "postback",
-            label: "ขอยังไม่แนบสลิป (บันทึกออเดอร์)",
-            data: "action=confirm_without_slip",
-            displayText: "ขอยืนยันจองและส่งสลิปภายหลัง",
+            label: "📦 เช็กสถานะการจอง",
+            data: `action=track_order&orderId=${params.orderId || ""}`,
+            displayText: params.orderId ? `เช็กสถานะ #${params.orderId}` : "เช็กสถานะออเดอร์",
           },
         },
         {
@@ -2297,9 +2406,10 @@ export function buildPromptPayQrPaymentFlex(params: {
           style: "link",
           height: "sm",
           action: {
-            type: "message",
-            label: "ยกเลิกคำสั่งซื้อ",
-            text: "ยกเลิก",
+            type: "postback",
+            label: "💬 สอบถาม / คุยกับแอดมิน (เปิด Ticket)",
+            data: `action=open_ticket&orderId=${params.orderId || ""}`,
+            displayText: "คุยกับแอดมิน",
           },
         },
       ],
@@ -2320,9 +2430,27 @@ export function buildPromptPayQrPaymentFlex(params: {
   return [
     {
       type: "flex",
-      altText: `สแกน QR PromptPay ฿${params.grandTotal.toLocaleString()} แล้วส่งสลิปในแชทเพื่อออกเลข Order`,
+      altText: `🍈 สั่งจองทุเรียนสำเร็จ #${params.orderId || ""} (฿${params.grandTotal.toLocaleString()})`,
       quickReply: {
         items: [
+          {
+            type: "action",
+            action: {
+              type: "postback",
+              label: "📸 แนบสลิปโอนเงิน",
+              data: `action=attach_slip&orderId=${params.orderId || ""}`,
+              displayText: "แนบสลิปโอนเงิน",
+            },
+          },
+          {
+            type: "action",
+            action: {
+              type: "postback",
+              label: "📦 เช็กสถานะการจอง",
+              data: `action=track_order&orderId=${params.orderId || ""}`,
+              displayText: "เช็กสถานะออเดอร์",
+            },
+          },
           {
             type: "action",
             action: {
@@ -2330,15 +2458,6 @@ export function buildPromptPayQrPaymentFlex(params: {
               label: "💬 คุยกับแอดมิน",
               data: `action=open_ticket&orderId=${params.orderId || ""}`,
               displayText: "คุยกับแอดมิน",
-            },
-          },
-          {
-            type: "action",
-            action: {
-              type: "postback",
-              label: "ออกเลข Order ก่อน",
-              data: "action=confirm_without_slip",
-              displayText: "ออกเลข Order ก่อน (ส่งสลิปทีหลัง)",
             },
           },
           {
