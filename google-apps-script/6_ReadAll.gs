@@ -41,7 +41,7 @@ function readAllDatabase() {
     stockUnit: p.stockUnit === "qty" ? "qty" : "kg",
     stockKg: optNum(p.stockKg),
     avgWeightKg: optNum(p.avgWeightKg),
-    stockQty: optNum(p.stockQty) ?? 0,
+    stockQty: optNum(p.stockQty) !== undefined ? optNum(p.stockQty) : (hasNumber(p.stockKg) ? Math.max(1, Math.floor(Number(p.stockKg) / (Number(p.avgWeightKg) || 3))) : 10),
     specs: {
       maturity: String(p.maturity || p.ripeness || "แก่จัด 85%+"),
       texture: String(p.texture || "กรอบนอกนุ่มใน"),

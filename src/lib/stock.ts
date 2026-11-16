@@ -86,22 +86,15 @@ export function getAvailableUnits(p: Product): number | undefined {
 
 export function deductProductStock(product: Product, orderedQty: number): void {
   const qty = Math.max(1, orderedQty);
-  if (product.stockUnit === "qty" || product.type === "flesh") {
-    if (typeof product.stockQty === "number") {
-      product.stockQty = Math.max(0, product.stockQty - qty);
-      if (product.stockQty <= 0) product.isAvailable = false;
-    }
-    if (typeof product.stockKg === "number") {
-      const unitKg = product.avgWeightKg && product.avgWeightKg > 0 ? product.avgWeightKg : 1;
-      product.stockKg = Math.max(0, Number((product.stockKg - qty * unitKg).toFixed(1)));
-      if (product.stockKg <= 0) product.isAvailable = false;
-    }
-    return;
+  if (typeof product.stockQty === "number") {
+    product.stockQty = Math.max(0, product.stockQty - qty);
+    if (product.stockQty <= 0) product.isAvailable = false;
   }
-
   if (typeof product.stockKg === "number") {
-    const avgKg = product.avgWeightKg && product.avgWeightKg > 0 ? product.avgWeightKg : 3;
-    product.stockKg = Math.max(0, Number((product.stockKg - qty * avgKg).toFixed(1)));
-    if (product.stockKg <= 0) product.isAvailable = false;
+    const unitKg = product.avgWeightKg && product.avgWeightKg > 0 ? product.avgWeightKg : 3;
+    product.stockKg = Math.max(0, Number((product.stockKg - qty * unitKg).toFixed(1)));
+    if (product.stockKg <= 0 && (product.stockQty === undefined || product.stockQty <= 0)) {
+      product.isAvailable = false;
+    }
   }
 }

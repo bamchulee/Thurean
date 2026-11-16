@@ -375,9 +375,52 @@ function applyDatabaseJoins(db: DatabaseState): DatabaseState {
   const orders = Array.isArray(db.orders) ? db.orders : [];
   const claims = Array.isArray(db.claims) ? db.claims : [];
   const rounds = Array.isArray(db.rounds) && db.rounds.length > 0 ? db.rounds : seed.rounds;
-  const products = Array.isArray(db.products) && db.products.length > 0 ? db.products : seed.products;
+  const rawProducts = Array.isArray(db.products) && db.products.length > 0 ? db.products : seed.products;
   const lots = Array.isArray(db.lots) && db.lots.length > 0 ? db.lots : seed.lots;
   const promotions = Array.isArray(db.promotions) && db.promotions.length > 0 ? db.promotions : seed.promotions;
+
+  // Deduplicate products by id & merge fields
+  const productMap = new Map<string, Product>();
+  for (const p of rawProducts) {
+    const existing = productMap.get(p.id);
+    if (!existing) {
+      productMap.set(p.id, p);
+    } else {
+      productMap.set(p.id, {
+        ...existing,
+        ...p,
+        stockQty: p.stockQty !== undefined ? p.stockQty : existing.stockQty,
+        grade: p.grade || existing.grade,
+        pricePerKg: p.pricePerKg || existing.pricePerKg,
+        weight: p.weight || existing.weight,
+        productType: p.productType || existing.productType,
+      });
+    }
+  }
+
+  const products = Array.from(productMap.values()).map((p) => {
+    const seedMatch = seed.products.find((sp) => sp.id === p.id);
+    const stockQty = typeof p.stockQty === "number"
+      ? p.stockQty
+      : typeof p.stockKg === "number" && p.stockKg > 0
+      ? Math.max(1, Math.floor(p.stockKg / (p.avgWeightKg || 3)))
+      : seedMatch?.stockQty ?? 10;
+    const pricePerKg = p.pricePerKg || p.price || seedMatch?.pricePerKg || seedMatch?.price || 220;
+    const isActive = p.isActive !== 0 && (p.isActive as any) !== "0" && p.isActive !== false ? 1 : 0;
+    return {
+      ...p,
+      productType: p.productType || seedMatch?.productType || "รับคัดลูก",
+      grade: p.grade || seedMatch?.grade || "เกรด A+ พรีเมียม",
+      weight: p.weight || seedMatch?.weight || "3.0 - 3.5 กก.",
+      maturity: p.maturity || p.specs?.maturity || seedMatch?.maturity || "แก่จัด 85%+",
+      texture: p.texture || p.specs?.texture || seedMatch?.texture || "กรอบนอกนุ่มใน",
+      stockQty,
+      pricePerKg,
+      price: pricePerKg,
+      isActive,
+      isAvailable: stockQty >= 1 && isActive === 1,
+    };
+  });
 
   const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
 

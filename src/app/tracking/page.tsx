@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
+  AlertCircle,
+  AlertTriangle,
   ArrowLeft,
+  Calendar,
   Check,
   CheckCircle2,
   Clock,
@@ -10,152 +13,317 @@ import {
   ExternalLink,
   MapPin,
   Package,
+  RefreshCw,
+  Scale,
   Search,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Timer,
   Truck,
+  User,
+  XCircle,
 } from "lucide-react";
 import { shopInfo } from "../../data/mock";
 import type { Order } from "../../types/durian";
 import { LineIcon } from "../../components/Icons";
 import { resolveCourierInfo } from "../../lib/courier";
 
+interface CurrentUser {
+  id: string;
+  name?: string;
+  displayName?: string;
+  lineUserId?: string;
+  phone?: string;
+  role?: string;
+}
+
 const statusSteps = [
   {
-    key: "received",
+    key: "รอชั่งน้ำหนัก/สรุปยอด",
+    aliases: ["received", "pending_weigh"],
+    icon: Scale,
+    label: "1. รอชั่งน้ำหนัก & สรุปราคา",
+    desc: "ทีมงานคัดผลผลิตตามเกรดและไซส์ นำขึ้นตาชั่งเพื่อสรุปราคาจริง",
+  },
+  {
+    key: "รอชำระเงิน",
+    aliases: ["pending_payment", "weighed"],
     icon: Clock,
-    label: "รับออเดอร์แล้ว",
-    desc: "ระบบบันทึกรายการและรอตรวจสอบสลิป",
+    label: "2. รอชำระเงิน",
+    desc: "แจ้งยอดชั่งจริงพร้อม QR Code PromptPay ให้ลูกค้าชำระเงิน",
   },
   {
-    key: "preparing",
-    icon: Truck,
-    label: "กำลังคัดทุเรียนจากสวน",
-    desc: "ทีมงานวิ่งรถกระบะคัดผลผลิตแก่จัดตามความสุกที่สั่ง",
-  },
-  {
-    key: "packed",
+    key: "ชำระเงินแล้ว/เตรียมจัดส่ง",
+    aliases: ["paid", "preparing", "packed"],
     icon: Package,
-    label: "แพ็กกล่องเรียบร้อย",
-    desc: "บรรจุกล่องล็อกขั้วเจาะระบายอากาศ / คุมความเย็น 4°C",
+    label: "3. ชำระเงินแล้ว / เตรียมจัดส่ง",
+    desc: "ร้านตรวจสอบยอดชำระ แพ็กกล่องเจาะรูระบายอากาศ / คุมความเย็น",
   },
   {
-    key: "shipped",
-    icon: MapPin,
-    label: "จัดส่งแล้ว",
-    desc: "พัสดุออกจากร้านและอยู่ระหว่างเดินทางไปหาคุณ",
+    key: "กำลังจัดส่ง",
+    aliases: ["shipped", "shipping"],
+    icon: Truck,
+    label: "4. กำลังจัดส่ง",
+    desc: "ส่งมอบให้บริษัทขนส่ง อยู่ระหว่างเดินทาง มีเลขพัสดุสำหรับติดตาม",
   },
   {
-    key: "delivered",
+    key: "จัดส่งสำเร็จ",
+    aliases: ["delivered", "completed", "claimed"],
     icon: CheckCircle2,
-    label: "ได้รับทุเรียนแล้ว",
-    desc: "จัดส่งสำเร็จ ขอบคุณที่อุดหนุนทุเรียนวินคินครับ",
+    label: "5. จัดส่งสำเร็จ (ประกัน 24 ชม.)",
+    desc: "พัสดุถึงมือผู้รับเรียบร้อย • สามารถกดแจ้งเคลมได้ภายใน 24 ชม.",
   },
 ];
 
-function getStatusIndex(status: string) {
+function getStatusIndex(status?: string): number {
+  if (!status) return 0;
   if (status === "claimed") return 4;
-  return statusSteps.findIndex((s) => s.key === status);
+  const idx = statusSteps.findIndex(
+    (s) => s.key === status || s.aliases.includes(status)
+  );
+  return idx >= 0 ? idx : 0;
+}
+
+function getClaimWarrantyInfo(order: Order): {
+  isDelivered: boolean;
+  isEligible: boolean;
+  isClaimed: boolean;
+  hoursElapsed: number;
+  hoursLeft: number;
+  minutesLeft: number;
+} {
+  const isClaimed = order.orderStatus === "claimed";
+  const isDelivered =
+    order.orderStatus === "จัดส่งสำเร็จ" ||
+    order.orderStatus === "delivered" ||
+    isClaimed;
+
+  if (!isDelivered) {
+    return {
+      isDelivered: false,
+      isEligible: false,
+      isClaimed: false,
+      hoursElapsed: 0,
+      hoursLeft: 0,
+      minutesLeft: 0,
+    };
+  }
+
+  const deliveredTime = order.deliveredAt
+    ? new Date(order.deliveredAt).getTime()
+    : order.updatedAt
+    ? new Date(order.updatedAt).getTime()
+    : new Date(order.createdAt).getTime();
+
+  const now = Date.now();
+  const diffHours = (now - deliveredTime) / (1000 * 60 * 60);
+  const hoursElapsed = Math.floor(diffHours);
+  const totalMinutesRemaining = Math.max(
+    0,
+    Math.floor(24 * 60 - diffHours * 60)
+  );
+  const hoursLeft = Math.floor(totalMinutesRemaining / 60);
+  const minutesLeft = totalMinutesRemaining % 60;
+  const isEligible = diffHours <= 24 && !isClaimed;
+
+  return {
+    isDelivered: true,
+    isEligible,
+    isClaimed,
+    hoursElapsed,
+    hoursLeft,
+    minutesLeft,
+  };
 }
 
 export default function TrackingPage() {
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [userOrders, setUserOrders] = useState<Order[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+
+  // Search state
   const [searchInput, setSearchInput] = useState("");
-  const [foundOrder, setFoundOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<Order[] | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [searching, setSearching] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [copiedTrack, setCopiedTrack] = useState(false);
 
-  const performLookup = async (query: string) => {
-    const q = query.trim();
-    if (!q) return;
-    setLoading(true);
-    setNotFound(false);
+  // Filter tab for user's order list
+  const [filterTab, setFilterTab] = useState<"all" | "in_progress" | "delivered" | "cancelled">("all");
+
+  // Load current session & user orders
+  const loadUserAndOrders = async () => {
+    setLoadingOrders(true);
     try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(q)}`);
-      const json = (await res.json()) as { ok: boolean; order?: Order };
-      if (res.ok && json.ok && json.order) {
-        setFoundOrder(json.order);
-        setNotFound(false);
+      // 1. Check logged-in user
+      const meRes = await fetch("/api/auth/me");
+      const meJson = await meRes.json();
+      if (meRes.ok && meJson.ok && meJson.user) {
+        setCurrentUser(meJson.user);
       } else {
-        setFoundOrder(null);
-        setNotFound(true);
+        setCurrentUser(null);
+      }
+
+      // 2. Fetch orders
+      const ordersRes = await fetch("/api/orders");
+      const ordersJson = await ordersRes.json();
+      if (ordersRes.ok && ordersJson.ok && Array.isArray(ordersJson.orders)) {
+        setUserOrders(ordersJson.orders);
+      } else {
+        setUserOrders([]);
       }
     } catch {
-      setFoundOrder(null);
-      setNotFound(true);
+      setUserOrders([]);
     } finally {
-      setLoading(false);
+      setLoadingOrders(false);
     }
   };
 
   useEffect(() => {
+    loadUserAndOrders();
+
+    // Check query params (?id=OD123456 or ?phone=0812345678)
     const params = new URLSearchParams(window.location.search);
     const idParam = params.get("id");
+    const phoneParam = params.get("phone");
     if (idParam) {
       setSearchInput(idParam);
       performLookup(idParam);
+    } else if (phoneParam) {
+      setSearchInput(phoneParam);
+      performLookup(phoneParam);
     }
   }, []);
+
+  const performLookup = async (query: string) => {
+    const q = query.trim();
+    if (!q) return;
+    setSearching(true);
+    setNotFound(false);
+    setSelectedOrder(null);
+    setSearchResults(null);
+
+    const cleanDigits = q.replace(/[^\d]/g, "");
+    const isPhoneNumber = cleanDigits.length >= 9 && cleanDigits.length <= 11 && !q.toUpperCase().startsWith("OD") && !q.toUpperCase().startsWith("WK");
+
+    try {
+      if (isPhoneNumber) {
+        // Search by phone number
+        const res = await fetch(`/api/orders?phone=${encodeURIComponent(cleanDigits)}`);
+        const json = await res.json();
+        if (res.ok && json.ok && Array.isArray(json.orders) && json.orders.length > 0) {
+          setSearchResults(json.orders);
+          if (json.orders.length === 1) {
+            setSelectedOrder(json.orders[0]);
+          }
+        } else {
+          setNotFound(true);
+        }
+      } else {
+        // Search by Order ID or Tracking Number
+        const res = await fetch(`/api/orders/${encodeURIComponent(q)}`);
+        const json = (await res.json()) as { ok: boolean; order?: Order };
+        if (res.ok && json.ok && json.order) {
+          setSelectedOrder(json.order);
+          setSearchResults([json.order]);
+        } else {
+          setNotFound(true);
+        }
+      }
+    } catch {
+      setNotFound(true);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     performLookup(searchInput);
   };
 
-  const currentStep = foundOrder ? getStatusIndex(foundOrder.orderStatus) : -1;
-  const courierInfo = foundOrder
+  // Filter user orders
+  const filteredUserOrders = userOrders.filter((o) => {
+    const isDelivered = o.orderStatus === "จัดส่งสำเร็จ" || o.orderStatus === "delivered" || o.orderStatus === "claimed";
+    const isCancelled = o.orderStatus === "ยกเลิก" || o.orderStatus === "cancelled";
+    if (filterTab === "delivered") return isDelivered;
+    if (filterTab === "cancelled") return isCancelled;
+    if (filterTab === "in_progress") return !isDelivered && !isCancelled;
+    return true;
+  });
+
+  const displayOrder = selectedOrder;
+  const currentStep = displayOrder ? getStatusIndex(displayOrder.orderStatus) : -1;
+  const courierInfo = displayOrder
     ? resolveCourierInfo(
-        foundOrder.trackingNo,
-        foundOrder.courier,
-        foundOrder.shippingMethod
+        displayOrder.trackingNo,
+        displayOrder.courier,
+        displayOrder.shippingMethod
       )
     : null;
 
+  const warranty = displayOrder ? getClaimWarrantyInfo(displayOrder) : null;
+
   return (
     <div className="min-h-screen bg-[#FBF6E3]">
-      {/* Header */}
-      <header className="bg-white border-b border-stone-200 shadow-xs">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+      {/* Top Navbar */}
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-30 shadow-xs">
+        <div className="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between">
           <a href="/" className="flex items-center gap-3">
             <img
               src={shopInfo.logo}
               alt={shopInfo.name}
-              className="w-11 h-11 rounded-full border border-stone-200 bg-white object-cover"
+              className="w-10 h-10 rounded-full border border-stone-200 bg-white object-cover"
             />
             <div>
-              <h1 className="font-extrabold text-base text-[#1B4D31]">
+              <h1 className="font-extrabold text-sm sm:text-base text-[#1B4D31]">
                 {shopInfo.name}
               </h1>
-              <p className="text-[11px] text-stone-500 font-mono">
-                ติดตามพัสดุ • โทร. {shopInfo.phone}
+              <p className="text-[10px] sm:text-xs text-stone-500 font-mono">
+                ประวัติคำสั่งซื้อ &amp; ติดตามพัสดุ
               </p>
             </div>
           </a>
-          <a
-            href="/"
-            className="text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-xl transition inline-flex items-center gap-1.5"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>กลับหน้าร้าน</span>
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={loadUserAndOrders}
+              title="รีเฟรชข้อมูล"
+              className="p-2 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 transition"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingOrders ? "animate-spin text-[#1B4D31]" : ""}`} />
+            </button>
+            <a
+              href="/"
+              className="text-xs font-bold bg-[#1B4D31] hover:bg-[#143B25] text-white px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-xs"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>กลับหน้าร้าน</span>
+            </a>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 py-10">
-        {/* Search Box */}
-        <div className="text-center mb-8">
-          <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-[#1B4D31] border border-emerald-200 text-xs font-bold px-3 py-1 rounded-full mb-2.5">
-            <Package className="w-3.5 h-3.5" />
-            <span>TRACKING SYSTEM</span>
+      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        {/* Title Header */}
+        <div className="text-center">
+          <span className="inline-flex items-center gap-1.5 bg-emerald-100/70 text-[#1B4D31] border border-emerald-300 text-xs font-bold px-3 py-1 rounded-full mb-2.5">
+            <Package className="w-3.5 h-3.5 text-emerald-800" />
+            <span>ORDER TRACKING &amp; CLAIM SYSTEM</span>
           </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 mb-2">
-            ตรวจสอบสถานะคำสั่งซื้อ &amp; เลขพัสดุ
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">
+            ประวัติการสั่งซื้อ &amp; ติดตามสถานะ
           </h2>
-          <p className="text-xs sm:text-sm text-stone-500 mb-6">
-            กรอกรหัสออเดอร์ (เช่น WK-9521) หรือ เลขพัสดุที่ได้รับจากร้าน
+          <p className="text-xs sm:text-sm text-stone-600 mt-1 max-w-lg mx-auto">
+            ตรวจสอบความคืบหน้าคำสั่งซื้อ อัปเดตน้ำหนักชั่งจริง และแจ้งเคลมประกันคุณภาพสินค้าภายใน 24 ชม.
           </p>
+        </div>
 
-          <form onSubmit={handleSearch} className="flex gap-2 max-w-md mx-auto">
+        {/* Search Box */}
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs">
+          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-stone-400 absolute left-4 top-1/2 -translate-y-1/2" />
               <input
@@ -165,146 +333,304 @@ export default function TrackingPage() {
                   setSearchInput(e.target.value);
                   setNotFound(false);
                 }}
-                placeholder="เช่น WK-9521 หรือ SCGTH884291823"
-                className="w-full border border-stone-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:border-[#1B4D31] focus:outline-none bg-white shadow-xs"
+                placeholder="กรอกรหัสออเดอร์ (เช่น OD000001) หรือ เบอร์โทร 10 หลัก"
+                className="w-full border border-stone-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] focus:outline-none bg-stone-50/50 text-stone-900"
               />
             </div>
             <button
               type="submit"
-              disabled={loading}
-              className="bg-[#1B4D31] hover:bg-[#143B25] text-white px-6 py-3 rounded-xl text-sm font-bold transition shadow-sm disabled:opacity-60"
+              disabled={searching}
+              className="bg-[#1B4D31] hover:bg-[#143B25] text-white px-6 py-3 rounded-xl text-sm font-bold transition shadow-sm disabled:opacity-60 flex items-center justify-center gap-2 shrink-0"
             >
-              {loading ? "กำลังค้น..." : "ค้นหา"}
+              {searching ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>กำลังค้นหา...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4" />
+                  <span>ค้นหาออเดอร์</span>
+                </>
+              )}
             </button>
           </form>
 
-          <p className="text-xs text-stone-500 mt-3">
-            ลองทดสอบค้นหา:{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setSearchInput("WK-9521");
-                performLookup("WK-9521");
-              }}
-              className="underline font-bold text-[#1B4D31] hover:text-emerald-700"
-            >
-              WK-9521
-            </button>{" "}
-            หรือ{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setSearchInput("WK-9520");
-                performLookup("WK-9520");
-              }}
-              className="underline font-bold text-[#1B4D31] hover:text-emerald-700"
-            >
-              WK-9520
-            </button>
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-stone-500 pt-3 border-t border-stone-100">
+            <span>
+              💡 ค้นหาได้ด้วย <strong>รหัสคำสั่งซื้อ OD...</strong> หรือ <strong>เบอร์โทรศัพท์ผู้รับ</strong>
+            </span>
+            {currentUser && (
+              <span className="text-[#1B4D31] font-semibold flex items-center gap-1">
+                <User className="w-3.5 h-3.5" />
+                <span>เข้าสู่ระบบเป็น: {currentUser.name || currentUser.displayName || currentUser.id}</span>
+              </span>
+            )}
+          </div>
         </div>
 
+        {/* Not Found Alert */}
         {notFound && (
-          <div className="bg-white border border-rose-200 rounded-2xl p-6 text-center shadow-xs">
-            <div className="w-11 h-11 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-2.5">
-              <Search className="w-5 h-5" />
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center shadow-xs">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+              <AlertCircle className="w-6 h-6" />
             </div>
-            <p className="font-bold text-rose-700 text-base mb-1">
-              ไม่พบข้อมูลคำสั่งซื้อนี้ในระบบ
+            <p className="font-extrabold text-rose-800 text-base mb-1">
+              ไม่พบข้อมูลคำสั่งซื้อในระบบ
             </p>
-            <p className="text-xs text-stone-500">
-              กรุณาตรวจสอบรหัสออเดอร์อีกครั้ง หรือโทรสอบถามแอดมินที่{" "}
-              <strong className="font-mono text-[#1B4D31]">{shopInfo.phone}</strong>
+            <p className="text-xs text-stone-600 max-w-md mx-auto">
+              กรุณาตรวจสอบรหัสออเดอร์หรือเบอร์โทรศัพท์อีกครั้ง หากสั่งซื้อผ่าน LINE OA สามารถสอบถามแอดมินได้โดยตรงที่{" "}
+              <strong className="text-[#1B4D31] font-mono">{shopInfo.phone}</strong>
             </p>
           </div>
         )}
 
-        {foundOrder && (
+        {/* Search Results Multi-List (when searching by phone) */}
+        {searchResults && searchResults.length > 1 && (
+          <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <h3 className="font-extrabold text-sm text-stone-900 flex items-center gap-2">
+                <Package className="w-4 h-4 text-[#1B4D31]" />
+                <span>พบ {searchResults.length} คำสั่งซื้อที่เกี่ยวข้อง</span>
+              </h3>
+              <span className="text-xs text-stone-500">คลิกที่ออเดอร์เพื่อดูรายละเอียด</span>
+            </div>
+            <div className="space-y-2">
+              {searchResults.map((order) => {
+                const isSelected = selectedOrder?.id === order.id;
+                const isDone = order.orderStatus === "จัดส่งสำเร็จ" || order.orderStatus === "delivered";
+                return (
+                  <button
+                    key={order.id}
+                    type="button"
+                    onClick={() => setSelectedOrder(order)}
+                    className={`w-full text-left p-3.5 rounded-xl border transition flex items-center justify-between gap-3 ${
+                      isSelected
+                        ? "bg-emerald-50/70 border-emerald-500 ring-1 ring-emerald-500"
+                        : "bg-stone-50 border-stone-200 hover:bg-stone-100/70"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-sm text-[#1B4D31]">
+                          {order.id}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isDone
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {order.orderStatus || "กำลังดำเนินการ"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-600 mt-1 line-clamp-1">
+                        {order.items.map((it) => `${it.productName} x${it.qty}`).join(", ")}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-mono font-bold text-sm text-stone-900">
+                        ฿{(order.totalPrice + (order.shippingCost || 0)).toLocaleString()}
+                      </span>
+                      <p className="text-[10px] text-stone-400 mt-0.5">
+                        {new Date(order.createdAt).toLocaleDateString("th-TH", {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Selected Order Detailed Card */}
+        {displayOrder && (
           <div className="space-y-5">
-            {/* Summary Header */}
+            {/* Order Header Summary */}
             <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-xs">
-              <div className="flex justify-between items-start border-b border-stone-100 pb-4 mb-4">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-100 pb-4 mb-4">
                 <div>
-                  <span className="text-[10px] text-stone-400 font-bold uppercase block">
+                  <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">
                     รหัสคำสั่งซื้อ
                   </span>
-                  <p className="text-2xl font-extrabold text-[#1B4D31] font-mono">
-                    {foundOrder.id}
-                  </p>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    สั่งซื้อเมื่อ:{" "}
-                    {new Date(foundOrder.createdAt).toLocaleString("th-TH", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-2xl sm:text-3xl font-black text-[#1B4D31] font-mono tracking-tight">
+                      {displayOrder.id}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(displayOrder.id);
+                        setCopiedTrack(true);
+                        setTimeout(() => setCopiedTrack(false), 2000);
+                      }}
+                      title="คัดลอกรหัสออเดอร์"
+                      className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 text-stone-500 text-xs inline-flex items-center gap-1"
+                    >
+                      {copiedTrack ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-stone-500 mt-1 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-stone-400" />
+                    <span>
+                      สั่งซื้อเมื่อ:{" "}
+                      {new Date(displayOrder.createdAt).toLocaleString("th-TH", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
                   </p>
                 </div>
-                <span
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
-                    foundOrder.paymentStatus === "confirmed"
-                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                      : "bg-amber-50 text-amber-800 border border-amber-200"
-                  }`}
-                >
-                  {foundOrder.paymentStatus === "confirmed" ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>ชำระเงินเรียบร้อย</span>
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>รอตรวจสอบสลิป</span>
-                    </>
-                  )}
-                </span>
+
+                <div className="flex flex-col items-end gap-1.5">
+                  <span
+                    className={`px-3 py-1.5 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5 ${
+                      displayOrder.orderStatus === "จัดส่งสำเร็จ" || displayOrder.orderStatus === "delivered"
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                        : displayOrder.orderStatus === "ยกเลิก"
+                        ? "bg-rose-100 text-rose-800 border border-rose-300"
+                        : "bg-amber-100 text-amber-900 border border-amber-300"
+                    }`}
+                  >
+                    {displayOrder.orderStatus === "จัดส่งสำเร็จ" ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                    ) : (
+                      <Clock className="w-3.5 h-3.5 text-amber-700" />
+                    )}
+                    <span>{displayOrder.orderStatus || "รอชั่งน้ำหนัก/สรุปยอด"}</span>
+                  </span>
+
+                  <span className="text-[11px] text-stone-500">
+                    {displayOrder.channel ? `ช่องทาง: ${displayOrder.channel}` : "สั่งผ่านเว็บ"}
+                  </span>
+                </div>
               </div>
 
+              {/* Recipient & Courier Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="bg-stone-50 rounded-xl p-3 border border-stone-100">
+                <div className="bg-stone-50/80 rounded-xl p-3.5 border border-stone-200">
                   <span className="text-stone-400 block text-[10px] uppercase font-bold">
-                    ผู้รับ
+                    ผู้รับสินค้า
                   </span>
-                  <p className="font-bold text-stone-900 mt-0.5">
-                    {foundOrder.customerName} ({foundOrder.phone})
+                  <p className="font-bold text-stone-900 mt-1">
+                    {displayOrder.customerName} ({displayOrder.phone})
                   </p>
+                  {displayOrder.address && (
+                    <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-2">
+                      {displayOrder.address}
+                    </p>
+                  )}
                 </div>
-                <div className="bg-stone-50 rounded-xl p-3 border border-stone-100">
+
+                <div className="bg-stone-50/80 rounded-xl p-3.5 border border-stone-200">
                   <span className="text-stone-400 block text-[10px] uppercase font-bold">
-                    บริษัทขนส่ง &amp; วิธีจัดส่ง
+                    ขนส่ง &amp; ยานพาหนะ
                   </span>
-                  <p className="font-bold text-[#1B4D31] mt-0.5">
-                    {courierInfo?.name || "-"}
+                  <p className="font-bold text-[#1B4D31] mt-1">
+                    {courierInfo?.name || displayOrder.courier || "ไปรษณีย์ไทย EMS"}
                   </p>
-                  <p className="text-[11px] text-stone-500">
-                    {foundOrder.shippingMethod}
+                  <p className="text-[11px] text-stone-600 mt-0.5">
+                    {displayOrder.vehicleType || "รถห้องเย็นปรับอุณหภูมิ"}
                   </p>
                 </div>
               </div>
-              {foundOrder.ripenessPref && (
-                <div className="mt-3 text-xs bg-emerald-50/70 text-[#1B4D31] px-3 py-2 rounded-xl font-semibold border border-emerald-200 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span>ระดับความสุกที่สั่ง: {foundOrder.ripenessPref}</span>
+
+              {/* Weighed info notification */}
+              {displayOrder.weightPerItem && (
+                <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-950 p-3 rounded-xl text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Scale className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      <strong>น้ำหนักชั่งจริงจากสวน:</strong> {displayOrder.weightPerItem}{" "}
+                      {displayOrder.quantity ? `(จำนวน ${displayOrder.quantity} ลูก)` : ""}
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-amber-800">
+                    ฿{displayOrder.totalPrice.toLocaleString()}
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* Stepper */}
-            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-xs">
-              <h3 className="text-sm font-bold text-stone-900 mb-5 flex items-center gap-2">
-                <Truck className="w-4 h-4 text-[#1B4D31]" />
-                <span>ขั้นตอนการจัดส่ง</span>
-              </h3>
+            {/* 24-HOUR WARRANTY & CLAIM BANNER (CRITICAL) */}
+            {warranty && (
+              <div
+                className={`rounded-2xl p-5 border shadow-xs ${
+                  warranty.isClaimed
+                    ? "bg-blue-50 border-blue-200 text-blue-950"
+                    : warranty.isDelivered && warranty.isEligible
+                    ? "bg-emerald-50 border-emerald-300 text-emerald-950"
+                    : warranty.isDelivered && !warranty.isEligible
+                    ? "bg-stone-100 border-stone-300 text-stone-700"
+                    : "bg-amber-50/70 border-amber-200 text-amber-900"
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      {warranty.isClaimed ? (
+                        <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
+                      ) : warranty.isDelivered && warranty.isEligible ? (
+                        <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+                      ) : warranty.isDelivered ? (
+                        <ShieldAlert className="w-5 h-5 text-stone-500 shrink-0" />
+                      ) : (
+                        <Timer className="w-5 h-5 text-amber-600 shrink-0" />
+                      )}
+                      <h4 className="font-extrabold text-sm sm:text-base">
+                        {warranty.isClaimed
+                          ? "ออเดอร์นี้ได้ยื่นเรื่องแจ้งเคลมแล้ว"
+                          : warranty.isDelivered && warranty.isEligible
+                          ? "อยู่ในระยะเวลารับประกันเคลมคุณภาพสินค้า (24 ชั่วโมง)"
+                          : warranty.isDelivered
+                          ? "สิ้นสุดระยะเวลารับประกันเคลมสินค้าแล้ว (เกิน 24 ชม.)"
+                          : "เงื่อนไขการรับประกันเคลมคุณภาพ (24 ชั่วโมง)"}
+                      </h4>
+                    </div>
 
-              {foundOrder.orderStatus === "claimed" && (
-                <div className="mb-4 bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs font-bold text-rose-700 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 shrink-0" />
-                  <span>ออเดอร์นี้อยู่ระหว่างดำเนินการแจ้งเคลมประกันคุณภาพ</span>
+                    <p className="text-xs opacity-90 leading-relaxed">
+                      {warranty.isClaimed
+                        ? "ทีมงานกำลังตรวจสอบคำร้องและหลักฐานรูปภาพของท่าน หากมีความคืบหน้าจะแจ้งเตือนผ่าน LINE ทันที"
+                        : warranty.isDelivered && warranty.isEligible
+                        ? `สินค้าจัดส่งถึงมือแล้ว ${warranty.hoursElapsed} ชั่วโมง • สามารถเปิดกล้องถ่ายภาพและกดแจ้งเคลมได้อีก ${warranty.hoursLeft} ชั่วโมง ${warranty.minutesLeft} นาที`
+                        : warranty.isDelivered
+                        ? `จัดส่งสำเร็จแล้วเป็นเวลาประมาณ ${warranty.hoursElapsed} ชั่วโมง (เกิน 24 ชม. ตามนโยบายรับประกันความสดของสวนทุเรียนวินคิน)`
+                        : "เมื่อสินค้าจัดส่งสำเร็จถึงมือผู้รับแล้ว ท่านสามารถตรวจสอบเนื้อทุเรียนและกดแจ้งเคลมผ่านระบบนี้ได้ภายใน 24 ชม."}
+                    </p>
+                  </div>
+
+                  {warranty.isDelivered && warranty.isEligible && (
+                    <a
+                      href={`/claim?orderId=${encodeURIComponent(displayOrder.id)}`}
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs px-5 py-3 rounded-xl transition shadow-sm inline-flex items-center justify-center gap-2 shrink-0"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>แจ้งเคลมสินค้านี้</span>
+                    </a>
+                  )}
+
+                  {warranty.isDelivered && !warranty.isEligible && !warranty.isClaimed && (
+                    <span className="text-[11px] font-bold bg-stone-200 text-stone-600 px-3 py-2 rounded-xl text-center shrink-0">
+                      หมดเวลารับประกัน
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
+            )}
+
+            {/* Stepper Timeline */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-xs">
+              <h3 className="text-sm font-extrabold text-stone-900 mb-5 flex items-center gap-2">
+                <Truck className="w-4 h-4 text-[#1B4D31]" />
+                <span>ขั้นตอนและสถานะการดำเนินการ</span>
+              </h3>
 
               <div className="space-y-6 relative pl-7 border-l-2 border-stone-200 ml-3">
                 {statusSteps.map((step, idx) => {
@@ -315,9 +641,9 @@ export default function TrackingPage() {
                   return (
                     <div key={step.key} className="relative">
                       <div
-                        className={`absolute -left-[39px] -top-0.5 w-7 h-7 rounded-full flex items-center justify-center border-2 ${
+                        className={`absolute -left-[39px] -top-0.5 w-7 h-7 rounded-full flex items-center justify-center border-2 transition-transform ${
                           isCurrent
-                            ? "bg-amber-500 border-[#1B4D31] text-stone-950 scale-105 shadow-sm"
+                            ? "bg-amber-400 border-[#1B4D31] text-stone-950 scale-110 shadow-sm"
                             : isDone
                             ? "bg-[#1B4D31] border-[#1B4D31] text-white"
                             : "bg-white border-stone-300 text-stone-400"
@@ -346,12 +672,14 @@ export default function TrackingPage() {
                             {step.label}
                           </p>
                           {isCurrent && (
-                            <span className="bg-emerald-50 text-[#1B4D31] border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
                               สถานะปัจจุบัน
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-stone-500 mt-0.5">{step.desc}</p>
+                        <p className="text-xs text-stone-500 mt-0.5 leading-relaxed">
+                          {step.desc}
+                        </p>
                       </div>
                     </div>
                   );
@@ -359,15 +687,15 @@ export default function TrackingPage() {
               </div>
             </div>
 
-            {/* Tracking Number */}
-            {foundOrder.trackingNo && (
-              <div className="bg-[#1B4D31] text-white rounded-2xl p-5 border border-emerald-900 flex flex-wrap items-center justify-between gap-3 shadow-md">
+            {/* Tracking Number Card */}
+            {displayOrder.trackingNo && (
+              <div className="bg-[#1B4D31] text-white rounded-2xl p-5 border border-emerald-900 flex flex-wrap items-center justify-between gap-4 shadow-sm">
                 <div>
-                  <span className="text-[10px] text-amber-300 font-bold uppercase block tracking-wider">
-                    หมายเลขพัสดุ • {courierInfo?.name}
+                  <span className="text-[10px] text-amber-300 font-bold uppercase tracking-wider block">
+                    หมายเลขพัสดุ • {courierInfo?.name || displayOrder.courier}
                   </span>
-                  <p className="font-mono text-xl font-black text-white tracking-wider">
-                    {foundOrder.trackingNo}
+                  <p className="font-mono text-xl font-black text-white tracking-wider mt-0.5">
+                    {displayOrder.trackingNo}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -385,21 +713,21 @@ export default function TrackingPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      navigator.clipboard.writeText(foundOrder.trackingNo || "");
+                      navigator.clipboard.writeText(displayOrder.trackingNo || "");
                       setCopiedTrack(true);
                       setTimeout(() => setCopiedTrack(false), 2000);
                     }}
-                    className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-4 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
+                    className="bg-amber-400 hover:bg-amber-300 text-stone-950 px-4 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 shadow-xs"
                   >
                     {copiedTrack ? (
                       <>
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="w-3.5 h-3.5 text-stone-950" />
                         <span>คัดลอกแล้ว</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>คัดลอก</span>
+                        <Copy className="w-3.5 h-3.5 text-stone-950" />
+                        <span>คัดลอกเลข</span>
                       </>
                     )}
                   </button>
@@ -407,64 +735,253 @@ export default function TrackingPage() {
               </div>
             )}
 
-            {/* Items */}
+            {/* Items in Order */}
             <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-xs">
-              <h3 className="text-sm font-bold text-stone-900 mb-3">
+              <h3 className="text-sm font-extrabold text-stone-900 mb-3">
                 รายการทุเรียนในคำสั่งซื้อ
               </h3>
-              <div className="divide-y divide-stone-100">
-                {foundOrder.items.map((it, i) => (
-                  <div
-                    key={i}
-                    className="py-2.5 flex justify-between items-center text-xs"
-                  >
-                    <span className="text-stone-800 font-semibold">
-                      {it.productName}{" "}
-                      <span className="text-stone-400">x{it.qty}</span>
-                    </span>
+              <div className="divide-y divide-stone-100 text-xs">
+                {displayOrder.items.map((it, i) => (
+                  <div key={i} className="py-2.5 flex justify-between items-center">
+                    <div>
+                      <span className="font-bold text-stone-800">
+                        {it.productName}
+                      </span>
+                      <span className="text-stone-400 ml-1.5">x{it.qty} {(it as any).unit || "ลูก"}</span>
+                      {it.weightPerItem && (
+                        <p className="text-[11px] text-amber-700">นน. ชั่งจริง: {it.weightPerItem}</p>
+                      )}
+                    </div>
                     <span className="font-mono font-bold text-stone-900">
                       ฿{(it.price * it.qty).toLocaleString()}
                     </span>
                   </div>
                 ))}
-                <div className="py-2.5 flex justify-between items-center text-xs text-stone-500">
-                  <span>ค่าจัดส่ง</span>
+                <div className="py-2.5 flex justify-between items-center text-stone-500">
+                  <span>ค่าจัดส่ง (คุมอุณหภูมิ/EMS)</span>
                   <span className="font-mono">
-                    {foundOrder.shippingCost === 0
+                    {displayOrder.shippingCost === 0
                       ? "ฟรี"
-                      : `฿${foundOrder.shippingCost}`}
+                      : `฿${displayOrder.shippingCost.toLocaleString()}`}
                   </span>
                 </div>
               </div>
+
               <div className="pt-3 border-t border-stone-200 flex justify-between items-baseline mt-1">
                 <span className="text-sm font-bold text-stone-700">
-                  ยอดรวมทั้งหมด
+                  ยอดรวมทั้งสิ้น
                 </span>
-                <span className="text-2xl font-extrabold text-[#1B4D31]">
-                  ฿{(foundOrder.totalPrice + foundOrder.shippingCost).toLocaleString()}
+                <span className="text-2xl font-black text-[#1B4D31] font-mono">
+                  ฿{(displayOrder.totalPrice + (displayOrder.shippingCost || 0)).toLocaleString()}
                 </span>
               </div>
             </div>
 
-            {/* Actions */}
+            {/* Contact Action */}
             <div className="flex flex-col sm:flex-row gap-3">
-              <a
-                href={`/claim?orderId=${encodeURIComponent(foundOrder.id)}`}
-                className="flex-1 py-3.5 rounded-xl bg-white border border-stone-300 text-stone-700 text-xs font-bold text-center hover:bg-stone-50 transition inline-flex items-center justify-center gap-1.5"
-              >
-                <ShieldCheck className="w-4 h-4 text-amber-600" />
-                <span>แจ้งปัญหา / เคลมทุเรียน</span>
-              </a>
               <a
                 href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex-1 py-3.5 rounded-xl bg-[#06C755] text-white text-xs font-bold text-center hover:bg-[#05b34c] transition shadow-sm inline-flex items-center justify-center gap-1.5"
+                className="flex-1 py-3.5 rounded-xl bg-[#06C755] text-white text-xs font-bold text-center hover:bg-[#05b34c] transition shadow-xs inline-flex items-center justify-center gap-2"
               >
                 <LineIcon className="w-4 h-4" />
-                <span>ทักแชทแอดมินทาง LINE</span>
+                <span>สอบถามแอดมินทาง LINE ({shopInfo.lineOA})</span>
+              </a>
+              <a
+                href="/"
+                className="flex-1 py-3.5 rounded-xl bg-white border border-stone-300 text-stone-700 text-xs font-bold text-center hover:bg-stone-50 transition inline-flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>กลับไปเลือกซื้อทุเรียนเพิ่ม</span>
               </a>
             </div>
+          </div>
+        )}
+
+        {/* LOGGED-IN CUSTOMER ORDERS SECTION (When not currently inspecting single search) */}
+        {!selectedOrder && (
+          <div className="space-y-4 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-black text-lg text-stone-900 flex items-center gap-2">
+                <Package className="w-5 h-5 text-[#1B4D31]" />
+                <span>ประวัติคำสั่งซื้อทั้งหมดของฉัน</span>
+              </h3>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center bg-stone-200/70 p-1 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setFilterTab("all")}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    filterTab === "all"
+                      ? "bg-white text-[#1B4D31] shadow-xs"
+                      : "text-stone-600 hover:text-stone-900"
+                  }`}
+                >
+                  ทั้งหมด ({userOrders.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterTab("in_progress")}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    filterTab === "in_progress"
+                      ? "bg-white text-amber-900 shadow-xs"
+                      : "text-stone-600 hover:text-stone-900"
+                  }`}
+                >
+                  กำลังดำเนินการ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterTab("delivered")}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    filterTab === "delivered"
+                      ? "bg-white text-emerald-800 shadow-xs"
+                      : "text-stone-600 hover:text-stone-900"
+                  }`}
+                >
+                  จัดส่งสำเร็จ (เสร็จสิ้น)
+                </button>
+              </div>
+            </div>
+
+            {loadingOrders ? (
+              <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+                <RefreshCw className="w-6 h-6 animate-spin text-[#1B4D31] mx-auto mb-2" />
+                <p className="text-xs text-stone-500">กำลังโหลดประวัติการสั่งซื้อ...</p>
+              </div>
+            ) : filteredUserOrders.length === 0 ? (
+              <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+                  <Package className="w-6 h-6" />
+                </div>
+                <p className="font-bold text-stone-800 text-sm">
+                  {filterTab === "all"
+                    ? "ยังไม่พบรายการคำสั่งซื้อในระบบ"
+                    : "ไม่มีรายการคำสั่งซื้อในหมวดหมู่นี้"}
+                </p>
+                <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                  หากคุณเคยสั่งซื้อผ่านเบอร์โทรศัพท์ สามารถพิมพ์เบอร์โทรในช่องค้นหาด้านบน หรือกดสั่งซื้อทุเรียนรอบใหม่ได้เลยครับ
+                </p>
+                <a
+                  href="/"
+                  className="inline-flex items-center gap-1.5 bg-[#1B4D31] text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-[#143B25] transition"
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>สั่งซื้อทุเรียนรอบนี้</span>
+                </a>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredUserOrders.map((order) => {
+                  const isDone =
+                    order.orderStatus === "จัดส่งสำเร็จ" ||
+                    order.orderStatus === "delivered";
+                  const orderWarranty = getClaimWarrantyInfo(order);
+
+                  return (
+                    <div
+                      key={order.id}
+                      className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs hover:border-emerald-300 transition space-y-3"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-stone-100 pb-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-base text-[#1B4D31]">
+                              #{order.id}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                isDone
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                  : order.orderStatus === "ยกเลิก"
+                                  ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                  : "bg-amber-100 text-amber-900 border border-amber-200"
+                              }`}
+                            >
+                              {order.orderStatus || "รอชั่งน้ำหนัก/สรุปยอด"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-stone-400 mt-0.5">
+                            สั่งเมื่อ:{" "}
+                            {new Date(order.createdAt).toLocaleDateString("th-TH", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="font-mono font-black text-base text-stone-900">
+                            ฿{(order.totalPrice + (order.shippingCost || 0)).toLocaleString()}
+                          </span>
+                          <p className="text-[10px] text-stone-400">
+                            {order.paymentStatus === "confirmed" ? "ชำระแล้ว" : "รอชำระเงิน"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Items row */}
+                      <div className="text-xs text-stone-700">
+                        <p className="font-semibold text-stone-800">
+                          {order.items.map((it) => `${it.productName} x${it.qty}`).join(", ")}
+                        </p>
+                        {order.weightPerItem && (
+                          <p className="text-[11px] text-amber-700 font-medium mt-0.5">
+                            ⚖️ น้ำหนักชั่งจริง: {order.weightPerItem}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* 24-hr Claim info & Action button */}
+                      <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100">
+                        {isDone ? (
+                          orderWarranty.isEligible ? (
+                            <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>อยู่ในเวลารับประกัน (เหลือ {orderWarranty.hoursLeft} ชม. {orderWarranty.minutesLeft} นาที)</span>
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-stone-400 flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>สิ้นสุดระยะเวลารับประกัน (เกิน 24 ชม.)</span>
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-[11px] text-stone-400 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>แจ้งเคลมได้ภายใน 24 ชม. หลังสถานะจัดส่งสำเร็จ</span>
+                          </span>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          {isDone && orderWarranty.isEligible && (
+                            <a
+                              href={`/claim?orderId=${encodeURIComponent(order.id)}`}
+                              className="text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition inline-flex items-center gap-1"
+                            >
+                              <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                              <span>กดเคลมสินค้า</span>
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrder(order)}
+                            className="text-xs font-bold text-[#1B4D31] bg-stone-100 hover:bg-stone-200 px-3 py-1.5 rounded-lg transition inline-flex items-center gap-1"
+                          >
+                            <span>ดูไทม์ไลน์พัสดุ</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -257,7 +257,7 @@ function Navbar({
                         className="w-full text-left px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 flex items-center gap-2"
                       >
                         <Package className="w-4 h-4 text-emerald-700" />
-                        <span>เช็กสถานะพัสดุ</span>
+                        <span>ประวัติการสั่งซื้อ &amp; เช็คพัสดุ</span>
                       </a>
                       <a
                         href="/claim"
@@ -423,7 +423,7 @@ function Navbar({
               onClick={() => setMobileMenuOpen(false)}
             >
               <Package className="w-4 h-4 text-amber-400" />
-              <span>ตรวจสอบสถานะจัดส่ง</span>
+              <span>ประวัติการสั่งซื้อ &amp; เช็คพัสดุ</span>
             </a>
             <a
               href="/claim"

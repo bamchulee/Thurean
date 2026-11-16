@@ -1,13 +1,13 @@
 import type { Order, Claim } from "../types/durian";
 
 export interface ClaimPolicyConfig {
-  readyToEatWarrantyHours: number; // สุกพร้อมทาน / เนื้อล้วน: 24 ชั่วโมง
-  ripenAtHomeWarrantyHours: number; // บ่มเอง / แก่จัด: 72 ชั่วโมง (3 วัน)
+  readyToEatWarrantyHours: number; // 24 ชั่วโมง (มาตรฐานร้านวินคิน)
+  ripenAtHomeWarrantyHours: number; // 24 ชั่วโมง (หลังจัดส่งสำเร็จต้องกดเคลมภายใน 24 ชม.)
 }
 
 export const MASTER_CLAIM_POLICY: ClaimPolicyConfig = {
   readyToEatWarrantyHours: 24,
-  ripenAtHomeWarrantyHours: 72,
+  ripenAtHomeWarrantyHours: 24, // หลังสถานะ ส่งเสร็จสิ้นต้อง กดเคลมภายใน 24 ชม.
 };
 
 export interface ClaimEligibilityResult {
@@ -17,23 +17,31 @@ export interface ClaimEligibilityResult {
   warrantyType: "ready_to_eat" | "ripen_at_home";
   warrantyHours: number;
   hoursSinceDelivery?: number;
+  hoursLeft?: number;
+  minutesLeft?: number;
 }
 
 /**
  * ตรวจสอบความถูกต้องและสิทธิ์การแจ้งเคลมของออเดอร์
  * 1. มีออเดอร์จริงในระบบ
- * 2. สถานะชำระเงินสำเร็จ (confirmed)
- * 3. สถานะจัดส่งสำเร็จ (delivered)
+ * 2. สถานะชำระเงินสำเร็จ (confirmed หรือ ชำระเงินแล้ว)
+ * 3. สถานะจัดส่งสำเร็จ (delivered หรือ จัดส่งสำเร็จ)
  * 4. ยังไม่เคยถูกแจ้งเคลม
- * 5. อยู่ในเงื่อนไขเวลารับประกัน (สุกพร้อมทาน: 24 ชม., บ่มเอง: 72 ชม.)
+ * 5. อยู่ในเงื่อนไขเวลารับประกัน 24 ชั่วโมง หลังสถานะจัดส่งสำเร็จ
  */
 export function checkClaimEligibility(
   order: Order,
   claims: Claim[],
   policy: ClaimPolicyConfig = MASTER_CLAIM_POLICY
 ): ClaimEligibilityResult {
+  const isPaid =
+    order.paymentStatus === "confirmed" ||
+    order.orderStatus === "ชำระเงินแล้ว/เตรียมจัดส่ง" ||
+    order.orderStatus === "กำลังจัดส่ง" ||
+    order.orderStatus === "จัดส่งสำเร็จ";
+
   // 1. ตรวจสอบสถานะการชำระเงิน
-  if (order.paymentStatus !== "confirmed") {
+  if (!isPaid) {
     return {
       eligible: false,
       reason: `⚠️ ออเดอร์ ${order.id} ยังไม่ได้รับการชำระเงิน จึงไม่สามารถแจ้งเคลมได้ครับ`,
@@ -44,18 +52,15 @@ export function checkClaimEligibility(
   }
 
   // 2. ตรวจสอบสถานะการจัดส่ง
-  if (order.orderStatus !== "delivered") {
-    const statusTextMap: Record<string, string> = {
-      received: "ร้านได้รับออเดอร์แล้ว",
-      preparing: "กำลังคัดตัดสดหน้าสวน",
-      packed: "แพ็กกล่องพัสดุเรียบร้อย",
-      shipped: "กำลังอยู่ระหว่างการขนส่ง",
-      claimed: "แจ้งเคลมเรียบร้อยแล้ว",
-    };
-    const currentStatus = statusTextMap[order.orderStatus] || order.orderStatus;
+  const isDelivered =
+    order.orderStatus === "delivered" ||
+    order.orderStatus === "จัดส่งสำเร็จ";
+
+  if (!isDelivered) {
+    const currentStatus = order.orderStatus || "รอจัดส่ง";
     return {
       eligible: false,
-      reason: `⏳ ออเดอร์ ${order.id} ปัจจุบันมีสถานะ "${currentStatus}"\nสินค้ายังจัดส่งไม่ถึงมือผู้รับ จึงยังไม่สามารถเปิดเคลมได้ครับ`,
+      reason: `⏳ ออเดอร์ ${order.id} ปัจจุบันมีสถานะ "${currentStatus}"\nสินค้ายังจัดส่งไม่ถึงมือผู้รับ สามารถแจ้งเคลมได้หลังจากได้รับสินค้าแล้ว ภายใน 24 ชม. ครับ`,
       order,
       warrantyType: "ready_to_eat",
       warrantyHours: policy.readyToEatWarrantyHours,
@@ -81,23 +86,7 @@ export function checkClaimEligibility(
     };
   }
 
-  // 4. ตรวจสอบประเภทความสุกเพื่อหาระยะเวลารับประกัน (Master Data Claim Policy)
-  // - สุกพร้อมทาน / เนื้อล้วน: 24 ชม.
-  // - บ่มเอง / แก่จัดรอสุก / ทั้งลูก: 3 วัน (72 ชม.)
-  const ripenessText = (order.ripenessPref || "").toLowerCase();
-  const hasWholeFruit = order.items.some(
-    (it) => it.productName.includes("ทั้งลูก") || it.productName.includes("บ่ม")
-  );
-  const isRipenAtHome =
-    ripenessText.includes("บ่ม") ||
-    ripenessText.includes("แก่จัด") ||
-    ripenessText.includes("รอสุก") ||
-    hasWholeFruit;
-
-  const warrantyType = isRipenAtHome ? "ripen_at_home" : "ready_to_eat";
-  const warrantyHours = isRipenAtHome
-    ? policy.ripenAtHomeWarrantyHours
-    : policy.readyToEatWarrantyHours;
+  const warrantyHours = 24; // หลังสถานะ ส่งเสร็จสิ้นต้อง กดเคลมภายใน 24 ชม.
 
   // คำนวณเวลาที่จัดส่งสำเร็จ
   const deliveredTime = order.deliveredAt
@@ -111,25 +100,29 @@ export function checkClaimEligibility(
 
   if (diffHours > warrantyHours) {
     const hoursElapsed = Math.floor(diffHours);
-    const policyDesc = isRipenAtHome
-      ? `ทุเรียนแก่จัด/บ่มเอง (รับประกันภายใน 3 วัน หรือ 72 ชม. หลังได้รับสินค้า)`
-      : `ทุเรียนสุกพร้อมทาน/เนื้อล้วน (รับประกันภายใน 24 ชม. หลังได้รับสินค้า)`;
-
     return {
       eligible: false,
-      reason: `⛔ หมดระยะเวลารับประกันเคลม\n\nเงื่อนไขร้าน: ${policyDesc}\nพัสดุนี้จัดส่งสำเร็จแล้วเป็นเวลาประมาณ ${hoursElapsed} ชั่วโมง ซึ่งเกินกำหนดเวลา จึงไม่สามารถเปิดเคลมได้ครับ`,
+      reason: `⛔ หมดระยะเวลารับประกันเคลม\n\nเงื่อนไขร้าน: ต้องแจ้งเคลมภายใน 24 ชม. หลังได้รับสินค้า\nพัสดุนี้จัดส่งสำเร็จแล้วเป็นเวลาประมาณ ${hoursElapsed} ชั่วโมง ซึ่งเกินกำหนดเวลา 24 ชม. จึงไม่สามารถเปิดเคลมได้ครับ`,
       order,
-      warrantyType,
+      warrantyType: "ready_to_eat",
       warrantyHours,
       hoursSinceDelivery: hoursElapsed,
+      hoursLeft: 0,
+      minutesLeft: 0,
     };
   }
+
+  const totalMinutesRemaining = Math.max(0, Math.floor((warrantyHours * 60) - (diffHours * 60)));
+  const hoursLeft = Math.floor(totalMinutesRemaining / 60);
+  const minutesLeft = totalMinutesRemaining % 60;
 
   return {
     eligible: true,
     order,
-    warrantyType,
+    warrantyType: "ready_to_eat",
     warrantyHours,
     hoursSinceDelivery: Math.floor(diffHours),
+    hoursLeft,
+    minutesLeft,
   };
 }

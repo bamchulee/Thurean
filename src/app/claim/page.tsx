@@ -2,18 +2,22 @@
 
 import { useEffect, useState } from "react";
 import {
+  AlertCircle,
   AlertTriangle,
   ArrowLeft,
   Check,
   CheckCircle2,
+  Clock,
   Droplets,
   PackageOpen,
   Send,
+  ShieldAlert,
   ShieldCheck,
+  Timer,
   Upload,
 } from "lucide-react";
 import { shopInfo } from "../../data/mock";
-import type { Claim } from "../../types/durian";
+import type { Claim, Order } from "../../types/durian";
 import { LineIcon } from "../../components/Icons";
 
 export default function ClaimPage() {
@@ -26,11 +30,48 @@ export default function ClaimPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [createdClaim, setCreatedClaim] = useState<Claim | null>(null);
 
+  // Realtime order verification
+  const [checkingOrder, setCheckingOrder] = useState(false);
+  const [verifiedOrder, setVerifiedOrder] = useState<Order | null>(null);
+  const [orderCheckError, setOrderCheckError] = useState<string | null>(null);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const idParam = params.get("orderId");
-    if (idParam) setOrderId(idParam);
+    if (idParam) {
+      setOrderId(idParam);
+      checkOrder(idParam);
+    }
   }, []);
+
+  const checkOrder = async (id: string) => {
+    const q = id.trim();
+    if (!q) {
+      setVerifiedOrder(null);
+      setOrderCheckError(null);
+      return;
+    }
+    setCheckingOrder(true);
+    setOrderCheckError(null);
+
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(q)}`);
+      const json = await res.json();
+      if (res.ok && json.ok && json.order) {
+        setVerifiedOrder(json.order);
+        if (json.order.phone && !phone) {
+          setPhone(json.order.phone);
+        }
+      } else {
+        setVerifiedOrder(null);
+        setOrderCheckError("ไม่พบรหัสคำสั่งซื้อนี้ในระบบ กรุณาตรวจสอบรหัสอีกครั้ง");
+      }
+    } catch {
+      setVerifiedOrder(null);
+    } finally {
+      setCheckingOrder(false);
+    }
+  };
 
   const claimReasons = [
     {
@@ -59,8 +100,53 @@ export default function ClaimPage() {
     },
   ];
 
+  // Calculate 24-hr warranty status
+  let warrantyInfo: {
+    isDelivered: boolean;
+    isEligible: boolean;
+    hoursElapsed: number;
+    hoursLeft: number;
+    minutesLeft: number;
+  } | null = null;
+
+  if (verifiedOrder) {
+    const isDelivered =
+      verifiedOrder.orderStatus === "จัดส่งสำเร็จ" ||
+      verifiedOrder.orderStatus === "delivered";
+
+    const deliveredTime = verifiedOrder.deliveredAt
+      ? new Date(verifiedOrder.deliveredAt).getTime()
+      : verifiedOrder.updatedAt
+      ? new Date(verifiedOrder.updatedAt).getTime()
+      : new Date(verifiedOrder.createdAt).getTime();
+
+    const diffHours = (Date.now() - deliveredTime) / (1000 * 60 * 60);
+    const hoursElapsed = Math.floor(diffHours);
+    const totalMinutesRemaining = Math.max(0, Math.floor(24 * 60 - diffHours * 60));
+    const hoursLeft = Math.floor(totalMinutesRemaining / 60);
+    const minutesLeft = totalMinutesRemaining % 60;
+    const isEligible = isDelivered && diffHours <= 24;
+
+    warrantyInfo = {
+      isDelivered,
+      isEligible,
+      hoursElapsed,
+      hoursLeft,
+      minutesLeft,
+    };
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (warrantyInfo && !warrantyInfo.isDelivered) {
+      setErrorMsg("คำสั่งซื้อนี้ยังไม่จัดส่งสำเร็จ สามารถกดแจ้งเคลมได้ภายใน 24 ชม. หลังได้รับสินค้าครับ");
+      return;
+    }
+    if (warrantyInfo && warrantyInfo.isDelivered && !warrantyInfo.isEligible) {
+      setErrorMsg("ขออภัยครับ คำสั่งซื้อนี้เกินระยะเวลารับประกัน 24 ชั่วโมงแล้ว จึงไม่สามารถเปิดเคลมได้");
+      return;
+    }
+
     setSubmitting(true);
     setErrorMsg("");
 
@@ -114,11 +200,11 @@ export default function ClaimPage() {
             </div>
           </a>
           <a
-            href="/"
+            href="/tracking"
             className="text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-xl transition inline-flex items-center gap-1.5"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>กลับหน้าร้าน</span>
+            <span>ดูประวัติคำสั่งซื้อ</span>
           </a>
         </div>
       </header>
@@ -128,15 +214,15 @@ export default function ClaimPage() {
         <div className="bg-gradient-to-br from-[#11301F] to-[#1B4D31] text-white rounded-3xl p-6 sm:p-8 mb-8 border border-white/10 shadow-lg">
           <span className="inline-flex items-center gap-1.5 bg-white/10 text-amber-300 border border-white/15 text-[11px] font-bold px-3 py-1 rounded-full">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>รับประกันคุณภาพทุกลูก 100%</span>
+            <span>รับประกันคุณภาพทุกลูก 100% (ภายใน 24 ชม. หลังส่งเสร็จสิ้น)</span>
           </span>
           <h2 className="text-2xl font-extrabold mt-3 mb-2 text-white">
             เจอทุเรียนอ่อน เนื้อขาว เละ หนอน —{" "}
             <span className="text-amber-300">เคลมฟรีทันที</span>
           </h2>
           <p className="text-xs sm:text-sm text-emerald-100/85 leading-relaxed">
-            ที่ร้าน <strong>{shopInfo.name}</strong> เราเข้าใจคนทานทุเรียนดีที่สุด
-            เพียงกรอกรหัสออเดอร์และแนบภาพถ่ายหลักฐาน ระบบจะบันทึกเข้าหลังบ้านและแจ้งแอดมินทันที เพื่อเปลี่ยนลูกใหม่หรือโอนเงินคืนภายใน 24 ชม.
+            ที่ร้าน <strong>{shopInfo.name}</strong> เรารับประกันความสดและคุณภาพทุเรียนทุกผล
+            เมื่อพัสดุขึ้นสถานะ <strong>"จัดส่งสำเร็จ"</strong> ท่านสามารถกดแจ้งเคลมพร้อมแนบรูปถ่ายหลักฐานได้ <strong>ภายใน 24 ชั่วโมง</strong> เพื่อให้แอดมินเปลี่ยนลูกใหม่ให้ในรอบถัดไป หรือโอนเงินคืนทันทีครับ
           </p>
         </div>
 
@@ -180,10 +266,10 @@ export default function ClaimPage() {
                 <span>ส่งรูปเพิ่มเติมทาง LINE</span>
               </a>
               <a
-                href="/"
+                href="/tracking"
                 className="px-6 py-3 rounded-xl bg-stone-100 text-stone-700 text-xs font-bold hover:bg-stone-200 transition"
               >
-                กลับหน้าหลัก
+                ดูประวัติคำสั่งซื้อ
               </a>
             </div>
           </div>
@@ -197,7 +283,7 @@ export default function ClaimPage() {
                 แบบฟอร์มแจ้งปัญหา / ขอเคลมทุเรียน
               </h3>
               <p className="text-xs text-stone-500 mt-0.5">
-                กรุณากรอกข้อมูลตามคำสั่งซื้อเดิม เพื่อให้แอดมินตรวจสอบล็อตสินค้าได้ทันที
+                กรุณากรอกรหัสคำสั่งซื้อ OD... และตรวจสอบสิทธิ์รับประกัน 24 ชม.
               </p>
             </div>
 
@@ -210,9 +296,16 @@ export default function ClaimPage() {
                   type="text"
                   required
                   value={orderId}
-                  onChange={(e) => setOrderId(e.target.value)}
-                  placeholder="เช่น WK-9521"
-                  className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs focus:border-[#1B4D31] focus:outline-none"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setOrderId(val);
+                    if (val.trim().length >= 6) {
+                      checkOrder(val);
+                    }
+                  }}
+                  onBlur={() => checkOrder(orderId)}
+                  placeholder="เช่น OD000001"
+                  className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs focus:border-[#1B4D31] focus:outline-none uppercase font-mono"
                 />
               </div>
 
@@ -230,6 +323,59 @@ export default function ClaimPage() {
                 />
               </div>
             </div>
+
+            {/* Realtime 24-Hour Warranty Alert */}
+            {checkingOrder && (
+              <div className="text-xs text-stone-500 bg-stone-50 p-3 rounded-xl flex items-center gap-2">
+                <Clock className="w-4 h-4 animate-spin text-[#1B4D31]" />
+                <span>กำลังตรวจสอบข้อมูลคำสั่งซื้อและสิทธิ์รับประกัน...</span>
+              </div>
+            )}
+
+            {orderCheckError && (
+              <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{orderCheckError}</span>
+              </div>
+            )}
+
+            {warrantyInfo && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs ${
+                  warrantyInfo.isDelivered && warrantyInfo.isEligible
+                    ? "bg-emerald-50 border-emerald-300 text-emerald-950"
+                    : warrantyInfo.isDelivered && !warrantyInfo.isEligible
+                    ? "bg-rose-50 border-rose-300 text-rose-950"
+                    : "bg-amber-50 border-amber-300 text-amber-950"
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  {warrantyInfo.isDelivered && warrantyInfo.isEligible ? (
+                    <ShieldCheck className="w-4 h-4 text-emerald-700 mt-0.5 shrink-0" />
+                  ) : warrantyInfo.isDelivered ? (
+                    <ShieldAlert className="w-4 h-4 text-rose-700 mt-0.5 shrink-0" />
+                  ) : (
+                    <Timer className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+                  )}
+                  <div>
+                    <p className="font-extrabold">
+                      {warrantyInfo.isDelivered && warrantyInfo.isEligible
+                        ? "✅ อยู่ในระยะเวลารับประกัน 24 ชั่วโมง"
+                        : warrantyInfo.isDelivered
+                        ? "⛔ สิ้นสุดระยะเวลารับประกันเคลมสินค้าแล้ว (เกิน 24 ชม.)"
+                        : "⏳ ออเดอร์นี้ยังไม่จัดส่งสำเร็จ"}
+                    </p>
+                    <p className="text-[11px] opacity-90 mt-0.5 leading-relaxed">
+                      {warrantyInfo.isDelivered && warrantyInfo.isEligible
+                        ? `จัดส่งสำเร็จเมื่อ ${warrantyInfo.hoursElapsed} ชั่วโมงที่แล้ว • สามารถแจ้งเคลมได้อีก ${warrantyInfo.hoursLeft} ชม. ${warrantyInfo.minutesLeft} นาที`
+                        : warrantyInfo.isDelivered
+                        ? `จัดส่งสำเร็จมาแล้ว ${warrantyInfo.hoursElapsed} ชั่วโมง ซึ่งเกินระยะเวลา 24 ชม. ตามนโยบายร้าน`
+                        : `สถานะปัจจุบัน: "${verifiedOrder?.orderStatus || "รอจัดส่ง"}" — สามารถแจ้งเคลมได้หลังจากได้รับพัสดุเรียบร้อยแล้วภายใน 24 ชม.`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* สาเหตุ */}
             <div>
@@ -323,19 +469,24 @@ export default function ClaimPage() {
             </div>
 
             {errorMsg && (
-              <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold p-3 rounded-xl">
-                {errorMsg}
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold p-3 rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMsg}</span>
               </div>
             )}
 
             <button
               type="submit"
-              disabled={submitting}
-              className="w-full bg-[#1B4D31] hover:bg-[#143B25] disabled:opacity-60 text-white py-3.5 rounded-xl text-sm font-bold shadow-md transition inline-flex items-center justify-center gap-2"
+              disabled={submitting || (warrantyInfo !== null && warrantyInfo.isDelivered && !warrantyInfo.isEligible)}
+              className="w-full bg-[#1B4D31] hover:bg-[#143B25] disabled:opacity-50 disabled:cursor-not-allowed text-white py-3.5 rounded-xl text-sm font-bold shadow-md transition inline-flex items-center justify-center gap-2"
             >
               <Send className="w-4 h-4 text-amber-300" />
               <span>
-                {submitting ? "กำลังส่งข้อมูล..." : "ส่งเรื่องแจ้งเคลม (รับประกัน 100%)"}
+                {submitting
+                  ? "กำลังส่งข้อมูล..."
+                  : warrantyInfo && warrantyInfo.isDelivered && !warrantyInfo.isEligible
+                  ? "หมดระยะเวลารับประกัน 24 ชม."
+                  : "ส่งเรื่องแจ้งเคลม (รับประกัน 100%)"}
               </span>
             </button>
           </form>

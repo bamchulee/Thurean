@@ -85,9 +85,16 @@ function planStockDeduction(p, qty) {
   const avg = Number(p.avgWeightKg) > 0 ? Number(p.avgWeightKg) : isQtyBased ? 1 : 3;
   const unit = p.unit || "ชิ้น";
 
-  if (isQtyBased && hasNumber(p.stockQty)) {
+  // ตรวจสอบ IS_ACTIVE ก่อน: ถ้า 0 หรือปิดการขาย = หมดสต็อกทันที
+  const isActive = p.isActive !== 0 && String(p.isActive) !== "0" && p.isActive !== false;
+  if (!isActive || p.isAvailable === false || String(p.isAvailable).toUpperCase() === "FALSE") {
+    return { error: "สินค้านี้ปิดการขายหรือหมดสต็อกแล้ว" };
+  }
+
+  // ถ้ามีการระบุจำนวนลูก/ชิ้น (stockQty): ต้องมี 1 ขึ้นไป
+  if (hasNumber(p.stockQty)) {
     const left = Number(p.stockQty);
-    if (qty > left) return { error: "เหลือ " + Math.max(0, left) + " " + unit };
+    if (left < 1 || qty > left) return { error: "เหลือ " + Math.max(0, left) + " " + unit };
     updates.stockQty = left - qty;
     if (updates.stockQty <= 0) updates.isAvailable = false;
     if (hasNumber(p.stockKg)) {
@@ -169,6 +176,9 @@ function updateOrder(payload) {
     const total = flat.totalPrice !== undefined ? flat.totalPrice : Number(row.totalPrice) || 0;
     const ship = flat.shippingCost !== undefined ? flat.shippingCost : Number(row.shippingCost) || 0;
     flat.grandTotal = total + ship;
+  }
+  if ((flat.orderStatus === "จัดส่งสำเร็จ" || flat.orderStatus === "delivered") && !row.deliveredAt && !flat.deliveredAt) {
+    flat.deliveredAt = new Date().toISOString();
   }
   applyUpdates(table, row, flat);
   return Object.assign({}, payload, { updatedAt: row.updatedAt });

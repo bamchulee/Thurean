@@ -1585,29 +1585,31 @@ export function buildUserOrdersFlex(
         })
       : "-";
 
-    const isPaid = o.paymentStatus === "confirmed";
-    const isDelivered = o.orderStatus === "delivered";
+    const isPaid = o.paymentStatus === "confirmed" || o.orderStatus === "ชำระเงินแล้ว/เตรียมจัดส่ง" || o.orderStatus === "กำลังจัดส่ง" || o.orderStatus === "จัดส่งสำเร็จ";
+    const isDelivered = o.orderStatus === "จัดส่งสำเร็จ" || o.orderStatus === "delivered";
 
     const statusBadgeText = isDelivered
-      ? "🚚 จัดส่งสำเร็จ (ถึงมือแล้ว)"
-      : o.orderStatus === "shipped"
+      ? "✅ จัดส่งสำเร็จ (ถึงมือแล้ว)"
+      : o.orderStatus === "กำลังจัดส่ง" || o.orderStatus === "shipped"
       ? "🚚 กำลังจัดส่ง"
-      : o.orderStatus === "packed"
-      ? "📦 แพ็กกล่องแล้ว"
-      : o.orderStatus === "preparing"
-      ? "✂️ กำลังคัดตัดสด"
-      : "⏳ รับออเดอร์แล้ว";
+      : o.orderStatus === "ชำระเงินแล้ว/เตรียมจัดส่ง" || o.orderStatus === "packed" || o.orderStatus === "preparing"
+      ? "📦 ชำระแล้ว/เตรียมส่ง"
+      : o.orderStatus === "รอชำระเงิน"
+      ? "💳 รอชำระเงิน"
+      : "⏳ รอชั่งน้ำหนัก/สรุปยอด";
 
     const statusBadgeColor = isDelivered
       ? "#15803D"
-      : o.orderStatus === "shipped"
+      : o.orderStatus === "กำลังจัดส่ง" || o.orderStatus === "shipped"
       ? "#2563EB"
-      : "#D97706";
+      : o.orderStatus === "รอชำระเงิน"
+      ? "#D97706"
+      : "#059669";
 
     const eligibility = checkClaimEligibility(o, claims);
 
     const itemsSummary = o.items
-      .map((it) => `• ${it.productName} x${it.qty}`)
+      .map((it) => `• ${it.productName} x${it.qty}${it.weightPerItem ? ` (${it.weightPerItem})` : ""}`)
       .join("\n");
 
     const footerButtons: unknown[] = [
@@ -1631,10 +1633,9 @@ export function buildUserOrdersFlex(
         style: "secondary",
         height: "sm",
         action: {
-          type: "postback",
-          label: "🛡️ แจ้งเคลมรายการนี้",
-          data: `action=claim_order&orderId=${encodeURIComponent(o.id)}`,
-          displayText: `แจ้งเคลม ${o.id}`,
+          type: "uri",
+          label: `🛡️ แจ้งเคลม (เหลือ ${eligibility.hoursLeft ?? 24} ชม.)`,
+          uri: `${publicBaseUrl || "https://durianwinkin.vercel.app"}/claim?orderId=${encodeURIComponent(o.id)}`,
         },
       });
     }

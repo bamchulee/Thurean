@@ -9,11 +9,25 @@ import { getSessionUser } from "../../../lib/line-verify";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
-
   try {
     const { data } = await getAllDatabase();
-    return NextResponse.json({ ok: true, claims: data.claims });
+    if (isAdminRequest(req)) {
+      return NextResponse.json({ ok: true, claims: data.claims });
+    }
+
+    const session = getSessionUser(req);
+    if (session) {
+      const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
+      const userClaims = data.claims.filter(
+        (c) =>
+          (c.userId && (c.userId === session.id || c.userId === session.userId)) ||
+          (session.lineUserId && c.lineUserId === session.lineUserId) ||
+          (session.phone && c.phone && cleanPhone(session.phone) === cleanPhone(c.phone))
+      );
+      return NextResponse.json({ ok: true, claims: userClaims });
+    }
+
+    return unauthorizedResponse();
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: String(err) },
