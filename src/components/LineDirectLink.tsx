@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, Copy, ExternalLink, X } from "lucide-react";
-import { shopInfo } from "../data/mock";
+import { shopInfo } from "../data/shop";
 import {
   buildDesktopLineProtocolUrl,
   buildMobileLineChatUrl,

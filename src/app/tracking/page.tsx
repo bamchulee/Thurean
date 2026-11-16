@@ -27,7 +27,7 @@ import {
   XCircle,
   MessageSquare,
 } from "lucide-react";
-import { shopInfo } from "../../data/mock";
+import { shopInfo } from "../../data/shop";
 import type { Order } from "../../types/durian";
 import { LineIcon } from "../../components/Icons";
 import { resolveCourierInfo } from "../../lib/courier";

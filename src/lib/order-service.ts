@@ -21,7 +21,7 @@ import {
   pushLineMessage,
 } from "./line-notify";
 import { adminAlertLinks, notifyAdmins } from "./order-workflow";
-import { shopInfo } from "../data/mock";
+import { shopInfo } from "../data/shop";
 import { resolveCourierInfo } from "./courier";
 import { checkClaimEligibility } from "./claim-policy";
 import { findOrderById } from "./ids";

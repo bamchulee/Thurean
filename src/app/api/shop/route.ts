@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAllDatabase, getRuntimeConfig } from "../../../lib/sheets-db";
-import { shopInfo } from "../../../data/mock";
+import { shopInfo } from "../../../data/shop";
 
 export const dynamic = "force-dynamic";
 

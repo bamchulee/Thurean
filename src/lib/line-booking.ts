@@ -10,7 +10,7 @@ import {
   newBookingKey,
   ripenessLabel,
 } from "./booking-draft";
-import { shopInfo } from "../data/mock";
+import { shopInfo } from "../data/shop";
 import type { Product } from "../types/durian";
 
 export function addressFormUrlFor(baseUrl: string, lineUserId: string, draft?: BookingDraft): string {

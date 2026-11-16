@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import QRCode from "qrcode";
-import { shopInfo } from "../../../data/mock";
+import { shopInfo } from "../../../data/shop";
 import { generatePromptPayPayload } from "../../../lib/promptpay";
 
 export const dynamic = "force-dynamic";

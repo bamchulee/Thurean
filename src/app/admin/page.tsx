@@ -47,7 +47,7 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { shopInfo } from "../../data/mock";
+import { shopInfo } from "../../data/shop";
 import { ShippingLabelModal } from "../../components/ShippingLabelModal";
 import { LineIcon } from "../../components/Icons";
 import { COURIER_OPTIONS, resolveCourierInfo } from "../../lib/courier";

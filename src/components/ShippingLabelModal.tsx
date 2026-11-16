@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, ExternalLink, Printer, X } from "lucide-react";
-import { shopInfo } from "../data/mock";
+import { shopInfo } from "../data/shop";
 import type { Order } from "../types/durian";
 
 export function ShippingLabelModal({

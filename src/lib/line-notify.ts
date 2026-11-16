@@ -9,7 +9,7 @@ import type {
   Round,
   RuntimeConfig,
 } from "../types/durian";
-import { shopInfo } from "../data/mock";
+import { shopInfo } from "../data/shop";
 import { resolveCourierInfo } from "./courier";
 import { formatProductStock, pricePerKgOf } from "./stock";
 import { checkClaimEligibility } from "./claim-policy";

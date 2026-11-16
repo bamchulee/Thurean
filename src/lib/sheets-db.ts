@@ -15,7 +15,6 @@ import type {
   RuntimeConfig,
   User,
 } from "../types/durian";
-import { createInitialDatabase } from "../data/mock";
 import { deductProductStock, restoreProductStock } from "./stock";
 import { getWritableDataDir } from "./storage-dir";
 import { getSigningSecret } from "./secrets";
@@ -227,42 +226,30 @@ export function verifyAdminSessionToken(token?: string | null): boolean {
 // ============================================================
 // Local JSON Store Helpers
 // ============================================================
+/** ฐานข้อมูลว่าง — ระบบไม่มีข้อมูลตัวอย่าง ร้านกรอกสินค้า/รอบเองในชีตหรือหลังบ้าน */
+function emptyDatabase(): DatabaseState {
+  return { products: [], rounds: [], orders: [], lots: [], claims: [], promotions: [], users: [] };
+}
+
 function readLocalDb(): DatabaseState {
   const dbPath = getLocalDbPath();
-  if (!fs.existsSync(dbPath)) {
-    const seed = createInitialDatabase();
-    fs.writeFileSync(dbPath, JSON.stringify(seed, null, 2), "utf-8");
-    return seed;
-  }
+  if (!fs.existsSync(dbPath)) return emptyDatabase();
   try {
-    const raw = fs.readFileSync(dbPath, "utf-8");
-    const parsed = JSON.parse(raw) as Partial<DatabaseState>;
-    const seed = createInitialDatabase();
-    const mergedProducts = (Array.isArray(parsed.products) ? parsed.products : seed.products).map(
-      (prod) => {
-        const seedMatch = seed.products.find((sp) => sp.id === prod.id);
-        return {
-          ...prod,
-          stockUnit: prod.stockUnit ?? seedMatch?.stockUnit ?? (prod.type === "flesh" ? "qty" : "kg"),
-          stockKg: prod.stockKg ?? seedMatch?.stockKg,
-          avgWeightKg: prod.avgWeightKg ?? seedMatch?.avgWeightKg,
-          stockQty: prod.stockQty ?? seedMatch?.stockQty,
-        };
-      }
-    );
+    const parsed = JSON.parse(fs.readFileSync(dbPath, "utf-8")) as Partial<DatabaseState>;
+    const list = <T,>(v: T[] | undefined): T[] => (Array.isArray(v) ? v : []);
     return {
-      products: mergedProducts,
-      rounds: Array.isArray(parsed.rounds) ? parsed.rounds : seed.rounds,
-      orders: Array.isArray(parsed.orders) ? parsed.orders : seed.orders,
-      lots: Array.isArray(parsed.lots) ? parsed.lots : seed.lots,
-      claims: Array.isArray(parsed.claims) ? parsed.claims : seed.claims,
-      promotions: Array.isArray(parsed.promotions) ? parsed.promotions : seed.promotions,
-      users: Array.isArray(parsed.users) ? parsed.users : [],
+      products: list(parsed.products),
+      rounds: list(parsed.rounds),
+      orders: list(parsed.orders),
+      lots: list(parsed.lots),
+      claims: list(parsed.claims),
+      promotions: list(parsed.promotions),
+      users: list(parsed.users),
     };
-  } catch {
-    const seed = createInitialDatabase();
-    fs.writeFileSync(dbPath, JSON.stringify(seed, null, 2), "utf-8");
-    return seed;
+  } catch (err) {
+    // ไฟล์เสีย: อย่าเขียนทับ (เก็บไว้ให้กู้) — ทำงานต่อแบบฐานข้อมูลว่าง
+    console.error("[sheets-db] local-db.json อ่านไม่ได้:", err);
+    return emptyDatabase();
   }
 }
 
@@ -393,14 +380,14 @@ export async function syncLocalDataToGoogleSheet(webAppUrl: string) {
 function applyDatabaseJoins(db: DatabaseState): DatabaseState {
   if (db.config?.lineAdminGroupId) runtimeAdminGroupId = db.config.lineAdminGroupId;
   if (db.config?.lineAdminUserId) runtimeAdminUserId = db.config.lineAdminUserId;
-  const seed = createInitialDatabase();
+  // ชีตว่าง = ร้านยังไม่มีสินค้า/รอบ — ห้ามเติมข้อมูลตัวอย่าง (mock) แทน ไม่งั้นลูกค้าจองสินค้าปลอมได้
   const users = Array.isArray(db.users) ? db.users : [];
   const orders = Array.isArray(db.orders) ? db.orders : [];
   const claims = Array.isArray(db.claims) ? db.claims : [];
-  const rounds = Array.isArray(db.rounds) && db.rounds.length > 0 ? db.rounds : seed.rounds;
-  const rawProducts = Array.isArray(db.products) && db.products.length > 0 ? db.products : seed.products;
-  const lots = Array.isArray(db.lots) && db.lots.length > 0 ? db.lots : seed.lots;
-  const promotions = Array.isArray(db.promotions) && db.promotions.length > 0 ? db.promotions : seed.promotions;
+  const rounds = Array.isArray(db.rounds) ? db.rounds : [];
+  const rawProducts = Array.isArray(db.products) ? db.products : [];
+  const lots = Array.isArray(db.lots) ? db.lots : [];
+  const promotions = Array.isArray(db.promotions) ? db.promotions : [];
 
   // Deduplicate products by id & merge fields
   const productMap = new Map<string, Product>();
@@ -421,27 +408,27 @@ function applyDatabaseJoins(db: DatabaseState): DatabaseState {
     }
   }
 
+  // ใช้ค่าจากชีตตามจริง: ไม่มีราคาต่อกิโล = ยังขายไม่ได้, ช่องสต็อกว่าง = ไม่จำกัด, isAvailable ในชีตต้องเคารพ
   const products = Array.from(productMap.values()).map((p) => {
-    const seedMatch = seed.products.find((sp) => sp.id === p.id);
-    const stockQty = typeof p.stockQty === "number"
-      ? p.stockQty
-      : typeof p.stockKg === "number" && p.stockKg > 0
-      ? Math.max(1, Math.floor(p.stockKg / (p.avgWeightKg || 3)))
-      : seedMatch?.stockQty ?? 10;
-    const pricePerKg = p.pricePerKg || p.price || seedMatch?.pricePerKg || seedMatch?.price || 220;
-    const isActive = p.isActive !== 0 && (p.isActive as any) !== "0" && p.isActive !== false ? 1 : 0;
+    const stockQty =
+      typeof p.stockQty === "number"
+        ? p.stockQty
+        : typeof p.stockKg === "number"
+        ? Math.max(0, Math.floor(p.stockKg / (p.avgWeightKg || 3)))
+        : undefined;
+    const pricePerKg = Number(p.pricePerKg) || Number(p.price) || 0;
+    const isActive = p.isActive !== 0 && (p.isActive as unknown) !== "0" && p.isActive !== false ? 1 : 0;
+    const sheetAvailable = p.isAvailable !== false && String(p.isAvailable).toUpperCase() !== "FALSE";
     return {
       ...p,
-      productType: p.productType || seedMatch?.productType || "รับคัดลูก",
-      grade: p.grade || seedMatch?.grade || "เกรด A+ พรีเมียม",
-      weight: p.weight || seedMatch?.weight || "3.0 - 3.5 กก.",
-      maturity: p.maturity || p.specs?.maturity || seedMatch?.maturity || "แก่จัด 85%+",
-      texture: p.texture || p.specs?.texture || seedMatch?.texture || "กรอบนอกนุ่มใน",
+      maturity: p.maturity || p.specs?.maturity,
+      texture: p.texture || p.specs?.texture,
+      weight: p.weight || "",
       stockQty,
       pricePerKg,
       price: pricePerKg,
       isActive,
-      isAvailable: stockQty >= 1 && isActive === 1,
+      isAvailable: sheetAvailable && isActive === 1 && pricePerKg > 0 && (stockQty === undefined || stockQty >= 1),
     };
   });
 

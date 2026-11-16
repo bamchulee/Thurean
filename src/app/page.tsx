@@ -31,11 +31,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import {
-  products as defaultProducts,
-  currentRound as defaultRound,
-  shopInfo,
-} from "../data/mock";
+import { shopInfo } from "../data/shop";
 import type { Order, Product, Round } from "../types/durian";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -977,6 +973,12 @@ function ProductMenu({
         </div>
       </div>
 
+      {products.length === 0 && (
+        <p className="text-center text-sm text-stone-500 bg-white border border-stone-200 rounded-2xl py-10">
+          ยังไม่มีสินค้าเปิดจองในรอบนี้ — ติดตามรอบถัดไปทาง LINE {shopInfo.lineOA}
+        </p>
+      )}
+
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {filtered.map((p) => (
@@ -1610,8 +1612,8 @@ function FloatingActionButtons({
 
 // ===================== MAIN PAGE =====================
 export default function Home() {
-  const [products, setProducts] = useState<Product[]>(defaultProducts);
-  const [round, setRound] = useState<Round>(defaultRound);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [round, setRound] = useState<Round | null>(null);
   const [liffId, setLiffId] = useState<string>("");
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
@@ -1651,12 +1653,8 @@ export default function Home() {
       .then((r) => r.json())
       .then((json) => {
         if (json.ok) {
-          if (Array.isArray(json.products) && json.products.length > 0) {
-            setProducts(json.products);
-          }
-          if (json.currentRound) {
-            setRound(json.currentRound);
-          }
+          if (Array.isArray(json.products)) setProducts(json.products);
+          setRound(json.currentRound || null);
           if (json.lineLiffId) {
             setLiffId(json.lineLiffId);
           }
@@ -1667,10 +1665,7 @@ export default function Home() {
 
   const handleOrderCreated = (createdOrder: Order) => {
     const qtyOrdered = createdOrder.items.reduce((s, it) => s + it.qty, 0);
-    setRound((prev) => ({
-      ...prev,
-      quotaRemaining: Math.max(0, prev.quotaRemaining - qtyOrdered),
-    }));
+    setRound((prev) => (prev ? { ...prev, quotaRemaining: Math.max(0, prev.quotaRemaining - qtyOrdered) } : prev));
   };
 
   return (
@@ -1688,7 +1683,7 @@ export default function Home() {
           </span>
         </div>
       )}
-      <HeroBanner round={round} />
+      {round && <HeroBanner round={round} />}
       <RipenessGuide
         selectedRipeness={preferredRipeness}
         onSelectRipeness={setPreferredRipeness}
@@ -1711,7 +1706,7 @@ export default function Home() {
       {orderProduct && (
         <OrderModal
           product={orderProduct}
-          roundId={round.id}
+          roundId={round?.id || ""}
           lineProfile={lineProfile}
           initialRipeness={preferredRipeness}
           onAddToCart={(p, q, rip) => addItem(p, q, rip)}
@@ -1722,7 +1717,7 @@ export default function Home() {
 
       {cartOpen && (
         <CartDrawerModal
-          roundId={round.id}
+          roundId={round?.id || ""}
           lineProfile={lineProfile}
           onSuccess={handleOrderCreated}
           onClose={() => setCartOpen(false)}

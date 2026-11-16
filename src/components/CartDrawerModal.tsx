@@ -12,7 +12,7 @@ import {
   User as UserIcon,
   X,
 } from "lucide-react";
-import { shopInfo } from "../data/mock";
+import { shopInfo } from "../data/shop";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import type { Order } from "../types/durian";

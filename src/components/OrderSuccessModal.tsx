@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, CheckCircle2, Copy, CreditCard, Package } from "lucide-react";
-import { shopInfo } from "../data/mock";
+import { shopInfo } from "../data/shop";
 import type { Order } from "../types/durian";
 import { PromptPayQR } from "./PromptPayQR";
 import { LineIcon } from "./Icons";

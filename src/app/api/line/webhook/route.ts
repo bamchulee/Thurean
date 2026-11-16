@@ -52,7 +52,7 @@ import { addressFormUrlFor, bookingReviewMessages } from "../../../../lib/line-b
 import { formatProductStock } from "../../../../lib/stock";
 import { isValidLineSignature } from "../../../../lib/line-verify";
 import { extractOrderId, findOrderById } from "../../../../lib/ids";
-import { shopInfo } from "../../../../data/mock";
+import { shopInfo } from "../../../../data/shop";
 import type { DatabaseState, Order, RuntimeConfig, User } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";

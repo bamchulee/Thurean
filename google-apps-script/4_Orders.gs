@@ -151,7 +151,8 @@ function createOrder(order) {
   const plans = [];
   Object.keys(need).forEach((pid) => {
     const p = findRow(products, pid);
-    if (!p) return;
+    // สินค้าที่ไม่มีในชีต ห้ามสั่ง (กันจองสินค้าที่ถูกลบ/ข้อมูลตัวอย่าง)
+    if (!p) throw new Error("OUT_OF_STOCK: ไม่พบสินค้า " + pid + " ในชีต Products");
     const plan = planStockDeduction(p, need[pid]);
     if (plan.error) throw new Error("OUT_OF_STOCK: " + p.name + " " + plan.error);
     plans.push({ row: p, updates: plan.updates });
