@@ -1367,13 +1367,16 @@ export function buildStockOverviewMessages(
     };
   });
 
-  return [
+  const resultMessages: unknown[] = [
     {
       type: "flex",
       altText: `📦 รายงานสต็อกทุเรียนสดหน้าสวน — ${shopInfo.name}`,
       contents: overviewBubble,
     },
-    {
+  ];
+
+  if (bubbles.length > 0) {
+    resultMessages.push({
       type: "flex",
       altText: `🍈 รายการทุเรียนพร้อมส่ง — ${shopInfo.name}`,
       quickReply: buildMainQuickReply(),
@@ -1381,8 +1384,10 @@ export function buildStockOverviewMessages(
         type: "carousel",
         contents: bubbles,
       },
-    },
-  ];
+    });
+  }
+
+  return resultMessages;
 }
 
 /**
@@ -1396,6 +1401,15 @@ export function buildOrderCatalogMessages(
   const activeProducts = products.filter(
     (p) => p.isActive !== 0 && (p.isActive as any) !== "0" && p.isActive !== false
   );
+  if (activeProducts.length === 0) {
+    return [
+      {
+        type: "text",
+        text: `🍈 ขณะนี้ทางสวนยังไม่มีรายการทุเรียนที่เปิดรับสั่งจองครับ\n\nสามารถกดปุ่ม "เช็กสต็อก" ด้านล่าง หรือทักสอบถามแอดมินเกี่ยวกับรอบถัดไปได้เลยครับ ✨`,
+        quickReply: buildMainQuickReply(),
+      },
+    ];
+  }
   const isClosed = round?.status === "closed" || (round?.quotaRemaining ?? 1) <= 0;
 
   const bubbles = activeProducts.map((p) => {
