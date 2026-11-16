@@ -39,6 +39,7 @@ import {
 } from "../../../../lib/order-service";
 import { formatProductStock } from "../../../../lib/stock";
 import { isValidLineSignature } from "../../../../lib/line-verify";
+import { extractOrderId, findOrderById } from "../../../../lib/ids";
 import { shopInfo } from "../../../../data/mock";
 import type { Order } from "../../../../types/durian";
 
@@ -239,13 +240,10 @@ export async function POST(req: NextRequest) {
         // Admin quick weigh command in group: ชั่ง <OrderID> <WeightKg>
         const weighMatchGroup = (ev.message?.type === "text" ? (ev.message.text || "").trim() : "").match(/^(?:ชั่ง|นน|weight)\s+([a-zA-Z0-9_-]+)\s+([0-9.]+)/i);
         if (weighMatchGroup) {
-          let orderTargetId = weighMatchGroup[1].trim().toUpperCase();
-          if (/^\d+$/.test(orderTargetId)) {
-            orderTargetId = `OD${orderTargetId.padStart(6, "0")}`;
-          }
+          const orderTargetId = weighMatchGroup[1].trim().toUpperCase();
           const weightNum = parseFloat(weighMatchGroup[2]);
           const { data } = await getAllDatabase();
-          const foundOrder = data.orders.find((o) => o.id.toUpperCase() === orderTargetId);
+          const foundOrder = findOrderById(data.orders, orderTargetId);
           if (!foundOrder) {
             await replyLineMessage(
               replyToken,
@@ -1331,13 +1329,10 @@ export async function POST(req: NextRequest) {
         // Admin quick weigh command in 1-on-1 chat: ชั่ง <OrderID> <WeightKg>
         const weighMatchDm = msgType === "text" ? text.match(/^(?:ชั่ง|นน|weight)\s+([a-zA-Z0-9_-]+)\s+([0-9.]+)/i) : null;
         if (weighMatchDm) {
-          let orderTargetId = weighMatchDm[1].trim().toUpperCase();
-          if (/^\d+$/.test(orderTargetId)) {
-            orderTargetId = `OD${orderTargetId.padStart(6, "0")}`;
-          }
+          const orderTargetId = weighMatchDm[1].trim().toUpperCase();
           const weightNum = parseFloat(weighMatchDm[2]);
           const { data } = await getAllDatabase();
-          const foundOrder = data.orders.find((o) => o.id.toUpperCase() === orderTargetId);
+          const foundOrder = findOrderById(data.orders, orderTargetId);
           if (foundOrder) {
             const prod = data.products.find((p) => p.id === foundOrder.productId || p.name === foundOrder.productName) || data.products[0];
             const pricePerKg = prod?.pricePerKg || prod?.price || foundOrder.pricePerItem || 220;
@@ -1886,15 +1881,13 @@ export async function POST(req: NextRequest) {
             continue;
           }
 
-          const directOrderCode = text.match(/WK-\d+/i)?.[0]?.toUpperCase();
+          const directOrderCode = extractOrderId(text);
           if (
             directOrderCode &&
             !(currentSession?.flow === "claim" && currentSession.step === "enter_order")
           ) {
             const { data } = await getAllDatabase();
-            const order = data.orders.find(
-              (o) => o.id.toUpperCase() === directOrderCode
-            );
+            const order = findOrderById(data.orders, directOrderCode);
             if (order) {
               const flex = buildCustomerStatusFlex(order);
               if (flex[0] && typeof flex[0] === "object") {
@@ -2602,12 +2595,9 @@ export async function POST(req: NextRequest) {
             }
 
             // กรณีพิมพ์รหัสออเดอร์
-            const code =
-              text.match(/WK-\d+/i)?.[0]?.toUpperCase() || text.trim().toUpperCase();
+            const code = extractOrderId(text) || text.trim().toUpperCase();
 
-            const targetOrder = data.orders.find(
-              (o) => o.id.toUpperCase() === code
-            );
+            const targetOrder = findOrderById(data.orders, code);
 
             if (!targetOrder) {
               await replyLineMessage(
@@ -2802,7 +2792,7 @@ export async function POST(req: NextRequest) {
           const { data } = await getAllDatabase();
           const digits = text.replace(/[^\d]/g, "");
           const order =
-            data.orders.find((o) => o.id.toUpperCase() === text.toUpperCase()) ||
+            findOrderById(data.orders, extractOrderId(text) || text) ||
             (digits.length >= 9
               ? data.orders.find((o) => o.phone.replace(/[^\d]/g, "") === digits)
               : undefined);

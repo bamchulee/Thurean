@@ -66,7 +66,7 @@ function syncSeedData(seed) {
   each(seed.products, (p) => upsertRow(SHEET_NAMES.PRODUCTS, flattenProduct(p, true), false));
   each(seed.rounds, (r) => upsertRow(SHEET_NAMES.ROUNDS, r, false));
   each(seed.orders, (o) => {
-    const flat = flattenOrder(o);
+    const flat = flattenOrder(o, true);
     flat.grandTotal = (Number(flat.totalPrice) || 0) + (Number(flat.shippingCost) || 0);
     upsertRow(SHEET_NAMES.ORDERS, flat, false);
   });

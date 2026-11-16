@@ -39,7 +39,8 @@ function flattenProduct(p, isNew) {
   return out;
 }
 
-function flattenOrder(o) {
+// isNew = แถวใหม่เท่านั้นที่เติมค่าเริ่มต้น — ตอนอัปเดตบางช่อง ห้ามเขียนทับสถานะ/ขนส่ง/ช่องทางเดิม
+function flattenOrder(o, isNew) {
   const out = {};
   Object.keys(o || {}).forEach((k) => {
     if (k === "items") {
@@ -63,10 +64,12 @@ function flattenOrder(o) {
   if (out.shippingCost !== undefined) out.shippingCost = Number(out.shippingCost) || 0;
   if (out.pricePerItem !== undefined) out.pricePerItem = Number(out.pricePerItem) || 0;
   if (out.quantity !== undefined) out.quantity = Number(out.quantity) || 1;
-  if (!out.channel) out.channel = out.lineUserId ? "LINE Official" : "หน้าร้าน / Web";
-  if (!out.courier) out.courier = "Flash Express";
-  if (!out.vehicleType) out.vehicleType = "รถห้องเย็นปรับอุณหภูมิ";
-  if (!out.orderStatus) out.orderStatus = "รอชั่งน้ำหนัก/สรุปยอด";
+  if (isNew) {
+    if (!out.channel) out.channel = out.lineUserId ? "LINE Official" : "หน้าร้าน / Web";
+    if (!out.courier) out.courier = "Flash Express";
+    if (!out.vehicleType) out.vehicleType = "รถห้องเย็นปรับอุณหภูมิ";
+    if (!out.orderStatus) out.orderStatus = "สั่งจอง";
+  }
   return out;
 }
 
@@ -143,10 +146,9 @@ function createOrder(order) {
   });
 
   // 2) บันทึกออเดอร์
-  const flat = flattenOrder(order);
+  const flat = flattenOrder(order, true);
   flat.grandTotal = (Number(flat.totalPrice) || 0) + (Number(flat.shippingCost) || 0);
   flat.paymentStatus = flat.paymentStatus || "pending";
-  flat.orderStatus = flat.orderStatus || "received";
   flat.createdBy = flat.createdBy || flat.userId || "customer";
   insertRow(SHEET_NAMES.ORDERS, flat);
 

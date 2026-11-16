@@ -23,6 +23,7 @@ import {
 import { shopInfo } from "../data/mock";
 import { resolveCourierInfo } from "./courier";
 import { checkClaimEligibility } from "./claim-policy";
+import { findOrderById } from "./ids";
 import type { Claim, Order, OrderItem, OrderStatus } from "../types/durian";
 
 export interface SubmitOrderInput {
@@ -319,9 +320,7 @@ export async function submitNewClaim(
 
   const orderIdClean = body.orderId.trim().toUpperCase();
   const { data } = await getAllDatabase();
-  const matchedOrder = data.orders.find(
-    (o) => o.id.toUpperCase() === orderIdClean
-  );
+  const matchedOrder = findOrderById(data.orders, orderIdClean);
 
   if (!matchedOrder) {
     return {
@@ -363,7 +362,7 @@ export async function submitNewClaim(
   const newClaim: Claim = {
     claimId: localNextId("claims", usedClaimIds),
     createdAt: new Date().toISOString(),
-    orderId: orderIdClean,
+    orderId: matchedOrder.id,
     userId: body.userId?.trim() || matchedOrder?.userId || undefined,
     lineUserId: matchedOrder?.lineUserId || undefined,
     customerName: matchedOrder?.customerName || undefined,

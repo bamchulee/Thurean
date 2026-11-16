@@ -11,6 +11,7 @@ import {
   pushLineMessage,
 } from "../../../../lib/line-notify";
 import { resolveCourierInfo } from "../../../../lib/courier";
+import { findOrderById } from "../../../../lib/ids";
 import type { OrderStatus, PaymentStatus } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
@@ -25,11 +26,12 @@ export async function GET(
     const q = decodeURIComponent(id).trim().toUpperCase();
     const { data } = await getAllDatabase();
 
-    const order = data.orders.find(
-      (o) =>
-        o.id.toUpperCase() === q ||
-        (o.trackingNo && o.trackingNo.toUpperCase() === q)
-    );
+    const order =
+      data.orders.find(
+        (o) =>
+          o.id.toUpperCase() === q ||
+          (o.trackingNo && o.trackingNo.toUpperCase() === q)
+      ) || findOrderById(data.orders, q);
 
     if (!order) {
       return NextResponse.json(
