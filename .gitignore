@@ -42,6 +42,9 @@ yarn-error.log*
 /data/line-sessions.json
 /data/slips/
 
+# ข้อมูลชีตที่ดึงลงเครื่อง (มีข้อมูลลูกค้า) ห้ามขึ้น git — schema อยู่ที่ google-apps-script/1_Config.gs
+/sheets/*.csv
+
 # vercel
 .vercel
 

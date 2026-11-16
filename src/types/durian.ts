@@ -71,7 +71,7 @@ export interface OrderItem {
   actualWeightKg?: number;
 }
 
-export type PaymentStatus = "pending" | "confirmed" | "refunded" | string;
+export type PaymentStatus = "pending" | "slip_submitted" | "confirmed" | "refunded" | string;
 export type OrderStatus =
   | "received"
   | "preparing"
@@ -116,6 +116,12 @@ export interface Order extends BaseAuditLog {
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
   deliveredAt?: string;
+  weighedAt?: string;
+  slipSubmittedAt?: string;
+  paidAt?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
+  bookingKey?: string; // กันออเดอร์ซ้ำจากปุ่มยืนยันอันเดิมใน LINE
   slipUrl?: string;
   lotId?: string;
   mapsUrl?: string;

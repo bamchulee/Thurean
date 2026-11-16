@@ -100,6 +100,10 @@ const SHEET_DEFS = {
       "totalPrice", "courier", "channel", "vehicleType", "trackingNo", "orderStatus",
       "paymentStatus", "shippingMethod", "shippingCost", "grandTotal", "itemsJson", "itemSummary",
       "mapsUrl", "slipUrl", "notes", "lotId", "deliveredAt", "ripenessPref",
+      // เวลาแต่ละขั้นของ flow จอง → ชั่ง → ส่งสลิป → ยืนยันยอด / ยกเลิก
+      "weighedAt", "slipSubmittedAt", "paidAt", "cancelledAt", "cancelReason",
+      // กันออเดอร์ซ้ำเมื่อลูกค้ากดปุ่มยืนยันอันเดิมใน LINE ซ้ำ
+      "bookingKey",
       "isActive", "createDate", "createdBy", "updatedAt", "updatedBy",
     ],
   },

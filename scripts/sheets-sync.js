@@ -120,6 +120,11 @@ function pushToSheets() {
       console.log(`  ⏩ Skipping ${tab.file} (file not found)`);
       continue;
     }
+    // ไฟล์ที่มีแต่หัวคอลัมน์ (แม่แบบ schema) ห้ามอัปโหลด ไม่งั้นข้อมูลจริงในแท็บจะถูกล้าง
+    if (parseCsv(fs.readFileSync(inPath, "utf8")).length === 0) {
+      console.log(`  ⏩ Skipping ${tab.file} (header only, no data rows)`);
+      continue;
+    }
     console.log(`  -> Importing ${tab.file} into tab "${tab.name}"...`);
     try {
       execSync(
