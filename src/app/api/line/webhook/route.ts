@@ -278,7 +278,54 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // In group, ignore customer ordering flow so team conversation isn't interrupted
+        // Admin group check stock command
+        if (msgText.includes("สต็อก") || msgText.includes("stock") || msgText.includes("สินค้า")) {
+          const { data } = await getAllDatabase();
+          const activeRound = data.rounds.find((r) => r.status === "open") || data.rounds[0];
+          const stockMessages = buildStockOverviewMessages(activeRound, data.products, "stock", publicBaseUrl);
+          await replyLineMessage(replyToken, stockMessages, token);
+          continue;
+        }
+
+        // Admin group check recent orders command
+        if (msgText.includes("ออเดอร์") || msgText.includes("order") || msgText.includes("ยอดขาย") || msgText.includes("รายการสั่ง")) {
+          const { data } = await getAllDatabase();
+          const pendingWeigh = data.orders.filter((o) => o.orderStatus === "รอชั่งน้ำหนัก/สรุปยอด");
+          const pendingPay = data.orders.filter((o) => o.orderStatus === "รอชำระเงิน");
+          const readyShip = data.orders.filter((o) => o.orderStatus === "ชำระเงินแล้ว/เตรียมจัดส่ง");
+          const textSummary = [
+            `📋 สรุปรายการคำสั่งซื้อร้านทุเรียนวิ่นขิ่น`,
+            `----------------------------------`,
+            `⚖️ รอชั่งน้ำหนัก: ${pendingWeigh.length} รายการ`,
+            pendingWeigh.slice(0, 3).map((o) => `• #${o.id}: ${o.customerName} (${o.items[0]?.productName || ""})`).join("\n"),
+            `\n💳 รอชำระเงิน: ${pendingPay.length} รายการ`,
+            pendingPay.slice(0, 3).map((o) => `• #${o.id}: ฿${o.totalPrice.toLocaleString()}`).join("\n"),
+            `\n📦 เตรียมจัดส่ง: ${readyShip.length} รายการ`,
+            `----------------------------------`,
+            `💡 คำสั่งชั่งน้ำหนักพิมพ์: ชั่ง <OrderID> <กก.>`,
+            `เช่น: ชั่ง OD000001 3.85`,
+          ].filter(Boolean).join("\n");
+
+          await replyLineMessage(replyToken, [{ type: "text", text: textSummary }], token);
+          continue;
+        }
+
+        // Admin group help command
+        if (msgText.includes("คำสั่ง") || msgText.includes("help") || msgText === "?" || msgText === "ช่วยเหลือ") {
+          await replyLineMessage(
+            replyToken,
+            [
+              {
+                type: "text",
+                text: `🍈 คำสั่งแอดมินในกลุ่ม LINE ทุเรียนวิ่นขิ่น:\n\n1. ชั่ง <รหัสออเดอร์> <นน.กก.>\n   เช่น: ชั่ง OD000001 3.85\n   (คำนวณราคาจริง อัปเดตชีต และส่งบิล QR ให้ลูกค้าทันที)\n\n2. สต็อก (เช็คสต็อกทุเรียนหน้าสวน)\n3. ออเดอร์ (ดูสรุปออเดอร์ที่ค้างอยู่)\n4. รหัสกลุ่ม (เช็ค Group ID)`,
+              },
+            ],
+            token
+          );
+          continue;
+        }
+
+        // In group, ignore other casual chatter so team conversation isn't interrupted
         continue;
       }
 

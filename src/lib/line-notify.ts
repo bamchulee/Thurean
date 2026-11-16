@@ -721,7 +721,6 @@ export function buildStockOverviewMessages(
     return {
       type: "box",
       layout: "horizontal",
-      alignItems: "center",
       margin: "sm",
       contents: [
         {
@@ -765,7 +764,6 @@ export function buildStockOverviewMessages(
         {
           type: "box",
           layout: "horizontal",
-          alignItems: "center",
           contents: [
             {
               type: "text",
@@ -856,10 +854,9 @@ export function buildStockOverviewMessages(
               backgroundColor: "#FEF3C7",
               cornerRadius: "md",
               paddingAll: "sm",
-              alignItems: "center",
               flex: 1,
               contents: [
-                { type: "text", text: "สต็อกรวม", size: "xs", color: "#92400E" },
+                { type: "text", text: "สต็อกรวม", size: "xs", color: "#92400E", align: "center" },
                 {
                   type: "text",
                   text: `${totalKg.toFixed(1)} กก.`,
@@ -867,6 +864,7 @@ export function buildStockOverviewMessages(
                   weight: "bold",
                   color: "#78350F",
                   margin: "xs",
+                  align: "center",
                 },
               ],
             },
@@ -876,10 +874,9 @@ export function buildStockOverviewMessages(
               backgroundColor: "#ECFDF5",
               cornerRadius: "md",
               paddingAll: "sm",
-              alignItems: "center",
               flex: 1,
               contents: [
-                { type: "text", text: "โควต้ากล่อง", size: "xs", color: "#065F46" },
+                { type: "text", text: "โควต้ากล่อง", size: "xs", color: "#065F46", align: "center" },
                 {
                   type: "text",
                   text: `${round?.quotaRemaining ?? 0}/${round?.totalQuota ?? 0}`,
@@ -887,6 +884,7 @@ export function buildStockOverviewMessages(
                   weight: "bold",
                   color: "#047857",
                   margin: "xs",
+                  align: "center",
                 },
               ],
             },
@@ -896,10 +894,9 @@ export function buildStockOverviewMessages(
               backgroundColor: "#EFF6FF",
               cornerRadius: "md",
               paddingAll: "sm",
-              alignItems: "center",
               flex: 1,
               contents: [
-                { type: "text", text: "พร้อมส่ง", size: "xs", color: "#1E40AF" },
+                { type: "text", text: "พร้อมส่ง", size: "xs", color: "#1E40AF", align: "center" },
                 {
                   type: "text",
                   text: `${availableProducts.length} ชนิด`,
@@ -907,6 +904,7 @@ export function buildStockOverviewMessages(
                   weight: "bold",
                   color: "#1D4ED8",
                   margin: "xs",
+                  align: "center",
                 },
               ],
             },
@@ -1016,7 +1014,6 @@ export function buildStockOverviewMessages(
           {
             type: "box",
             layout: "horizontal",
-            alignItems: "baseline",
             contents: [
               {
                 type: "text",
@@ -1172,7 +1169,6 @@ export function buildOrderCatalogMessages(
           {
             type: "box",
             layout: "horizontal",
-            alignItems: "baseline",
             contents: [
               {
                 type: "text",
