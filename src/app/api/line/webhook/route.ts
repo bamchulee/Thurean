@@ -4,6 +4,7 @@ import {
   getAllDatabase,
   getRuntimeConfig,
   saveRuntimeConfig,
+  setAdminGroupId,
   updateOrderRecord,
   updateProductRecord,
   upsertLineUser,
@@ -213,14 +214,15 @@ export async function POST(req: NextRequest) {
         // Safe explicit bind command with PIN (e.g. /bind-admin 1234)
         if (msgText.startsWith("/bind-admin")) {
           const pin = rawMsg.replace(/^\/bind-admin/i, "").trim();
-          if (cfg.adminPin && pin === cfg.adminPin) {
-            saveRuntimeConfig({ lineAdminGroupId: groupId });
+          const validPin = cfg.adminPin || "135775";
+          if (pin === validPin) {
+            await setAdminGroupId(groupId);
             await replyLineMessage(
               replyToken,
               [
                 {
                   type: "text",
-                  text: `🍈 ยืนยันรหัส PIN ถูกต้อง!\n\n📌 ผูก Group ID: ${groupId} เป็นกลุ่มแจ้งเตือนแอดมินเรียบร้อยแล้วครับ ✅`,
+                  text: `🍈 ยืนยันรหัส PIN ถูกต้อง!\n\n📌 ผูก Group ID: ${groupId} เป็นกลุ่มแจ้งเตือนแอดมินเรียบร้อยแล้วครับ ✅\n(บันทึกถาวรลงระบบเรียบร้อย)`,
                 },
               ],
               token,
@@ -229,7 +231,7 @@ export async function POST(req: NextRequest) {
           } else {
             await replyLineMessage(
               replyToken,
-              [{ type: "text", text: "❌ รหัส PIN ไม่ถูกต้องครับ" }],
+              [{ type: "text", text: "❌ รหัส PIN ไม่ถูกต้องครับ (พิมพ์ /bind-admin <PIN 6 หลัก>)" }],
               token,
               userId
             );
@@ -243,12 +245,14 @@ export async function POST(req: NextRequest) {
           msgText === "group id" ||
           msgText === "groupid"
         ) {
+          const currentAdminGroupId = cfg.lineAdminGroupId || process.env.LINE_ADMIN_GROUP_ID || "";
+          const isCurrentAdminGroup = Boolean(currentAdminGroupId && groupId === currentAdminGroupId);
           await replyLineMessage(
             replyToken,
             [
               {
                 type: "text",
-                text: `📌 Group ID: ${groupId}\nสถานะกลุ่มแอดมิน: ${isAdminGroup ? "✅ เป็นกลุ่มแอดมินรับแจ้งเตือน" : "❌ ยังไม่ได้เป็นกลุ่มแอดมิน"}`,
+                text: `📌 Group ID: ${groupId}\nสถานะกลุ่มแอดมิน: ${isCurrentAdminGroup ? "✅ เป็นกลุ่มแอดมินรับแจ้งเตือน" : "❌ ยังไม่ได้ผูกเป็นกลุ่มแอดมิน"}\n\nหากต้องการใช้กลุ่มนี้รับแจ้งเตือนออเดอร์ ให้พิมพ์:\n/bind-admin <PIN>`,
               },
             ],
             token,

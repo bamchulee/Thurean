@@ -245,6 +245,8 @@ function readAllDatabase() {
     updatedBy: String(pr.updatedBy || ""),
   }));
 
+  const lineAdminGroupId = PropertiesService.getScriptProperties().getProperty("LINE_ADMIN_GROUP_ID") || "";
+
   return {
     products: products,
     rounds: rounds,
@@ -253,5 +255,8 @@ function readAllDatabase() {
     claims: claims,
     promotions: promotions,
     users: usersWithStats,
+    config: {
+      lineAdminGroupId: lineAdminGroupId,
+    },
   };
 }

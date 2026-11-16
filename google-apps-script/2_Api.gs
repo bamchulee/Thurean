@@ -110,6 +110,13 @@ function handleWrite(action, payload) {
       return createUserRow(normalizeUser(payload));
     case "updateUser":
       return updateById(SHEET_NAMES.USERS, payload.userId || payload.id, normalizeUser(payload));
+    case "setConfig":
+      if (payload.lineAdminGroupId !== undefined) {
+        PropertiesService.getScriptProperties().setProperty("LINE_ADMIN_GROUP_ID", String(payload.lineAdminGroupId || ""));
+      }
+      return {
+        lineAdminGroupId: PropertiesService.getScriptProperties().getProperty("LINE_ADMIN_GROUP_ID") || ""
+      };
     default:
       throw new Error("UNKNOWN_ACTION: " + action);
   }

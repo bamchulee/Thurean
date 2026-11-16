@@ -267,7 +267,6 @@ export async function submitNewOrder(
     );
 
     for (const targetId of adminTargets) {
-      if (targetId === created.lineUserId) continue;
       try {
         const messages = buildOrderAlertForAdmin(created, cfg.publicBaseUrl);
         if (created.slipUrl && cfg.publicBaseUrl) {
@@ -404,7 +403,6 @@ export async function submitNewClaim(
       (id): id is string => Boolean(id && id.trim())
     );
     for (const targetId of adminTargets) {
-      if (targetId === customerLineId) continue;
       try {
         await pushLineMessage(
           targetId,

@@ -36,6 +36,8 @@ function getRuntimeConfigPath(): string {
 // ============================================================
 // Runtime Configuration (ENV + local runtime-config.json)
 // ============================================================
+let runtimeAdminGroupId = "";
+
 export function getRuntimeConfig(): RuntimeConfig {
   let fileConfig: RuntimeConfig = {};
   const cfgPath = getRuntimeConfigPath();
@@ -80,7 +82,10 @@ export function getRuntimeConfig(): RuntimeConfig {
     lineAdminUserId:
       process.env.LINE_ADMIN_USER_ID || fileConfig.lineAdminUserId || "",
     lineAdminGroupId:
-      process.env.LINE_ADMIN_GROUP_ID || fileConfig.lineAdminGroupId || "",
+      process.env.LINE_ADMIN_GROUP_ID ||
+      fileConfig.lineAdminGroupId ||
+      runtimeAdminGroupId ||
+      "",
     lineLiffId:
       process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "2012605985-l0IfXrhJ",
     lineLoginChannelId:
@@ -138,6 +143,7 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
   }
   if (partial.lineAdminGroupId !== undefined) {
     next.lineAdminGroupId = partial.lineAdminGroupId.trim();
+    runtimeAdminGroupId = partial.lineAdminGroupId.trim();
   }
   if (partial.lineLiffId !== undefined) {
     next.lineLiffId = partial.lineLiffId.trim();
@@ -175,6 +181,22 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
 
   fs.writeFileSync(cfgPath, JSON.stringify(next, null, 2), "utf-8");
   return getRuntimeConfig();
+}
+
+export async function setAdminGroupId(groupId: string): Promise<void> {
+  const cleanId = (groupId || "").trim();
+  runtimeAdminGroupId = cleanId;
+  saveRuntimeConfig({ lineAdminGroupId: cleanId });
+  const cfg = getRuntimeConfig();
+  if (cfg.googleSheetsWebAppUrl) {
+    try {
+      await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "setConfig", {
+        lineAdminGroupId: cleanId,
+      });
+    } catch (err) {
+      console.warn("Failed to persist lineAdminGroupId to Apps Script PropertiesService:", err);
+    }
+  }
 }
 
 export function getDataSourceMode(): "google-sheets" | "local" {
@@ -370,6 +392,9 @@ export async function syncLocalDataToGoogleSheet(webAppUrl: string) {
 }
 
 function applyDatabaseJoins(db: DatabaseState): DatabaseState {
+  if (db.config?.lineAdminGroupId && !runtimeAdminGroupId) {
+    runtimeAdminGroupId = db.config.lineAdminGroupId;
+  }
   const seed = createInitialDatabase();
   const users = Array.isArray(db.users) ? db.users : [];
   const orders = Array.isArray(db.orders) ? db.orders : [];

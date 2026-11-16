@@ -213,6 +213,9 @@ export interface DatabaseState {
   claims: Claim[];
   promotions?: Promotion[];
   users?: User[];
+  config?: {
+    lineAdminGroupId?: string;
+  };
 }
 
 export interface RuntimeConfig {
