@@ -11,8 +11,9 @@ import type {
 } from "../types/durian";
 import { shopInfo } from "../data/mock";
 import { resolveCourierInfo } from "./courier";
-import { formatProductStock } from "./stock";
+import { estimateUnitPrice, formatProductStock } from "./stock";
 import { checkClaimEligibility } from "./claim-policy";
+import { ORDER_STATUS_META, PAYMENT_STATUS_LABEL, normalizePaymentStatus, orderStatusOf } from "./order-status";
 
 const FALLBACK_FLEX_IMAGE =
   "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80";
@@ -275,7 +276,7 @@ export function buildOrderAlertForAdmin(order: Order, publicBaseUrl?: string): u
                 },
                 {
                   type: "text",
-                  text: `💡 พิมพ์ในกลุ่มเพื่อบันทึกน้ำหนักจริง:\nชั่ง ${order.id} <กก.>\n(เช่น: ชั่ง ${order.id} 3.85)`,
+                  text: `💡 ชั่งแล้วพิมพ์ในกลุ่มนี้:\nชั่ง ${order.id} <น้ำหนักรวม กก.>\nหรือทีละลูก: ชั่ง ${order.id} 3.8 4.1\nระบบส่ง QR ยอดจริงให้ลูกค้าเอง`,
                   size: "xxs",
                   color: "#B45309",
                   wrap: true,
@@ -290,6 +291,18 @@ export function buildOrderAlertForAdmin(order: Order, publicBaseUrl?: string): u
           layout: "vertical",
           spacing: "xs",
           contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#B45309",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "💳 ส่งยอดเลย",
+                data: `action=admin_quote&orderId=${order.id}`,
+                displayText: `ส่งยอดตามราคาจอง #${order.id}`,
+              },
+            },
             {
               type: "button",
               style: "secondary",
@@ -435,20 +448,6 @@ export function buildSlipAlertForAdmin(
 }
 
 export function buildCustomerStatusFlex(order: Order): unknown[] {
-  const statusMap: Record<string, string> = {
-    received: "📥 รับออเดอร์แล้ว (รอตรวจยอด)",
-    preparing: "🍈 กำลังวิ่งรถกระบะไปคัดทุเรียนที่สวน",
-    packed: "📦 แพ็กกล่องเรียบร้อย รอจัดส่ง",
-    shipped: "🚚 จัดส่งแล้ว! กำลังเดินทางไปหาคุณ",
-    delivered: "🎉 จัดส่งสำเร็จแล้ว",
-    claimed: "🛡️ อยู่ระหว่างดำเนินการเคลม",
-    "รอชั่งน้ำหนัก/สรุปยอด": "⚖️ กำลังคัดผลและชั่งน้ำหนักจริง",
-    "รอชำระเงิน": "💰 ชั่งน้ำหนักเรียบร้อยแล้ว (รอชำระเงิน)",
-    "ชำระเงินแล้ว/เตรียมจัดส่ง": "✅ ได้รับยอดชำระแล้ว (เตรียมจัดส่ง)",
-    "กำลังจัดส่ง": "🚚 กำลังจัดส่งถึงบ้านคุณ",
-    "จัดส่งสำเร็จ": "🎉 จัดส่งสำเร็จเรียบร้อยแล้ว",
-    "ยกเลิก": "❌ ยกเลิกคำสั่งซื้อ",
-  };
 
   const courierInfo = resolveCourierInfo(
     order.trackingNo,
@@ -461,7 +460,8 @@ export function buildCustomerStatusFlex(order: Order): unknown[] {
   const bodyContents: unknown[] = [
     {
       type: "text",
-      text: statusMap[order.orderStatus] || order.orderStatus,
+      text: `${ORDER_STATUS_META[orderStatusOf(order)].emoji} ${orderStatusOf(order)} • ${PAYMENT_STATUS_LABEL[normalizePaymentStatus(order.paymentStatus)]}
+${ORDER_STATUS_META[orderStatusOf(order)].customerHint}`,
       weight: "bold",
       size: "sm",
       wrap: true,
@@ -499,8 +499,8 @@ export function buildCustomerStatusFlex(order: Order): unknown[] {
     type: "box",
     layout: "horizontal",
     contents: [
-      { type: "text", text: "💰 ยอดรวมสุทธิ:", size: "xs", color: "#6B7280", flex: 4 },
-      { type: "text", text: `฿${grandTotal.toLocaleString()}`, size: "sm", weight: "bold", color: "#15803d", flex: 6 },
+      { type: "text", text: orderStatusOf(order) === "สั่งจอง" ? "💰 ราคาประเมิน:" : "💰 ยอดรวมสุทธิ:", size: "xs", color: "#6B7280", flex: 4 },
+      { type: "text", text: `${orderStatusOf(order) === "สั่งจอง" ? "~" : ""}฿${grandTotal.toLocaleString()}`, size: "sm", weight: "bold", color: "#15803d", flex: 6 },
     ],
   });
 
@@ -1961,26 +1961,14 @@ export function buildUserOrdersFlex(
         })
       : "-";
 
-    const isPaid = o.paymentStatus === "confirmed" || o.orderStatus === "ชำระเงินแล้ว/เตรียมจัดส่ง" || o.orderStatus === "กำลังจัดส่ง" || o.orderStatus === "จัดส่งสำเร็จ";
-    const isDelivered = o.orderStatus === "จัดส่งสำเร็จ" || o.orderStatus === "delivered";
-
-    const statusBadgeText = isDelivered
-      ? "✅ จัดส่งสำเร็จ (ถึงมือแล้ว)"
-      : o.orderStatus === "กำลังจัดส่ง" || o.orderStatus === "shipped"
-      ? "🚚 กำลังจัดส่ง"
-      : o.orderStatus === "ชำระเงินแล้ว/เตรียมจัดส่ง" || o.orderStatus === "packed" || o.orderStatus === "preparing"
-      ? "📦 ชำระแล้ว/เตรียมส่ง"
-      : o.orderStatus === "รอชำระเงิน"
-      ? "💳 รอชำระเงิน"
-      : "⏳ รอชั่งน้ำหนัก/สรุปยอด";
-
-    const statusBadgeColor = isDelivered
-      ? "#15803D"
-      : o.orderStatus === "กำลังจัดส่ง" || o.orderStatus === "shipped"
-      ? "#2563EB"
-      : o.orderStatus === "รอชำระเงิน"
-      ? "#D97706"
-      : "#059669";
+    const status = orderStatusOf(o);
+    const isPaid = normalizePaymentStatus(o.paymentStatus) === "confirmed" || ORDER_STATUS_META[status].step >= 3;
+    const isDelivered = status === "จัดส่งสำเร็จ";
+    const statusBadgeText =
+      status === "รอชำระเงิน" && normalizePaymentStatus(o.paymentStatus) === "slip_submitted"
+        ? "🧾 ส่งสลิปแล้ว รอตรวจ"
+        : `${ORDER_STATUS_META[status].emoji} ${status}`;
+    const statusBadgeColor = ORDER_STATUS_META[status].color;
 
     const eligibility = checkClaimEligibility(o, claims);
 
@@ -3466,5 +3454,234 @@ export function buildMoreMenuFlex(
         },
       },
     },
+  ];
+}
+
+// ============================================================
+// ขั้นตอนจองใน LINE (ไม่มีสถานะค้างในเซิร์ฟเวอร์: ทุกปุ่มพกข้อมูลการจองไปเอง)
+// จำนวน → ความสุก → การ์ดยืนยัน (มีที่อยู่) / ขอที่อยู่ (ยังไม่มี) → ใบรับจอง
+// ============================================================
+
+export interface BookingReviewParams {
+  product: Product;
+  qty: number;
+  ripenessLabel: string;
+  shippingName: string;
+  shippingCost: number;
+  estimate: number; // ราคาประเมินสินค้า (ยังไม่รวมค่าส่ง)
+  customer: { name: string; phone: string; address: string };
+  /** postback data ของปุ่มยืนยัน (มี bookingKey แล้ว) */
+  confirmData: string;
+  /** postback data ของปุ่มเปลี่ยนวิธีส่ง (ไม่มี = มีวิธีเดียว) */
+  changeShipData?: string;
+  addressFormUrl: string;
+}
+
+const qrItem = (action: Record<string, unknown>) => ({ type: "action", action });
+
+const cancelQuickItem = qrItem({ type: "message", label: "ยกเลิก", text: "ยกเลิก" });
+
+export function buildQtyPickerMessage(product: Product, stockSummary?: string): unknown[] {
+  const unit = product.unit || "ลูก";
+  const perKg = product.pricePerKg ? `฿${product.pricePerKg.toLocaleString()}/กก.` : "";
+  const items = [1, 2, 3, 4, 5].map((n) =>
+    qrItem({
+      type: "postback",
+      label: `${n} ${unit}`,
+      data: `action=order_step&step=ripeness&pid=${encodeURIComponent(product.id)}&qty=${n}`,
+      displayText: `${n} ${unit}`,
+    })
+  );
+  const lines = [
+    `🍈 ${product.name}`,
+    `💰 ประมาณ ฿${estimateUnitPrice(product).toLocaleString()}/${unit}${perKg ? ` (คิดจริง ${perKg} หลังชั่ง)` : ""}`,
+    product.weight ? `⚖️ น้ำหนักประมาณ ${product.weight}` : "",
+    stockSummary ? `📦 ${stockSummary}` : "",
+  ].filter(Boolean);
+  return [
+    {
+      type: "text",
+      text: `${lines.join("\n")}\n\nต้องการกี่${unit}ครับ? (กดเลือก หรือพิมพ์ตัวเลขได้ถึง 10)`,
+      quickReply: { items: [...items, cancelQuickItem] },
+    },
+  ];
+}
+
+export function buildRipenessPickerMessage(
+  product: Product,
+  qty: number,
+  options: readonly { code: string; label: string; short: string }[]
+): unknown[] {
+  return [
+    {
+      type: "text",
+      text: `🍈 ${product.name} จำนวน ${qty} ${product.unit || "ลูก"}\n\nชอบความสุกแบบไหนครับ?`,
+      quickReply: {
+        items: [
+          ...options.map((o) =>
+            qrItem({
+              type: "postback",
+              label: o.short,
+              data: `action=order_step&step=review&pid=${encodeURIComponent(product.id)}&qty=${qty}&r=${o.code}`,
+              displayText: o.label,
+            })
+          ),
+          cancelQuickItem,
+        ],
+      },
+    },
+  ];
+}
+
+export function buildBookingReviewFlex(p: BookingReviewParams): unknown[] {
+  const row = (label: string, value: string, bold = false) => ({
+    type: "box",
+    layout: "horizontal",
+    contents: [
+      { type: "text", text: label, size: "xs", color: "#6B7280", flex: 3 },
+      {
+        type: "text",
+        text: value || "-",
+        size: "xs",
+        color: "#111827",
+        flex: 6,
+        wrap: true,
+        align: "end",
+        weight: bold ? "bold" : "regular",
+      },
+    ],
+  });
+  const total = p.estimate + p.shippingCost;
+  return [
+    {
+      type: "flex",
+      altText: `ยืนยันการจอง ${p.product.name} x${p.qty} (ประเมิน ~฿${total.toLocaleString()})`.slice(0, 400),
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#1B4D31",
+          paddingAll: "lg",
+          contents: [
+            { type: "text", text: "📝 ตรวจสอบก่อนยืนยันการจอง", color: "#FDE047", weight: "bold", size: "md" },
+            {
+              type: "text",
+              text: "ยังไม่ต้องโอนเงิน — ชั่งจริงแล้วส่งยอดให้",
+              color: "#FFFFFF",
+              size: "xs",
+              margin: "xs",
+              wrap: true,
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            row("สินค้า", `${p.product.name} x${p.qty}`, true),
+            row("ความสุก", p.ripenessLabel),
+            row("จัดส่ง", `${p.shippingName} (฿${p.shippingCost})`),
+            { type: "separator", margin: "md" },
+            row("ผู้รับ", p.customer.name, true),
+            row("โทร", p.customer.phone),
+            row("ที่อยู่", p.customer.address),
+            { type: "separator", margin: "md" },
+            row("ราคาประเมิน", `~฿${total.toLocaleString()}`, true),
+            {
+              type: "text",
+              text: p.product.pricePerKg
+                ? `คิดจริง ฿${p.product.pricePerKg.toLocaleString()}/กก. ตามน้ำหนักที่ชั่ง + ค่าส่ง`
+                : "แจ้งยอดจริงอีกครั้งก่อนโอน",
+              size: "xxs",
+              color: "#B45309",
+              wrap: true,
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#15803D",
+              height: "sm",
+              action: { type: "postback", label: "✅ ยืนยันการจอง", data: p.confirmData, displayText: "ยืนยันการจอง" },
+            },
+            ...(p.changeShipData
+              ? [
+                  {
+                    type: "button",
+                    style: "secondary",
+                    height: "sm",
+                    action: {
+                      type: "postback",
+                      label: "🚚 เปลี่ยนวิธีส่ง",
+                      data: p.changeShipData,
+                      displayText: "เปลี่ยนวิธีส่ง",
+                    },
+                  },
+                ]
+              : []),
+            {
+              type: "button",
+              style: "link",
+              height: "sm",
+              action: { type: "uri", label: "✏️ แก้ชื่อ/ที่อยู่", uri: p.addressFormUrl },
+            },
+          ],
+        },
+      },
+    },
+  ];
+}
+
+/** ยังไม่มีชื่อ/เบอร์/ที่อยู่: ให้กรอกฟอร์ม (ฟอร์มส่งการ์ดยืนยันกลับมาให้เอง) หรือพิมพ์ในแชท */
+export function buildNeedAddressMessage(summary: string, formUrl: string): unknown[] {
+  return [
+    {
+      type: "text",
+      text: `🍈 ${summary}\n\n📍 ขอชื่อผู้รับ เบอร์โทร และที่อยู่จัดส่งครับ\n• กดปุ่ม "กรอกที่อยู่" ด้านล่าง (แนะนำ)\n• หรือพิมพ์ในแชทนี้ เช่น\nสมชาย 0812345678 99/1 สุขุมวิท กทม. 10110\n\nบันทึกแล้วระบบจะส่งการ์ดยืนยันการจองให้ทันทีครับ`,
+      quickReply: {
+        items: [
+          qrItem({ type: "uri", label: "📝 กรอกที่อยู่", uri: formUrl }),
+          qrItem({ type: "location", label: "🗺️ ปักหมุดแผนที่" }),
+          cancelQuickItem,
+        ],
+      },
+    },
+  ];
+}
+
+export function buildCancelledNoticeFlex(order: Order): unknown[] {
+  const refundNote =
+    order.paymentStatus === "refunded"
+      ? "\n💸 ยอดที่ชำระแล้ว ร้านจะโอนคืนให้ภายใน 1-2 วันทำการครับ"
+      : "";
+  return [
+    {
+      type: "text",
+      text: `❌ ออเดอร์ #${order.id} ถูกยกเลิกแล้วครับ${order.cancelReason ? `\nเหตุผล: ${order.cancelReason}` : ""}${refundNote}\n\nสอบถามเพิ่มเติม โทร ${shopInfo.phone} หรือกด "คุยกับแอดมิน" ได้เลยครับ 🙏`,
+      quickReply: buildMainQuickReply(),
+    },
+  ];
+}
+
+export function buildSlipRejectedNotice(order: Order, publicBaseUrl?: string, reason?: string): unknown[] {
+  const qr = buildPaymentQrForCustomerFlex(order, publicBaseUrl).map((m) => {
+    const copy = { ...(m as Record<string, unknown>) };
+    delete copy.quickReply;
+    return copy;
+  });
+  return [
+    {
+      type: "text",
+      text: `⚠️ สลิปของออเดอร์ #${order.id} ยังตรวจไม่ผ่านครับ${reason ? `\nเหตุผล: ${reason}` : ""}\n\nยอดที่ต้องโอน: ฿${(order.totalPrice + (order.shippingCost || 0)).toLocaleString()}\nรบกวนส่งรูปสลิปที่ถูกต้องเข้ามาในแชทนี้อีกครั้ง หรือกด "คุยกับแอดมิน" ครับ 🙏`,
+    },
+    ...qr,
   ];
 }

@@ -72,7 +72,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const raw = (await req.json()) as SubmitOrderInput & { lineAccessToken?: string };
+    const raw = (await req.json()) as Omit<SubmitOrderInput, "items"> & {
+      lineAccessToken?: string;
+      items?: { productId?: string; qty?: number; ripenessPref?: string; price?: number }[];
+    };
     const isAdmin = isAdminRequest(req);
 
     let targetUserId: string | undefined = undefined;
@@ -89,12 +92,38 @@ export async function POST(req: NextRequest) {
       targetLineUserId = session?.lineUserId || lineProfile?.userId;
     }
 
-    const res = await submitNewOrder({
-      ...raw,
+    // ลูกค้าส่งได้แค่ข้อมูลผู้รับ + รายการสินค้า — ราคา ค่าส่ง สถานะ คิดฝั่งเซิร์ฟเวอร์เท่านั้น
+    const input: SubmitOrderInput = {
+      customerName: raw.customerName,
+      phone: raw.phone,
+      address: raw.address,
+      ripenessPref: raw.ripenessPref,
+      shippingMethod: raw.shippingMethod,
+      roundId: raw.roundId,
+      notes: typeof raw.notes === "string" ? raw.notes.slice(0, 500) : undefined,
+      items: Array.isArray(raw.items)
+        ? raw.items.slice(0, 20).map((it) => ({
+            productId: String(it.productId || ""),
+            qty: Number(it.qty) || 1,
+            ripenessPref: it.ripenessPref,
+            ...(isAdmin && typeof it.price === "number" ? { price: it.price } : {}),
+          }))
+        : [],
       userId: targetUserId,
       lineUserId: targetLineUserId,
-      createdBy: isAdmin ? "admin" : (targetUserId || "customer"),
-    });
+      createdBy: isAdmin ? "admin" : targetUserId || "customer",
+      ...(isAdmin
+        ? {
+            channel: raw.channel,
+            shippingCost: raw.shippingCost,
+            courier: raw.courier,
+            vehicleType: raw.vehicleType,
+            paymentStatus: raw.paymentStatus,
+            orderStatus: raw.orderStatus,
+          }
+        : {}),
+    };
+    const res = await submitNewOrder(input, { trusted: isAdmin });
     if (!res.ok) {
       return NextResponse.json(
         { ok: false, error: res.error },

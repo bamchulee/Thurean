@@ -16,7 +16,7 @@ import type {
   User,
 } from "../types/durian";
 import { createInitialDatabase } from "../data/mock";
-import { deductProductStock } from "./stock";
+import { deductProductStock, restoreProductStock } from "./stock";
 import { getWritableDataDir } from "./storage-dir";
 import { getSigningSecret } from "./secrets";
 import { nextRunningId, type IdKind } from "./ids";
@@ -36,7 +36,9 @@ function getRuntimeConfigPath(): string {
 // ============================================================
 // Runtime Configuration (ENV + local runtime-config.json)
 // ============================================================
+// ค่าที่บันทึกถาวรใน Apps Script (Script Properties) — โหลดมากับ getAll ทุกครั้ง ใช้ได้ทุก instance
 let runtimeAdminGroupId = "";
+let runtimeAdminUserId = "";
 
 export function getRuntimeConfig(): RuntimeConfig {
   let fileConfig: RuntimeConfig = {};
@@ -80,12 +82,9 @@ export function getRuntimeConfig(): RuntimeConfig {
     lineChannelAccessToken:
       process.env.LINE_CHANNEL_ACCESS_TOKEN || fileConfig.lineChannelAccessToken || "",
     lineAdminUserId:
-      process.env.LINE_ADMIN_USER_ID || fileConfig.lineAdminUserId || "",
+      process.env.LINE_ADMIN_USER_ID || runtimeAdminUserId || fileConfig.lineAdminUserId || "",
     lineAdminGroupId:
-      process.env.LINE_ADMIN_GROUP_ID ||
-      fileConfig.lineAdminGroupId ||
-      runtimeAdminGroupId ||
-      "",
+      process.env.LINE_ADMIN_GROUP_ID || runtimeAdminGroupId || fileConfig.lineAdminGroupId || "",
     lineLiffId:
       process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "2012605985-l0IfXrhJ",
     lineLoginChannelId:
@@ -140,6 +139,7 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
   }
   if (partial.lineAdminUserId !== undefined) {
     next.lineAdminUserId = partial.lineAdminUserId.trim();
+    runtimeAdminUserId = partial.lineAdminUserId.trim();
   }
   if (partial.lineAdminGroupId !== undefined) {
     next.lineAdminGroupId = partial.lineAdminGroupId.trim();
@@ -183,18 +183,17 @@ export function saveRuntimeConfig(partial: Partial<RuntimeConfig>): RuntimeConfi
   return getRuntimeConfig();
 }
 
-export async function setAdminGroupId(groupId: string): Promise<void> {
-  const cleanId = (groupId || "").trim();
-  runtimeAdminGroupId = cleanId;
-  saveRuntimeConfig({ lineAdminGroupId: cleanId });
+/** ผูกกลุ่ม/บัญชี LINE แอดมิน (หลังตรวจ PIN แล้ว) — บันทึกถาวรใน Apps Script ไม่ใช่ /tmp */
+export async function setLineAdminTarget(kind: "group" | "user", id: string): Promise<void> {
+  const cleanId = (id || "").trim();
+  const key = kind === "group" ? "lineAdminGroupId" : "lineAdminUserId";
+  saveRuntimeConfig({ [key]: cleanId });
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     try {
-      await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "setConfig", {
-        lineAdminGroupId: cleanId,
-      });
+      await callGoogleAppsScriptPost(cfg.googleSheetsWebAppUrl, "setConfig", { [key]: cleanId });
     } catch (err) {
-      console.warn("Failed to persist lineAdminGroupId to Apps Script PropertiesService:", err);
+      console.warn(`Failed to persist ${key} to Apps Script Script Properties:`, err);
     }
   }
 }
@@ -392,9 +391,8 @@ export async function syncLocalDataToGoogleSheet(webAppUrl: string) {
 }
 
 function applyDatabaseJoins(db: DatabaseState): DatabaseState {
-  if (db.config?.lineAdminGroupId && !runtimeAdminGroupId) {
-    runtimeAdminGroupId = db.config.lineAdminGroupId;
-  }
+  if (db.config?.lineAdminGroupId) runtimeAdminGroupId = db.config.lineAdminGroupId;
+  if (db.config?.lineAdminUserId) runtimeAdminUserId = db.config.lineAdminUserId;
   const seed = createInitialDatabase();
   const users = Array.isArray(db.users) ? db.users : [];
   const orders = Array.isArray(db.orders) ? db.orders : [];
@@ -657,13 +655,22 @@ export async function createOrderRecord(order: Order): Promise<Order> {
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     // Apps Script ออกเลขออเดอร์ เช็กสต็อก และตัดสต็อกภายใต้ล็อกเดียวกัน
+    // (bookingKey ซ้ำ = คืนเลขออเดอร์เดิม ไม่สร้างใหม่ ไม่ตัดสต็อกซ้ำ)
     const assigned = await createOnSheets("createOrder", order, "id", true);
     if (assigned) order.id = assigned;
-  } else if (readLocalDb().orders.some((o) => o.id === order.id)) {
-    throw new SheetsApiError(`DUPLICATE_ID: รหัสออเดอร์ ${order.id} ถูกใช้แล้ว`, "DUPLICATE_ID");
+  } else {
+    const local = readLocalDb();
+    const sameBooking = order.bookingKey
+      ? local.orders.find((o) => o.bookingKey === order.bookingKey)
+      : undefined;
+    if (sameBooking) return sameBooking;
+    if (local.orders.some((o) => o.id === order.id)) {
+      throw new SheetsApiError(`DUPLICATE_ID: รหัสออเดอร์ ${order.id} ถูกใช้แล้ว`, "DUPLICATE_ID");
+    }
   }
   // Always mirror locally as backup / instant cache + deduct weight/qty stock
   const db = readLocalDb();
+  if (db.orders.some((o) => o.id === order.id)) return order;
   db.orders.unshift(order);
   const qtySum = order.items.reduce((s, it) => s + it.qty, 0);
   const round = db.rounds.find((r) => r.id === order.roundId);
@@ -702,7 +709,18 @@ export async function updateOrderRecord(
   const db = readLocalDb();
   const idx = db.orders.findIndex((o) => o.id === id);
   if (idx !== -1) {
-    db.orders[idx] = { ...db.orders[idx], ...normalized };
+    const before = db.orders[idx];
+    db.orders[idx] = { ...before, ...normalized };
+    // ยกเลิกแล้วคืนสต็อก (ฝั่งชีตทำใน Apps Script updateOrder)
+    if (normalized.orderStatus === "ยกเลิก" && before.orderStatus !== "ยกเลิก") {
+      for (const it of before.items || []) {
+        const prod = db.products.find((p) => p.id === it.productId);
+        if (prod) restoreProductStock(prod, it.qty);
+      }
+      const round = db.rounds.find((r) => r.id === before.roundId);
+      const qtySum = (before.items || []).reduce((s, it) => s + it.qty, 0);
+      if (round) round.quotaRemaining = Math.min(round.totalQuota || Infinity, round.quotaRemaining + qtySum);
+    }
     writeLocalDb(db);
     return db.orders[idx];
   }

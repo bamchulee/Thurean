@@ -194,6 +194,61 @@ function updateOrder(payload) {
   if ((flat.orderStatus === "จัดส่งสำเร็จ" || flat.orderStatus === "delivered") && !row.deliveredAt && !flat.deliveredAt) {
     flat.deliveredAt = new Date().toISOString();
   }
+  const wasCancelled = String(row.orderStatus || "") === "ยกเลิก";
+  const itemsBefore = parseItems(row.itemsJson);
   applyUpdates(table, row, flat);
+  if (flat.orderStatus === "ยกเลิก" && !wasCancelled) {
+    restoreStock(itemsBefore, String(row.roundId || ""));
+  }
   return Object.assign({}, payload, { updatedAt: row.updatedAt });
+}
+
+function parseItems(json) {
+  try {
+    const items = JSON.parse(String(json || "[]"));
+    return Array.isArray(items) ? items : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/** คืนสต็อก + โควต้ารอบ ของออเดอร์ที่ถูกยกเลิก (กลับด้านของ planStockDeduction) */
+function restoreStock(items, roundId) {
+  const need = {};
+  items.forEach((it) => {
+    const pid = String(it.productId || "");
+    if (pid) need[pid] = (need[pid] || 0) + Math.max(1, Math.floor(Number(it.qty) || 1));
+  });
+  const products = readTable(SHEET_NAMES.PRODUCTS);
+  let qtySum = 0;
+  Object.keys(need).forEach((pid) => {
+    const p = findRow(products, pid);
+    qtySum += need[pid];
+    if (!p) return;
+    const isQtyBased = p.stockUnit === "qty" || p.type === "flesh";
+    const avg = Number(p.avgWeightKg) > 0 ? Number(p.avgWeightKg) : isQtyBased ? 1 : 3;
+    const updates = {};
+    let wasSoldOut = false;
+    if (hasNumber(p.stockQty)) {
+      wasSoldOut = Number(p.stockQty) <= 0;
+      updates.stockQty = Number(p.stockQty) + need[pid];
+    }
+    if (hasNumber(p.stockKg)) {
+      if (!hasNumber(p.stockQty)) wasSoldOut = Number(p.stockKg) <= 0;
+      updates.stockKg = Number((Number(p.stockKg) + need[pid] * avg).toFixed(1));
+    }
+    // เปิดขายคืนเฉพาะสินค้าที่ปิดไปเพราะของหมด — ถ้าแอดมินปิดเองตอนยังมีของ ให้คงปิดไว้
+    if (wasSoldOut) updates.isAvailable = true;
+    if (Object.keys(updates).length > 0) applyUpdates(products, p, updates);
+  });
+  if (roundId && qtySum > 0) {
+    const rounds = readTable(SHEET_NAMES.ROUNDS);
+    const round = findRow(rounds, roundId);
+    if (round) {
+      const total = Number(round.totalQuota) || Infinity;
+      applyUpdates(rounds, round, {
+        quotaRemaining: Math.min(total, (Number(round.quotaRemaining) || 0) + qtySum),
+      });
+    }
+  }
 }

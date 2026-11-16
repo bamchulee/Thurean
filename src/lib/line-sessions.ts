@@ -1,5 +1,7 @@
 // ============================================================
-// Lightweight LINE Chat Session Store (Order & Claim Wizards)
+// ความจำระยะสั้นของแชท (พิมพ์จำนวนเอง / ข้อความถึงแอดมิน / ขั้นตอนเคลม)
+// เก็บเป็นไฟล์ใน instance เดียว — บน Vercel หายได้ทุกเมื่อ จึงใช้แค่เป็นตัวช่วย
+// ขั้นตอนจองหลักไม่พึ่งไฟล์นี้ (ข้อมูลการจองอยู่ในปุ่ม postback — ดู booking-draft.ts)
 // ============================================================
 import fs from "fs";
 import path from "path";
@@ -8,28 +10,10 @@ import { getWritableDataDir } from "./storage-dir";
 export type LineSessionFlow =
   | {
       flow: "order";
-      step:
-        | "pick_qty"
-        | "pick_ripeness"
-        | "pick_shipping"
-        | "enter_contact"
-        | "await_slip";
-      productId: string;
-      productName: string;
-      price: number;
-      qty?: number;
-      ripenessPref?: string;
-      shippingMethod?: string;
-      shippingCost?: number;
-      totalPrice?: number;
-      grandTotal?: number;
-      customerName?: string;
-      phone?: string;
-      address?: string;
-      mapsUrl?: string;
-      latitude?: number;
-      longitude?: number;
-      orderId?: string;
+      step: "pick_qty" | "enter_contact";
+      productId?: string;
+      /** ร่างการจองแบบ query string (draftToParams) รอที่อยู่ */
+      draft?: string;
       updatedAt: number;
     }
   | {

@@ -12,7 +12,9 @@ import {
 } from "../../../../lib/line-notify";
 import { resolveCourierInfo } from "../../../../lib/courier";
 import { findOrderById } from "../../../../lib/ids";
-import type { OrderStatus, PaymentStatus } from "../../../../types/durian";
+import { setOrderStatus, weighOrder, type WeighInput } from "../../../../lib/order-workflow";
+import { normalizeOrderStatus, orderStatusOf } from "../../../../lib/order-status";
+import type { Order } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +75,10 @@ export async function GET(
   }
 }
 
-// Admin update order (paymentStatus, orderStatus, trackingNo, lotId, notifyLine)
+// แอดมินแก้ออเดอร์
+// - weigh: { itemKgs | totalKg | fruitKgs } → ชั่ง คิดยอดจริง ส่ง QR (order-workflow.weighOrder)
+// - orderStatus: เดินหน้าทีละขั้นผ่าน order-workflow (แจ้งลูกค้าทาง LINE เอง, ยกเลิกคืนสต็อก)
+// - ช่องอื่น (เลขพัสดุ ล็อต หมายเหตุ สลิป isActive) บันทึกตรง
 export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -84,71 +89,74 @@ export async function PATCH(
     const { id } = await context.params;
     const orderId = decodeURIComponent(id);
     const body = (await req.json()) as {
-      paymentStatus?: PaymentStatus;
-      orderStatus?: OrderStatus;
+      weigh?: WeighInput;
+      orderStatus?: string;
+      paymentStatus?: string;
       trackingNo?: string;
       courier?: string;
       slipUrl?: string;
       lotId?: string;
       notes?: string;
+      cancelReason?: string;
+      isActive?: number | string | boolean;
       notifyLine?: boolean;
     };
+    const actor = getAdminOperatorName(req);
+    const { data } = await getAllDatabase(true);
+    let order = findOrderById(data.orders, orderId);
+    if (!order) {
+      return NextResponse.json({ ok: false, error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });
+    }
 
-    const updates: Record<string, unknown> = {};
-    if (body.paymentStatus !== undefined) updates.paymentStatus = body.paymentStatus;
-    if (body.orderStatus !== undefined) updates.orderStatus = body.orderStatus;
+    // 1) ชั่งน้ำหนัก
+    if (body.weigh) {
+      const res = await weighOrder(order.id, body.weigh, actor);
+      if (!res.ok) return NextResponse.json({ ok: false, error: res.error }, { status: res.status });
+      return NextResponse.json({ ok: true, order: res.order });
+    }
+
+    // 2) ช่องข้อมูลทั่วไป (ไม่กระทบสถานะ)
+    const updates: Partial<Order> = {};
     if (body.trackingNo !== undefined) updates.trackingNo = body.trackingNo.trim();
-    if (body.courier !== undefined) {
-      updates.courier = body.courier.trim();
-    } else if (body.trackingNo) {
-      updates.courier = resolveCourierInfo(body.trackingNo.trim()).name;
-    }
-    if ((body as any).weightPerItem !== undefined) updates.weightPerItem = (body as any).weightPerItem;
-    if ((body as any).totalPrice !== undefined) {
-      updates.totalPrice = Number((body as any).totalPrice);
-      updates.grandTotal = Number((body as any).totalPrice) + Number((body as any).shippingCost || 0);
-    }
-    if ((body as any).pricePerItem !== undefined) updates.pricePerItem = Number((body as any).pricePerItem);
-    if ((body as any).quantity !== undefined) updates.quantity = Number((body as any).quantity);
-    if ((body as any).channel !== undefined) updates.channel = (body as any).channel;
-    if ((body as any).vehicleType !== undefined) updates.vehicleType = (body as any).vehicleType;
-    if ((body as any).productType !== undefined) updates.productType = (body as any).productType;
+    if (body.courier !== undefined) updates.courier = body.courier.trim();
+    else if (body.trackingNo?.trim()) updates.courier = resolveCourierInfo(body.trackingNo.trim()).name;
     if (body.slipUrl !== undefined) updates.slipUrl = body.slipUrl.trim();
     if (body.lotId !== undefined) updates.lotId = body.lotId.trim();
     if (body.notes !== undefined) updates.notes = body.notes;
-    if ((body as any).isActive !== undefined) {
-      updates.isActive = ((body as any).isActive === 0 || (body as any).isActive === "0" || (body as any).isActive === false) ? 0 : 1;
+    if (body.isActive !== undefined) {
+      updates.isActive = body.isActive === 0 || body.isActive === "0" || body.isActive === false ? 0 : 1;
     }
-    updates.updatedBy = (body as any).updatedBy?.trim() || getAdminOperatorName(req);
-    updates.updatedAt = new Date().toISOString();
-
-    const updated = await updateOrderRecord(orderId, updates);
-    if (!updated) {
-      return NextResponse.json(
-        { ok: false, error: "ไม่พบคำสั่งซื้อนี้" },
-        { status: 404 }
-      );
+    if (Object.keys(updates).length > 0) {
+      await updateOrderRecord(order.id, { ...updates, updatedBy: actor });
+      order = { ...order, ...updates };
     }
 
+    // 3) เปลี่ยนสถานะ
+    if (body.orderStatus) {
+      const next = normalizeOrderStatus(body.orderStatus);
+      if (next !== orderStatusOf(order)) {
+        const res = await setOrderStatus(
+          order.id,
+          next,
+          { trackingNo: updates.trackingNo, courier: updates.courier, cancelReason: body.cancelReason },
+          actor
+        );
+        if (!res.ok) return NextResponse.json({ ok: false, error: res.error }, { status: res.status });
+        return NextResponse.json({ ok: true, order: res.order });
+      }
+    }
+
+    // ส่งการ์ดสถานะซ้ำให้ลูกค้า (กรณีแก้เลขพัสดุ ฯลฯ)
     let lineResult: { sent: boolean; reason?: string } | undefined;
-    if (body.notifyLine && updated.lineUserId) {
-      const cfg = getRuntimeConfig();
+    if (body.notifyLine && order.lineUserId) {
       lineResult = await pushLineMessage(
-        updated.lineUserId,
-        buildCustomerStatusFlex(updated),
-        cfg.lineChannelAccessToken
+        order.lineUserId,
+        buildCustomerStatusFlex(order),
+        getRuntimeConfig().lineChannelAccessToken
       );
     }
-
-    return NextResponse.json({
-      ok: true,
-      order: updated,
-      lineResult,
-    });
+    return NextResponse.json({ ok: true, order, lineResult });
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }

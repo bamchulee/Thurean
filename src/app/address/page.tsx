@@ -20,7 +20,15 @@ import {
 
 function AddressFormContent() {
   const searchParams = useSearchParams();
-  const userId = searchParams.get("userId") || searchParams.get("uid") || "";
+  // ลิงก์จากบอท LINE เซ็นชื่อไว้ (u = LINE userId, d = ร่างการจอง, e = หมดอายุ, sig) — เปิดได้เฉพาะเจ้าของแชท
+  const link = {
+    u: searchParams.get("u") || "",
+    d: searchParams.get("d") || "",
+    e: searchParams.get("e") || "",
+    sig: searchParams.get("sig") || "",
+  };
+  const linkQuery = new URLSearchParams(link).toString();
+  const hasLink = Boolean(link.u && link.sig);
 
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
@@ -52,14 +60,16 @@ function AddressFormContent() {
   const [savedFullAddress, setSavedFullAddress] = useState("");
 
   useEffect(() => {
-    if (!userId) {
+    if (!hasLink) {
+      setError("ลิงก์ไม่ครบหรือหมดอายุ — กดปุ่ม \"กรอกที่อยู่\" จากแชท LINE อีกครั้งครับ");
       setFetching(false);
       return;
     }
 
-    fetch(`/api/address?userId=${encodeURIComponent(userId)}`)
+    fetch(`/api/address?${linkQuery}`)
       .then((res) => res.json())
       .then((data) => {
+        if (!data.ok) setError(data.error || "ลิงก์หมดอายุ — กดปุ่มจากแชท LINE อีกครั้งครับ");
         if (data.ok && data.user) {
           if (data.user.customerName) setCustomerName(data.user.customerName);
           if (data.user.phone) setPhone(data.user.phone);
@@ -78,7 +88,7 @@ function AddressFormContent() {
       })
       .catch(() => {})
       .finally(() => setFetching(false));
-  }, [userId]);
+  }, [hasLink, linkQuery]);
 
   // ฟังก์ชันดึงพิกัด GPS อัตโนมัติและแปลงเป็นที่อยู่อัตโนมัติ (Reverse Geocode)
   const handleGetLocation = () => {
@@ -196,7 +206,7 @@ function AddressFormContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          lineUserId: userId,
+          ...link,
           customerName: customerName.trim(),
           phone: cleanPhone,
           address: mode === "single" ? singleAddress.trim() : undefined,
@@ -267,7 +277,7 @@ function AddressFormContent() {
               </h2>
               <p className="text-xs text-stone-500 mb-6">
                 {advancedOrder
-                  ? "ระบบสร้างยอดชำระเงินและส่ง QR PromptPay เข้าแชท LINE ของคุณแล้ว"
+                  ? "ส่งการ์ดยืนยันการจองเข้าแชท LINE แล้ว กลับไปกด \"ยืนยันการจอง\" ในแชทได้เลยครับ"
                   : "ระบบบันทึกที่อยู่และพิกัดแผนที่เพื่อใช้ในการจัดส่งทุเรียนเรียบร้อยครับ"}
               </p>
 

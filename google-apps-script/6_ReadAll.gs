@@ -245,7 +245,7 @@ function readAllDatabase() {
     updatedBy: String(pr.updatedBy || ""),
   }));
 
-  const lineAdminGroupId = PropertiesService.getScriptProperties().getProperty("LINE_ADMIN_GROUP_ID") || "";
+  const props = PropertiesService.getScriptProperties();
 
   return {
     products: products,
@@ -256,7 +256,8 @@ function readAllDatabase() {
     promotions: promotions,
     users: usersWithStats,
     config: {
-      lineAdminGroupId: lineAdminGroupId,
+      lineAdminGroupId: props.getProperty("LINE_ADMIN_GROUP_ID") || "",
+      lineAdminUserId: props.getProperty("LINE_ADMIN_USER_ID") || "",
     },
   };
 }

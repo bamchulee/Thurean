@@ -51,7 +51,15 @@ import { shopInfo } from "../../data/mock";
 import { ShippingLabelModal } from "../../components/ShippingLabelModal";
 import { LineIcon } from "../../components/Icons";
 import { COURIER_OPTIONS, resolveCourierInfo } from "../../lib/courier";
-import { formatProductStock } from "../../lib/stock";
+import { estimateUnitPrice, formatProductStock } from "../../lib/stock";
+import {
+  ORDER_STATUSES,
+  allowedNextStatuses,
+  canWeigh,
+  normalizePaymentStatus,
+  orderStatusOf,
+  type CanonicalOrderStatus,
+} from "../../lib/order-status";
 import type {
   Claim,
   ClaimStatus,
@@ -66,44 +74,31 @@ import type {
 // ============== STATUS HELPERS ==============
 const paymentStatusLabel: Record<string, { text: string; color: string }> = {
   pending: {
-    text: "รอตรวจสลิป",
-    color: "bg-amber-50 text-amber-800 border border-amber-200",
+    text: "ยังไม่ชำระ",
+    color: "bg-stone-100 text-stone-700 border border-stone-200",
+  },
+  slip_submitted: {
+    text: "สลิปรอตรวจ",
+    color: "bg-amber-50 text-amber-800 border border-amber-300",
   },
   confirmed: {
     text: "ชำระแล้ว",
     color: "bg-emerald-50 text-emerald-800 border border-emerald-200",
   },
   refunded: {
-    text: "คืนเงินแล้ว",
+    text: "ต้องคืนเงิน / คืนแล้ว",
     color: "bg-rose-50 text-rose-700 border border-rose-200",
   },
 };
 
-const orderStatusLabel: Record<string, { text: string; color: string }> = {
-  received: {
-    text: "รับออเดอร์",
-    color: "bg-sky-50 text-sky-800 border border-sky-200",
-  },
-  preparing: {
-    text: "คัดของจากสวน",
-    color: "bg-amber-50 text-amber-800 border border-amber-200",
-  },
-  packed: {
-    text: "แพ็กเสร็จ",
-    color: "bg-teal-50 text-teal-800 border border-teal-200",
-  },
-  shipped: {
-    text: "จัดส่งแล้ว",
-    color: "bg-indigo-50 text-indigo-800 border border-indigo-200",
-  },
-  delivered: {
-    text: "สำเร็จ",
-    color: "bg-emerald-50 text-emerald-800 border border-emerald-200",
-  },
-  claimed: {
-    text: "แจ้งเคลม",
-    color: "bg-rose-50 text-rose-700 border border-rose-200",
-  },
+// ชุดสถานะเดียวกับ LINE / หน้าเช็กพัสดุ (lib/order-status.ts) — สถานะเก่าแปลงผ่าน orderStatusOf()
+const orderStatusLabel: Record<CanonicalOrderStatus, { text: string; color: string }> = {
+  สั่งจอง: { text: "⚖️ สั่งจอง (รอชั่ง)", color: "bg-amber-50 text-amber-800 border border-amber-200" },
+  รอชำระเงิน: { text: "💳 รอชำระเงิน", color: "bg-orange-50 text-orange-800 border border-orange-200" },
+  "ชำระเงินแล้ว/เตรียมจัดส่ง": { text: "📦 ชำระแล้ว/เตรียมส่ง", color: "bg-sky-50 text-sky-800 border border-sky-200" },
+  กำลังจัดส่ง: { text: "🚚 กำลังจัดส่ง", color: "bg-indigo-50 text-indigo-800 border border-indigo-200" },
+  จัดส่งสำเร็จ: { text: "✅ จัดส่งสำเร็จ", color: "bg-emerald-50 text-emerald-800 border border-emerald-200" },
+  ยกเลิก: { text: "❌ ยกเลิก", color: "bg-rose-50 text-rose-700 border border-rose-200" },
 };
 
 const claimStatusLabel: Record<string, { text: string; color: string }> = {
@@ -457,13 +452,15 @@ function DashboardTab({
   onGoToTab: (t: TabId) => void;
 }) {
   const activeRound = rounds.find((r) => r.status === "open") || rounds[0];
-  const totalSales = orders.reduce((s, o) => s + o.totalPrice, 0);
+  const totalSales = orders
+    .filter((o) => orderStatusOf(o) !== "ยกเลิก")
+    .reduce((s, o) => s + o.totalPrice, 0);
   const totalCost = lots.reduce(
     (s, l) => s + l.totalFruitCost + l.packagingCost + l.truckFuelCost,
     0
   );
   const netProfit = totalSales - totalCost;
-  const pendingPayments = orders.filter((o) => o.paymentStatus === "pending").length;
+  const pendingPayments = orders.filter((o) => orderStatusOf(o) === "รอชำระเงิน").length;
   const pendingClaims = claims.filter((c) => c.status === "pending").length;
 
   const procurement: Record<
@@ -871,13 +868,13 @@ function ManualOrderModal({
 
   const [productId, setProductId] = useState(products[0]?.id || "");
   const [qty, setQty] = useState(1);
-  const [customPrice, setCustomPrice] = useState(products[0]?.price || 590);
+  const [customPrice, setCustomPrice] = useState(products[0] ? estimateUnitPrice(products[0]) : 590);
   const [ripenessPref, setRipenessPref] = useState("กรอบนอกนุ่มใน");
   const [roundId, setRoundId] = useState(rounds[0]?.id || "");
   const [shippingMethod, setShippingMethod] = useState("ควบคุมอุณหภูมิ (เย็น)");
   const [shippingCost, setShippingCost] = useState(120);
   const [paymentStatus, setPaymentStatus] = useState<"confirmed" | "pending">("confirmed");
-  const [orderStatus, setOrderStatus] = useState<OrderStatus>("received");
+  const [orderStatus, setOrderStatus] = useState<OrderStatus>("ชำระเงินแล้ว/เตรียมจัดส่ง");
   const [notifyLine, setNotifyLine] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -886,7 +883,7 @@ function ManualOrderModal({
     setProductId(id);
     const prod = products.find((p) => p.id === id);
     if (prod) {
-      setCustomPrice(prod.price);
+      setCustomPrice(estimateUnitPrice(prod));
     }
   };
 
@@ -1157,7 +1154,7 @@ function ManualOrderModal({
               >
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({p.variety}) - ฿{p.price} [คงเหลือ: {formatProductStock(p).summary}]
+                    {p.name} ({p.variety}) - ~฿{estimateUnitPrice(p)}/ลูก [คงเหลือ: {formatProductStock(p).summary}]
                   </option>
                 ))}
               </select>
@@ -1269,7 +1266,7 @@ function ManualOrderModal({
                 className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
               >
                 <option value="confirmed">ชำระแล้ว (เงินสด / โอนเรียบร้อย)</option>
-                <option value="pending">รอตรวจสลิป</option>
+                <option value="pending">ยังไม่ชำระ</option>
               </select>
             </div>
             <div>
@@ -1281,10 +1278,9 @@ function ManualOrderModal({
                 onChange={(e) => setOrderStatus(e.target.value as OrderStatus)}
                 className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
               >
-                <option value="received">รับออเดอร์แล้ว</option>
-                <option value="preparing">กำลังคัดของจากสวน</option>
-                <option value="packed">แพ็กเสร็จแล้ว</option>
-                <option value="shipped">จัดส่งแล้ว</option>
+                <option value="สั่งจอง">สั่งจอง (ต้องชั่งน้ำหนักก่อน)</option>
+                <option value="รอชำระเงิน">รอชำระเงิน (ยอดตามที่กรอก)</option>
+                <option value="ชำระเงินแล้ว/เตรียมจัดส่ง">ชำระแล้ว / เตรียมจัดส่ง</option>
               </select>
             </div>
           </div>
@@ -1369,69 +1365,40 @@ function OrdersTab({
   const [trackInput, setTrackInput] = useState("");
   const [courierInput, setCourierInput] = useState("");
   const [lotInput, setLotInput] = useState("");
-  const [nextStatus, setNextStatus] = useState<OrderStatus>("shipped");
-  const [notifyLine, setNotifyLine] = useState(true);
+  const [nextStatus, setNextStatus] = useState<CanonicalOrderStatus>("กำลังจัดส่ง");
+  const [cancelReason, setCancelReason] = useState("");
+  const [notifyLine, setNotifyLine] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  // States for Weighing & Price Confirmation Modal (ชั่งน้ำหนักต่อลูก & สรุปราคา)
+  // ชั่งน้ำหนัก: กรอกน้ำหนักรวมของแต่ละรายการ — เซิร์ฟเวอร์คิดยอดจาก ราคา/กก. ในชีต แล้วส่ง QR ให้ลูกค้า
   const [weighingOrder, setWeighingOrder] = useState<Order | null>(null);
-  const [weighWeightKg, setWeighWeightKg] = useState<string>("3.8");
-  const [weighPricePerKg, setWeighPricePerKg] = useState<string>("220");
-  const [weighCourier, setWeighCourier] = useState<string>("Flash Express");
-  const [weighChannel, setWeighChannel] = useState<string>("LINE Official");
-  const [weighVehicleType, setWeighVehicleType] = useState<string>("รถห้องเย็นปรับอุณหภูมิ");
-  const [weighStatus, setWeighStatus] = useState<string>("รอชำระเงิน");
-  const [weighTrackingNo, setWeighTrackingNo] = useState<string>("");
-  const [weighNotifyLine, setWeighNotifyLine] = useState<boolean>(true);
+  const [weighKgs, setWeighKgs] = useState<string[]>([]);
   const [weighSaving, setWeighSaving] = useState<boolean>(false);
+
+  const pricePerKgOf = (productId: string, fallback?: number) =>
+    products.find((p) => p.id === productId)?.pricePerKg || fallback || 0;
 
   const openWeighModal = (order: Order) => {
     setWeighingOrder(order);
-    const existingWeight = typeof order.weightPerItem === "string" 
-      ? parseFloat(order.weightPerItem.replace(/[^\d.]/g, "")) 
-      : typeof order.weightPerItem === "number" 
-      ? order.weightPerItem 
-      : 3.8;
-    setWeighWeightKg(String(existingWeight || 3.8));
-    const prod = products.find((p) => p.id === order.productId || p.name === order.productName);
-    const pKg = prod?.pricePerKg || prod?.price || order.pricePerItem || 220;
-    setWeighPricePerKg(String(pKg));
-    setWeighCourier(order.courier || "Flash Express");
-    setWeighChannel(order.channel || (order.lineUserId ? "LINE Official" : "หน้าร้าน / Web"));
-    setWeighVehicleType(order.vehicleType || "รถห้องเย็นปรับอุณหภูมิ");
-    setWeighStatus((order.orderStatus === "รอชั่งน้ำหนัก/สรุปยอด" ? "รอชำระเงิน" : order.orderStatus) as string);
-    setWeighTrackingNo(order.trackingNo || "");
-    setWeighNotifyLine(Boolean(order.lineUserId));
+    setWeighKgs(order.items.map((it) => (it.actualWeightKg ? String(it.actualWeightKg) : "")));
   };
+
+  const weighPreview = weighingOrder
+    ? weighingOrder.items.reduce(
+        (sum, it, i) => sum + Math.round((parseFloat(weighKgs[i]) || 0) * pricePerKgOf(it.productId, it.pricePerKg)),
+        0
+      )
+    : 0;
 
   const handleSaveWeighing = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!weighingOrder) return;
     setWeighSaving(true);
     try {
-      const weightNum = parseFloat(weighWeightKg) || 1;
-      const priceKg = parseFloat(weighPricePerKg) || 220;
-      const qty = weighingOrder.quantity || 1;
-      const calculatedTotal = Math.round(weightNum * priceKg * qty);
-
-      const payload = {
-        weightPerItem: `${weightNum} กก.`,
-        pricePerItem: priceKg,
-        totalPrice: calculatedTotal,
-        shippingCost: weighingOrder.shippingCost || 0,
-        courier: weighCourier,
-        channel: weighChannel,
-        vehicleType: weighVehicleType,
-        orderStatus: weighStatus,
-        trackingNo: weighTrackingNo.trim() || undefined,
-        notifyLine: weighNotifyLine,
-        updatedBy: "Admin",
-      };
-
       const res = await fetch(`/api/orders/${encodeURIComponent(weighingOrder.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ weigh: { itemKgs: weighKgs.map((v) => parseFloat(v) || 0) } }),
       });
       const json = await res.json();
       if (res.ok && json.ok && json.order) {
@@ -1446,38 +1413,23 @@ function OrdersTab({
   };
 
   // Top alert metrics:
-  const pendingSlipOrders = orders.filter((o) => o.paymentStatus === "pending");
-  const readyToShipOrders = orders.filter(
-    (o) =>
-      o.paymentStatus === "confirmed" &&
-      (o.orderStatus === "received" ||
-        o.orderStatus === "preparing" ||
-        o.orderStatus === "packed")
+  const toWeighOrders = orders.filter((o) => orderStatusOf(o) === "สั่งจอง");
+  const pendingSlipOrders = orders.filter(
+    (o) => orderStatusOf(o) === "รอชำระเงิน" && normalizePaymentStatus(o.paymentStatus) === "slip_submitted"
   );
-  const shippedOrders = orders.filter((o) => o.orderStatus === "shipped");
-  const deliveredOrders = orders.filter((o) => o.orderStatus === "delivered");
+  const readyToShipOrders = orders.filter((o) => orderStatusOf(o) === "ชำระเงินแล้ว/เตรียมจัดส่ง");
+  const shippedOrders = orders.filter((o) => orderStatusOf(o) === "กำลังจัดส่ง");
   const claimedOrders = orders.filter((o) => o.orderStatus === "claimed");
-  const lineUserOrders = orders.filter((o) => Boolean(o.lineUserId));
   const pendingClaimsCount = claims.filter((c) => c.status === "pending").length;
 
   const filtered = orders.filter((o) => {
     // Status filter
     if (statusFilter === "pending_slip") {
-      if (o.paymentStatus !== "pending") return false;
-    } else if (statusFilter === "ready_to_ship") {
-      if (
-        !(
-          o.paymentStatus === "confirmed" &&
-          (o.orderStatus === "received" ||
-            o.orderStatus === "preparing" ||
-            o.orderStatus === "packed")
-        )
-      )
-        return false;
+      if (!pendingSlipOrders.includes(o)) return false;
     } else if (statusFilter === "line_only") {
       if (!o.lineUserId) return false;
     } else if (statusFilter !== "all") {
-      if (o.orderStatus !== statusFilter) return false;
+      if (orderStatusOf(o) !== statusFilter) return false;
     }
 
     // Search query filter
@@ -1508,10 +1460,13 @@ function OrdersTab({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = (await res.json()) as { ok: boolean; order?: Order };
+      const json = (await res.json()) as { ok: boolean; order?: Order; error?: string };
       if (res.ok && json.ok && json.order) {
         onOrderUpdated(json.order);
+        return true;
       }
+      alert(json.error || "บันทึกไม่สำเร็จ");
+      return false;
     } finally {
       setSavingId(null);
     }
@@ -1522,24 +1477,23 @@ function OrdersTab({
     setTrackInput(order.trackingNo || "");
     setCourierInput(order.courier || "");
     setLotInput(order.lotId || lots[0]?.lotId || "");
-    setNextStatus(
-      order.orderStatus === "received" || order.orderStatus === "preparing"
-        ? "shipped"
-        : order.orderStatus
-    );
+    const current = orderStatusOf(order);
+    setNextStatus(allowedNextStatuses(current).find((s) => s !== "ยกเลิก") || current);
+    setCancelReason("");
   };
 
   const handleSaveModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingOrder) return;
-    await patchOrder(editingOrder.id, {
+    const ok = await patchOrder(editingOrder.id, {
       orderStatus: nextStatus,
       trackingNo: trackInput,
       courier: courierInput || undefined,
       lotId: lotInput,
+      cancelReason: cancelReason || undefined,
       notifyLine,
     });
-    setEditingOrder(null);
+    if (ok) setEditingOrder(null);
   };
 
   return (
@@ -1558,7 +1512,7 @@ function OrdersTab({
           }`}
         >
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-bold">⚡ รอตรวจสลิป</span>
+            <span className="text-[11px] font-bold">⚡ สลิปรอตรวจ</span>
             <span
               className={`w-2 h-2 rounded-full ${
                 pendingSlipOrders.length > 0 ? "bg-amber-500 animate-pulse" : "bg-stone-300"
@@ -1571,9 +1525,9 @@ function OrdersTab({
 
         <button
           type="button"
-          onClick={() => setStatusFilter("ready_to_ship")}
+          onClick={() => setStatusFilter("ชำระเงินแล้ว/เตรียมจัดส่ง")}
           className={`text-left p-3.5 rounded-2xl border transition ${
-            statusFilter === "ready_to_ship"
+            statusFilter === "ชำระเงินแล้ว/เตรียมจัดส่ง"
               ? "bg-sky-600 text-white border-sky-700 shadow-sm"
               : readyToShipOrders.length > 0
               ? "bg-sky-50 border-sky-200 text-sky-950 hover:bg-sky-100"
@@ -1594,9 +1548,9 @@ function OrdersTab({
 
         <button
           type="button"
-          onClick={() => setStatusFilter("shipped")}
+          onClick={() => setStatusFilter("กำลังจัดส่ง")}
           className={`text-left p-3.5 rounded-2xl border transition ${
-            statusFilter === "shipped"
+            statusFilter === "กำลังจัดส่ง"
               ? "bg-indigo-600 text-white border-indigo-700 shadow-sm"
               : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
           }`}
@@ -1633,19 +1587,21 @@ function OrdersTab({
 
         <button
           type="button"
-          onClick={() => setStatusFilter("line_only")}
+          onClick={() => setStatusFilter("สั่งจอง")}
           className={`text-left p-3.5 rounded-2xl border transition ${
-            statusFilter === "line_only"
-              ? "bg-[#06C755] text-white border-[#05b34c] shadow-sm"
-              : "bg-[#06C755]/10 border-[#06C755]/30 text-stone-900 hover:bg-[#06C755]/15"
+            statusFilter === "สั่งจอง"
+              ? "bg-emerald-700 text-white border-emerald-800 shadow-sm"
+              : toWeighOrders.length > 0
+              ? "bg-emerald-50 border-emerald-300 text-emerald-950 hover:bg-emerald-100"
+              : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
           }`}
         >
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-bold">💬 ผ่าน LINE</span>
-            <LineIcon className="w-3.5 h-3.5 text-[#06C755]" />
+            <span className="text-[11px] font-bold">⚖️ รอชั่งน้ำหนัก</span>
+            <Scale className="w-3.5 h-3.5" />
           </div>
-          <div className="text-xl font-black font-mono">{lineUserOrders.length}</div>
-          <p className="text-[10px] opacity-80 mt-0.5">แชทตรงได้ทันที</p>
+          <div className="text-xl font-black font-mono">{toWeighOrders.length}</div>
+          <p className="text-[10px] opacity-80 mt-0.5">ลูกค้าจองไว้ ยังไม่ส่งยอด</p>
         </button>
 
         <button
@@ -1712,14 +1668,8 @@ function OrdersTab({
         <div className="flex gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-stone-100">
           {[
             { id: "all", label: "ทั้งหมด" },
-            { id: "pending_slip", label: "⚡ รอตรวจสลิป" },
-            { id: "ready_to_ship", label: "📦 ต้องจัดส่ง" },
-            { id: "received", label: "รับออเดอร์" },
-            { id: "preparing", label: "คัดของจากสวน" },
-            { id: "packed", label: "แพ็กเสร็จ" },
-            { id: "shipped", label: "จัดส่งแล้ว" },
-            { id: "delivered", label: "สำเร็จ" },
-            { id: "claimed", label: "แจ้งเคลม" },
+            { id: "pending_slip", label: "⚡ สลิปรอตรวจ" },
+            ...ORDER_STATUSES.map((s) => ({ id: s, label: orderStatusLabel[s].text })),
             { id: "line_only", label: "💬 สั่งผ่าน LINE" },
           ].map((item) => (
             <button
@@ -1759,10 +1709,10 @@ function OrdersTab({
                     </span>
                     <span
                       className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${
-                        paymentStatusLabel[order.paymentStatus]?.color || "bg-stone-100"
+                        paymentStatusLabel[normalizePaymentStatus(order.paymentStatus)].color
                       }`}
                     >
-                      {paymentStatusLabel[order.paymentStatus]?.text || order.paymentStatus}
+                      {paymentStatusLabel[normalizePaymentStatus(order.paymentStatus)].text}
                     </span>
                     {order.lotId && (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 font-mono font-bold">
@@ -1814,10 +1764,10 @@ function OrdersTab({
                 </div>
                 <span
                   className={`text-xs px-3 py-1 rounded-full font-bold ${
-                    orderStatusLabel[order.orderStatus]?.color || "bg-stone-100"
+                    orderStatusLabel[orderStatusOf(order)].color
                   }`}
                 >
-                  {orderStatusLabel[order.orderStatus]?.text || order.orderStatus}
+                  {orderStatusLabel[orderStatusOf(order)].text}
                 </span>
               </div>
 
@@ -1889,7 +1839,11 @@ function OrdersTab({
                     <span>
                       {it.productName} <strong>x{it.qty}</strong>
                     </span>
-                    <span className="font-mono">฿{(it.price * it.qty).toLocaleString()}</span>
+                    <span className="font-mono">
+                      {it.actualWeightKg && it.pricePerKg
+                        ? `${it.actualWeightKg} กก. × ฿${it.pricePerKg} = ฿${Math.round(it.actualWeightKg * it.pricePerKg).toLocaleString()}`
+                        : `~฿${(it.price * it.qty).toLocaleString()}`}
+                    </span>
                   </div>
                 ))}
                 <div className="flex justify-between text-stone-400 pt-1.5 border-t border-stone-100">
@@ -1989,7 +1943,8 @@ function OrdersTab({
 
               {/* Actions row: Chat LINE, Call, Map, Update, Label, Confirm */}
               <div className="flex flex-wrap gap-2 pt-3 border-t border-stone-100">
-                {/* ⚖️ Weighing & Pricing Button */}
+                {/* ⚖️ Weighing & Pricing Button (เฉพาะก่อนลูกค้าจ่าย) */}
+                {canWeigh(order) && (
                 <button
                   type="button"
                   onClick={() => openWeighModal(order)}
@@ -1997,8 +1952,9 @@ function OrdersTab({
                   title="ชั่งน้ำหนักจริงต่อลูก คำนวณราคาสรุป และส่งยอดพร้อม QR ให้ลูกค้าทาง LINE"
                 >
                   <Scale className="w-3.5 h-3.5 text-amber-300" />
-                  <span>⚖️ ชั่ง นน. & สรุปราคา</span>
+                  <span>{orderStatusOf(order) === "สั่งจอง" ? "⚖️ ชั่ง & ส่งยอดให้ลูกค้า" : "⚖️ แก้น้ำหนัก/ยอด"}</span>
                 </button>
+                )}
 
                 {/* 💬 LINE Chat button */}
                 <button
@@ -2037,20 +1993,21 @@ function OrdersTab({
                 </a>
 
                 {/* Confirm Slip */}
-                {order.paymentStatus === "pending" && (
+                {orderStatusOf(order) === "รอชำระเงิน" && (
                   <button
                     disabled={savingId === order.id}
-                    onClick={() =>
-                      patchOrder(order.id, {
-                        paymentStatus: "confirmed",
-                        orderStatus: "preparing",
-                        notifyLine: true,
-                      })
-                    }
+                    onClick={() => {
+                      if (
+                        normalizePaymentStatus(order.paymentStatus) === "slip_submitted" ||
+                        confirm(`ออเดอร์ #${order.id} ยังไม่มีสลิป — ยืนยันว่าได้รับเงินแล้ว?`)
+                      ) {
+                        patchOrder(order.id, { orderStatus: "ชำระเงินแล้ว/เตรียมจัดส่ง" });
+                      }
+                    }}
                     className="bg-[#1B4D31] hover:bg-[#143B25] text-white px-4 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>ยืนยันสลิป + ส่งคัดของ</span>
+                    <span>✅ ยืนยันยอดชำระ</span>
                   </button>
                 )}
 
@@ -2133,20 +2090,40 @@ function OrdersTab({
 
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1">
-                สถานะการจัดส่ง
+                สถานะ (ตอนนี้: {orderStatusLabel[orderStatusOf(editingOrder)].text})
               </label>
               <select
                 value={nextStatus}
-                onChange={(e) => setNextStatus(e.target.value as OrderStatus)}
+                onChange={(e) => setNextStatus(e.target.value as CanonicalOrderStatus)}
                 className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold"
               >
-                <option value="received">รับออเดอร์</option>
-                <option value="preparing">กำลังคัดของจากสวน</option>
-                <option value="packed">แพ็กเสร็จแล้ว</option>
-                <option value="shipped">จัดส่งแล้ว</option>
-                <option value="delivered">ส่งสำเร็จแล้ว</option>
+                <option value={orderStatusOf(editingOrder)}>คงสถานะเดิม (แก้แค่เลขพัสดุ/ล็อต)</option>
+                {allowedNextStatuses(orderStatusOf(editingOrder)).map((s) => (
+                  <option key={s} value={s}>
+                    → {orderStatusLabel[s].text}
+                  </option>
+                ))}
               </select>
+              {orderStatusOf(editingOrder) === "สั่งจอง" && (
+                <p className="text-[10px] text-amber-700 mt-1">
+                  ทุเรียนต้องชั่ง — ใช้ปุ่ม &quot;ชั่ง &amp; ส่งยอด&quot; แทน (เลือก &quot;รอชำระเงิน&quot; ที่นี่ = ส่งยอดตามราคาจอง)
+                </p>
+              )}
             </div>
+
+            {nextStatus === "ยกเลิก" && (
+              <div>
+                <label className="block text-xs font-bold text-rose-700 mb-1">เหตุผลที่ยกเลิก (แจ้งลูกค้า)</label>
+                <input
+                  type="text"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="เช่น ของหมด / ลูกค้าขอยกเลิก"
+                  className="w-full border border-rose-300 rounded-xl px-3 py-2 text-xs"
+                />
+                <p className="text-[10px] text-stone-500 mt-1">ระบบคืนสต็อกให้อัตโนมัติ — ถ้าลูกค้าจ่ายแล้ว ต้องโอนคืนเอง</p>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1">
@@ -2207,7 +2184,7 @@ function OrdersTab({
                 onChange={(e) => setNotifyLine(e.target.checked)}
                 className="accent-[#1B4D31]"
               />
-              <span>ส่งแจ้งเตือน Flex Message หาลูกค้าผ่าน LINE (ถ้ามี LINE ID)</span>
+              <span>ส่งการ์ดสถานะซ้ำให้ลูกค้าทาง LINE (เปลี่ยนสถานะแล้วระบบแจ้งลูกค้าเองอยู่แล้ว)</span>
             </label>
 
             <div className="flex gap-2 pt-2">
@@ -2229,7 +2206,7 @@ function OrdersTab({
         </div>
       )}
 
-      {/* MODAL: WEIGHING & PRICE CONFIRMATION (ชั่งน้ำหนักต่อลูก & สรุปราคา) */}
+      {/* MODAL: ชั่งน้ำหนักจริง → รอชำระเงิน (ส่ง QR ยอดจริงให้ลูกค้าทาง LINE) */}
       {weighingOrder && (
         <div
           className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
@@ -2247,10 +2224,11 @@ function OrdersTab({
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base text-stone-900">
-                    ชั่งน้ำหนักจริง & สรุปยอด ({weighingOrder.id})
+                    ชั่งน้ำหนักจริง ({weighingOrder.id})
                   </h3>
                   <p className="text-[11px] text-stone-500">
                     ลูกค้า: {weighingOrder.customerName} ({weighingOrder.phone})
+                    {weighingOrder.ripenessPref ? ` • ${weighingOrder.ripenessPref}` : ""}
                   </p>
                 </div>
               </div>
@@ -2263,176 +2241,66 @@ function OrdersTab({
               </button>
             </div>
 
-            <div className="bg-amber-50 rounded-2xl p-3.5 border border-amber-200 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-amber-900 font-semibold">สินค้าที่สั่ง:</span>
-                <span className="font-bold text-stone-900">{weighingOrder.productName || weighingOrder.items[0]?.productName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-amber-900 font-semibold">ประเภท / จำนวน:</span>
-                <span className="font-bold text-stone-900">{weighingOrder.productType || "รับคัดลูก"} • {weighingOrder.quantity || 1} ลูก</span>
-              </div>
-              {weighingOrder.ripenessPref && (
-                <div className="flex justify-between">
-                  <span className="text-amber-900 font-semibold">ความสุกที่เลือก:</span>
-                  <span className="font-bold text-amber-800">{weighingOrder.ripenessPref}</span>
-                </div>
-              )}
+            <div className="space-y-3">
+              {weighingOrder.items.map((it, i) => {
+                const perKg = pricePerKgOf(it.productId, it.pricePerKg);
+                return (
+                  <div key={i} className="bg-amber-50 rounded-2xl p-3.5 border border-amber-200">
+                    <div className="flex justify-between text-xs mb-2">
+                      <span className="font-bold text-stone-900">
+                        {it.productName} x{it.qty}
+                      </span>
+                      <span className="text-amber-900 font-semibold">
+                        {perKg ? `฿${perKg.toLocaleString()}/กก.` : "⚠️ สินค้าไม่มีราคา/กก. ในชีต"}
+                      </span>
+                    </div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      ⚖️ น้ำหนักรวมของรายการนี้ ({it.qty} ลูก) กก. *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      min={0.1}
+                      max={500}
+                      value={weighKgs[i] || ""}
+                      onChange={(e) => {
+                        const next = [...weighKgs];
+                        next[i] = e.target.value;
+                        setWeighKgs(next);
+                      }}
+                      placeholder={it.qty > 1 ? "รวมทุกลูก เช่น 7.65" : "เช่น 3.85"}
+                      className="w-full border-2 border-emerald-500 rounded-xl px-3 py-2 text-base font-black font-mono text-emerald-900 bg-emerald-50/30 text-center"
+                    />
+                    <p className="text-[10px] text-stone-500 mt-1 text-right font-mono">
+                      = ฿{Math.round((parseFloat(weighKgs[i]) || 0) * perKg).toLocaleString()}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  ⚖️ น้ำหนักจริงต่อลูก (กก.) *
-                </label>
-                <input
-                  type="number"
-                  step="0.05"
-                  required
-                  min={0.5}
-                  max={20}
-                  value={weighWeightKg}
-                  onChange={(e) => setWeighWeightKg(e.target.value)}
-                  placeholder="เช่น 3.85"
-                  className="w-full border-2 border-emerald-500 rounded-xl px-3 py-2 text-base font-black font-mono text-emerald-900 bg-emerald-50/30 text-center"
-                />
-                <span className="text-[10px] text-stone-500 mt-0.5 block">
-                  ระบุน้ำหนักที่ชั่งจริงจากสวน/หน้าตาชั่ง
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  🏷️ ราคาต่อโล (บาท/กก.) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min={1}
-                  value={weighPricePerKg}
-                  onChange={(e) => setWeighPricePerKg(e.target.value)}
-                  placeholder="เช่น 220"
-                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-base font-bold font-mono text-stone-900 text-center"
-                />
-                <span className="text-[10px] text-stone-500 mt-0.5 block">
-                  คำนวณราคารวม = น้ำหนัก × ราคาต่อโล
-                </span>
-              </div>
-            </div>
-
-            {/* Price Preview Card */}
             <div className="bg-emerald-900 text-white rounded-2xl p-4 flex items-center justify-between">
               <div>
-                <span className="text-xs text-emerald-200 block">สรุปยอดรวมสินค้า ({weighWeightKg} กก. × ฿{weighPricePerKg})</span>
+                <span className="text-xs text-emerald-200 block">ยอดสินค้าตามน้ำหนักจริง</span>
                 <span className="text-[11px] text-emerald-300">
                   + ค่าจัดส่ง: ฿{(weighingOrder.shippingCost || 0).toLocaleString()}
                 </span>
               </div>
               <div className="text-right">
                 <span className="text-2xl font-black font-mono text-amber-300">
-                  ฿{(Math.round((parseFloat(weighWeightKg) || 0) * (parseFloat(weighPricePerKg) || 0) * (weighingOrder.quantity || 1)) + (weighingOrder.shippingCost || 0)).toLocaleString()}
+                  ฿{(weighPreview + (weighingOrder.shippingCost || 0)).toLocaleString()}
                 </span>
-                <span className="text-[10px] text-emerald-200 block">ยอดสุทธิที่ต้องชำระ</span>
+                <span className="text-[10px] text-emerald-200 block">ยอดที่ลูกค้าต้องโอน</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  สถานะคำสั่งซื้อ (ดรอปดาวน์) *
-                </label>
-                <select
-                  value={weighStatus}
-                  onChange={(e) => setWeighStatus(e.target.value)}
-                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold bg-white"
-                >
-                  <option value="รอชั่งน้ำหนัก/สรุปยอด">รอชั่งน้ำหนัก/สรุปยอด</option>
-                  <option value="รอชำระเงิน">รอชำระเงิน (ส่งยอดให้ลูกค้า)</option>
-                  <option value="ชำระเงินแล้ว/เตรียมจัดส่ง">ชำระเงินแล้ว/เตรียมจัดส่ง</option>
-                  <option value="กำลังจัดส่ง">กำลังจัดส่ง</option>
-                  <option value="จัดส่งสำเร็จ">จัดส่งสำเร็จ</option>
-                  <option value="ยกเลิก">ยกเลิก</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  สั่งผ่านช่องทาง (ดรอปดาวน์) *
-                </label>
-                <select
-                  value={weighChannel}
-                  onChange={(e) => setWeighChannel(e.target.value)}
-                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold bg-white"
-                >
-                  <option value="LINE Official">LINE Official</option>
-                  <option value="หน้าร้าน / Web">หน้าร้าน / Web</option>
-                  <option value="Facebook">Facebook</option>
-                  <option value="โทรสั่ง / หน้าร้าน">โทรสั่ง / หน้าร้าน</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  ส่งขนส่งไหน (ดรอปดาวน์) *
-                </label>
-                <select
-                  value={weighCourier}
-                  onChange={(e) => setWeighCourier(e.target.value)}
-                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold bg-white"
-                >
-                  <option value="Flash Express">Flash Express (ส่งด่วน)</option>
-                  <option value="Kerry Express">Kerry Express</option>
-                  <option value="Inter Express (รถเย็น)">Inter Express (รถเย็นปรับอุณหภูมิ)</option>
-                  <option value="Grab / Lalamove">Grab / Lalamove (ส่งด่วนภายในวัน)</option>
-                  <option value="รถสวนจัดส่งเอง">รถสวนวิ่งตรงจัดส่งเอง</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  รถอะไร (ประเภทยานพาหนะ) *
-                </label>
-                <select
-                  value={weighVehicleType}
-                  onChange={(e) => setWeighVehicleType(e.target.value)}
-                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold bg-white"
-                >
-                  <option value="รถห้องเย็นปรับอุณหภูมิ">รถห้องเย็นปรับอุณหภูมิ (ควบคุมความเย็น)</option>
-                  <option value="รถกระบะห้องเย็น">รถกระบะห้องเย็นวิ่งตรงจากสวน</option>
-                  <option value="มอเตอร์ไซค์ส่งด่วน">มอเตอร์ไซค์ส่งด่วน</option>
-                  <option value="รถขนส่งพัสดุทั่วไป">รถขนส่งพัสดุทั่วไป</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-stone-700 mb-1">
-                เลขพัสดุ (Tracking No.)
-              </label>
-              <input
-                type="text"
-                value={weighTrackingNo}
-                onChange={(e) => setWeighTrackingNo(e.target.value)}
-                placeholder="เช่น TH0123456789 (ระบุภายหลังได้)"
-                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono"
-              />
-            </div>
-
-            {weighingOrder.lineUserId && (
-              <label className="flex items-center gap-2 text-xs text-stone-700 p-2.5 bg-emerald-50 rounded-xl border border-emerald-200">
-                <input
-                  type="checkbox"
-                  checked={weighNotifyLine}
-                  onChange={(e) => setWeighNotifyLine(e.target.checked)}
-                  className="accent-[#1B4D31] w-4 h-4"
-                />
-                <span className="font-semibold text-emerald-950">
-                  📲 ส่งการ์ดสรุปยอดเงินและ QR ชำระเงินให้ลูกค้าทาง LINE ทันที
-                </span>
-              </label>
-            )}
+            <p className="text-[11px] text-stone-600 bg-stone-50 rounded-xl p-2.5 border border-stone-200">
+              กดบันทึกแล้ว สถานะเป็น &quot;รอชำระเงิน&quot;{" "}
+              {weighingOrder.lineUserId
+                ? "และระบบส่งยอดจริง + QR PromptPay ให้ลูกค้าทาง LINE ทันที"
+                : "— ลูกค้าไม่ได้สั่งผ่าน LINE ต้องแจ้งยอดเอง"}
+            </p>
 
             <div className="flex gap-2 pt-2 border-t border-stone-100">
               <button
@@ -2441,7 +2309,7 @@ function OrdersTab({
                 className="flex-1 bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold py-3 rounded-xl text-xs transition shadow-md disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
                 <Scale className="w-4 h-4 text-amber-300" />
-                <span>{weighSaving ? "กำลังบันทึก..." : "ยืนยันบันทึกน้ำหนัก & สรุปยอดเงิน"}</span>
+                <span>{weighSaving ? "กำลังบันทึก..." : "บันทึกน้ำหนัก & ส่งยอดให้ลูกค้า"}</span>
               </button>
               <button
                 type="button"

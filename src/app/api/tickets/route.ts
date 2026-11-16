@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getRuntimeConfig } from "../../../lib/sheets-db";
+import { getAllDatabase, getRuntimeConfig } from "../../../lib/sheets-db";
 import { buildTicketAlertForAdmin, pushLineMessage } from "../../../lib/line-notify";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +18,10 @@ export async function POST(req: NextRequest) {
     }
 
     const ticketId = `TCK-${Math.floor(100000 + Math.random() * 900000)}`;
+    // โหลดชีตก่อน: รหัสกลุ่มแอดมินที่ผูกไว้มากับข้อมูลชีต
+    await getAllDatabase().catch(() => undefined);
     const cfg = getRuntimeConfig();
-    const token =
-      cfg.lineChannelAccessToken ||
-      process.env.LINE_CHANNEL_ACCESS_TOKEN ||
-      "PdFpuOJEzMXiSaUJDIssLxWbbXYtaUE0/e6/1IVXsGDWtu+MpuSsxtx+p2JAZYnh5L68apEKj1Pr8ceQ3UCv9nONR954SD4V8acz6dNxKoghEA0GKanpmzY+p+bM82oxNGaC2Z+LqK1HBSa+Rt/GPgdB04t89/1O/w1cDnyilFU=";
+    const token = cfg.lineChannelAccessToken;
 
     const publicBaseUrl =
       cfg.publicBaseUrl ||
@@ -36,7 +35,7 @@ export async function POST(req: NextRequest) {
         phone: (phone || "").trim() || undefined,
         orderId: (orderId || "").trim() || undefined,
         lineUserId: (lineUserId || "").trim() || undefined,
-        message: message.trim(),
+        message: String(message).trim().slice(0, 1000),
         source: source || "web-tracking",
         createdAt: new Date().toLocaleString("th-TH"),
       },

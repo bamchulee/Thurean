@@ -19,6 +19,7 @@ import type { Order } from "../types/durian";
 import { OrderSuccessModal } from "./OrderSuccessModal";
 import { LineIcon } from "./Icons";
 import { MapLocationPicker } from "./MapLocationPicker";
+import { estimateUnitPrice } from "../lib/stock";
 
 export function CartDrawerModal({
   roundId,
@@ -187,7 +188,7 @@ export function CartDrawerModal({
                       <span className="truncate">{it.ripenessPref}</span>
                     </p>
                     <p className="text-xs font-bold text-[#1B4D31] mt-0.5">
-                      ฿{(it.product.price * it.qty).toLocaleString()}
+                      ~฿{(estimateUnitPrice(it.product) * it.qty).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">

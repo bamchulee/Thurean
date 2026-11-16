@@ -1,7 +1,7 @@
 // ============================================================
 // Shared Order & Claim Business Logic (Web API + LINE Bot)
 // ============================================================
-import { getAvailableUnits } from "./stock";
+import { estimateUnitPrice, getAvailableUnits } from "./stock";
 import {
   SheetsApiError,
   createClaimRecord,
@@ -14,12 +14,13 @@ import {
   upsertLineUser,
 } from "./sheets-db";
 import {
+  buildBookingReceiptFlex,
   buildClaimAlertForAdmin,
   buildClaimReceiptForCustomerFlex,
   buildOrderAlertForAdmin,
-  buildOrderSummaryForCustomerFlex,
   pushLineMessage,
 } from "./line-notify";
+import { notifyAdmins } from "./order-workflow";
 import { shopInfo } from "../data/mock";
 import { resolveCourierInfo } from "./courier";
 import { checkClaimEligibility } from "./claim-policy";
@@ -33,36 +34,47 @@ export interface SubmitOrderInput {
   address?: string;
   ripenessPref?: string;
   shippingMethod?: string;
-  shippingCost?: number;
   lineUserId?: string;
   roundId?: string;
-  slipUrl?: string;
-  courier?: string;
   channel?: string;
-  vehicleType?: string;
-  weightPerItem?: string | number;
   notes?: string;
-  paymentStatus?: "pending" | "confirmed" | "refunded" | string;
-  orderStatus?: OrderStatus;
   createdBy?: string;
+  /** คีย์จากปุ่มยืนยันใน LINE — กดซ้ำได้ออเดอร์เดิม */
   bookingKey?: string;
-  items?: { productId: string; qty: number; ripenessPref?: string; weightPerItem?: string | number }[];
+  /** price ต่อชิ้นกำหนดเองได้เฉพาะแอดมิน (ขายหน้าร้าน/ราคาพิเศษ) */
+  items?: { productId: string; qty: number; ripenessPref?: string; price?: number }[];
+  // ช่องด้านล่างรับเฉพาะแอดมิน (options.trusted) เช่น คีย์ออเดอร์หน้าร้านที่จ่ายแล้ว
+  shippingCost?: number;
+  courier?: string;
+  vehicleType?: string;
+  slipUrl?: string;
+  paymentStatus?: string;
+  orderStatus?: OrderStatus;
 }
 
 export type SubmitOrderResult =
-  | { ok: true; order: Order }
+  | { ok: true; order: Order; duplicate?: boolean }
   | { ok: false; error: string; status: number };
+
+/** ราคาประเมินตอนจอง = ราคาประเมินต่อลูก (stock.ts estimateUnitPrice) × จำนวน — ยอดจริงคิดใหม่ตอนชั่ง */
+export function estimateItemPrice(price: number, qty: number): number {
+  return Math.round((Number(price) || 0) * qty);
+}
 
 export async function submitNewOrder(
   body: SubmitOrderInput,
-  options?: { skipCustomerNotify?: boolean }
+  options?: { skipCustomerNotify?: boolean; trusted?: boolean }
 ): Promise<SubmitOrderResult> {
+  const trusted = Boolean(options?.trusted);
   if (!body.customerName?.trim() || !body.phone?.trim() || !body.address?.trim()) {
     return {
       ok: false,
       error: "กรุณากรอกชื่อ เบอร์โทร และที่อยู่จัดส่งให้ครบถ้วน",
       status: 400,
     };
+  }
+  if ((body.phone || "").replace(/\D/g, "").length < 9) {
+    return { ok: false, error: "เบอร์โทรไม่ถูกต้อง (ต้องมี 9-10 หลัก)", status: 400 };
   }
 
   if (!Array.isArray(body.items) || body.items.length === 0) {
@@ -75,13 +87,10 @@ export async function submitNewOrder(
 
   const { data } = await getAllDatabase();
 
-  if (body.bookingKey) {
-    const cleanBkey = body.bookingKey.trim();
-    const existing = data.orders.find((o) => o.bookingKey === cleanBkey);
-    if (existing) {
-      console.log(`[order-service] Idempotent hit: Order ${existing.id} already exists for bookingKey ${cleanBkey}`);
-      return { ok: true, order: existing };
-    }
+  const bookingKey = body.bookingKey?.trim() || undefined;
+  if (bookingKey) {
+    const existing = data.orders.find((o) => o.bookingKey === bookingKey);
+    if (existing) return { ok: true, order: existing, duplicate: true };
   }
 
   const verifiedItems: OrderItem[] = [];
@@ -104,20 +113,25 @@ export async function submitNewOrder(
         status: 400,
       };
     }
-    const qty = Math.max(1, Math.floor(Number(reqItem.qty) || 1));
+    const qty = Math.min(50, Math.max(1, Math.floor(Number(reqItem.qty) || 1)));
     const itemLabel = reqItem.ripenessPref
       ? `${prod.name} (${reqItem.ripenessPref})`
       : prod.name;
     if (reqItem.ripenessPref) {
-      ripenessSummarySet.push(`${prod.variety}: ${reqItem.ripenessPref} x${qty}`);
+      ripenessSummarySet.push(`${prod.variety || prod.name}: ${reqItem.ripenessPref} x${qty}`);
     }
+    const unitPrice = trusted && typeof reqItem.price === "number" && reqItem.price >= 0 ? reqItem.price : estimateUnitPrice(prod);
     verifiedItems.push({
       productId: prod.id,
       productName: itemLabel,
       qty,
-      price: prod.price,
+      price: unitPrice,
+      productType: prod.productType,
+      grade: prod.grade,
+      weightPerItem: prod.weight,
+      pricePerKg: prod.pricePerKg,
     });
-    totalPrice += prod.price * qty;
+    totalPrice += estimateItemPrice(unitPrice, qty);
   }
 
   // เช็กสต็อกรวมต่อสินค้า (สินค้าเดียวกันอาจอยู่หลายบรรทัดคนละระดับความสุก)
@@ -149,10 +163,21 @@ export async function submitNewOrder(
         (shipQuery && s.name.toLowerCase().includes(shipQuery))
     ) || shopInfo.shippingMethods[0];
 
+  // จองเข้ารอบที่เปิดอยู่ — รอบเต็มแล้วไม่รับเพิ่ม (ถ้ายังไม่เปิดรอบ ก็รับจองไว้ก่อนได้)
   const activeRound =
-    data.rounds.find((r) => r.id === body.roundId) ||
-    data.rounds.find((r) => r.status === "open") ||
-    data.rounds[0];
+    data.rounds.find((r) => r.id === body.roundId && r.status === "open") ||
+    data.rounds.find((r) => r.status === "open");
+  const totalFruitCount = verifiedItems.reduce((sum, it) => sum + it.qty, 0);
+  if (!trusted && activeRound && activeRound.totalQuota > 0 && totalFruitCount > activeRound.quotaRemaining) {
+    return {
+      ok: false,
+      error:
+        activeRound.quotaRemaining <= 0
+          ? `รอบส่ง "${activeRound.name}" เต็มแล้วครับ`
+          : `รอบส่งนี้รับได้อีก ${activeRound.quotaRemaining} ลูก (สั่งมา ${totalFruitCount})`,
+      status: 409,
+    };
+  }
 
   // ตัวตนผู้สั่ง: userId / lineUserId ต้องมาจากผู้เรียกที่ยืนยันแล้ว (session, LINE token, webhook)
   // ลูกค้าทั่วไปที่ไม่ล็อกอินจะไม่ถูกผูกหรือแก้ข้อมูลบัญชีสมาชิกใด ๆ
@@ -189,46 +214,47 @@ export async function submitNewOrder(
 
   const usedOrderIds = new Set(data.orders.map((o) => o.id));
   const firstProd = data.products.find((p) => p.id === verifiedItems[0]?.productId);
-  const totalFruitCount = verifiedItems.reduce((sum, it) => sum + it.qty, 0);
+  const now = new Date().toISOString();
+  const shippingCost =
+    trusted && typeof body.shippingCost === "number" ? body.shippingCost : shipMethod.price;
 
   const newOrder: Order = {
     id: localNextId("orders", usedOrderIds),
-    createdAt: new Date().toISOString(),
-    createDate: new Date().toISOString(),
-    roundId: activeRound?.id || "WK-ROUND-46",
+    createdAt: now,
+    createDate: now,
+    roundId: activeRound?.id || "",
     userId: finalUserId,
     customerName: body.customerName.trim(),
     phone: body.phone.trim(),
     address: body.address.trim(),
-    lineUserId: body.lineUserId?.trim() || undefined,
+    lineUserId: trustedLineUserId || undefined,
     productType: firstProd?.productType || "รับคัดลูก",
     productId: firstProd?.id || verifiedItems[0]?.productId || "",
     productName: firstProd?.name || verifiedItems[0]?.productName || "",
-    pricePerItem: firstProd?.pricePerKg || firstProd?.price || verifiedItems[0]?.price || 0,
-    weightPerItem: body.weightPerItem || firstProd?.weight || "รอชั่งน้ำหนักจริง",
+    pricePerItem: firstProd?.pricePerKg || firstProd?.price || 0,
+    weightPerItem: "รอชั่งน้ำหนักจริง",
     quantity: totalFruitCount,
-    channel: body.channel || (body.lineUserId ? "LINE Official" : "หน้าร้าน / Web"),
-    vehicleType: body.vehicleType || "รถห้องเย็นปรับอุณหภูมิ",
+    channel: body.channel || (trustedLineUserId ? "LINE OA" : "หน้าร้าน / Web"),
+    vehicleType: (trusted && body.vehicleType) || "รถห้องเย็นปรับอุณหภูมิ",
     courier:
-      body.courier?.trim() ||
+      (trusted && body.courier?.trim()) ||
       resolveCourierInfo(undefined, undefined, shipMethod.name).name ||
       "Flash Express",
     ripenessPref:
       body.ripenessPref ||
-      (ripenessSummarySet.length > 0
-        ? ripenessSummarySet.join(" | ")
-        : "กรอบนอกนุ่มใน (ไก่ฉีก)"),
+      (ripenessSummarySet.length > 0 ? ripenessSummarySet.join(" | ") : undefined),
     items: verifiedItems,
     totalPrice,
     shippingMethod: shipMethod.name,
-    shippingCost: typeof body.shippingCost === "number" ? body.shippingCost : shipMethod.price,
-    paymentStatus: body.paymentStatus || "pending",
-    orderStatus: body.orderStatus || "สั่งจอง",
+    shippingCost,
+    grandTotal: totalPrice + shippingCost,
+    paymentStatus: (trusted && body.paymentStatus) || "pending",
+    orderStatus: (trusted && body.orderStatus) || "สั่งจอง",
     createdBy: body.createdBy || "customer",
     updatedBy: body.createdBy || "customer",
     isActive: 1,
-    slipUrl: body.slipUrl?.trim() || undefined,
-    bookingKey: body.bookingKey?.trim() || undefined,
+    slipUrl: (trusted && body.slipUrl?.trim()) || undefined,
+    bookingKey,
     notes: body.notes?.trim() || undefined,
   };
 
@@ -254,52 +280,21 @@ export async function submitNewOrder(
   if (!created) {
     return { ok: false, error: "ไม่สามารถออกเลขคำสั่งซื้อได้ กรุณาลองใหม่", status: 500 };
   }
+  // ชีตตอบเลขเดิมกลับมา = bookingKey นี้เคยบันทึกแล้ว (แคชของ instance นี้ยังไม่เห็น)
+  if (bookingKey && usedOrderIds.has(created.id)) {
+    return { ok: true, order: created, duplicate: true };
+  }
 
   const cfg = getRuntimeConfig();
-  if (cfg.lineChannelAccessToken) {
-    // 1. Send Order Confirmation directly to Customer (if ordered via LINE or logged in with LINE)
-    if (created.lineUserId && !options?.skipCustomerNotify) {
-      try {
-        const customerMessages = buildOrderSummaryForCustomerFlex(created);
-        await pushLineMessage(
-          created.lineUserId,
-          customerMessages,
-          cfg.lineChannelAccessToken
-        );
-      } catch (err) {
-        console.warn("Failed to push customer order receipt via LINE:", err);
-      }
-    }
-
-    // 2. Send Admin / Team Notification:
-    // Support LINE Admin Group (preferred) and LINE Admin User ID
-    const adminTargets = [cfg.lineAdminGroupId, cfg.lineAdminUserId].filter(
-      (id): id is string => Boolean(id && id.trim())
+  if (created.lineUserId && !options?.skipCustomerNotify) {
+    const res = await pushLineMessage(
+      created.lineUserId,
+      buildBookingReceiptFlex(created),
+      cfg.lineChannelAccessToken
     );
-
-    for (const targetId of adminTargets) {
-      try {
-        const messages = buildOrderAlertForAdmin(created, cfg.publicBaseUrl);
-        if (created.slipUrl && cfg.publicBaseUrl) {
-          const fullSlipUrl = created.slipUrl.startsWith("http")
-            ? created.slipUrl
-            : `${cfg.publicBaseUrl}${created.slipUrl}`;
-          messages.push({
-            type: "image",
-            originalContentUrl: fullSlipUrl,
-            previewImageUrl: fullSlipUrl,
-          });
-        }
-        await pushLineMessage(
-          targetId,
-          messages,
-          cfg.lineChannelAccessToken
-        );
-      } catch (err) {
-        console.warn(`Failed to push admin order alert to ${targetId}:`, err);
-      }
-    }
+    if (!res.sent) console.warn("Failed to push booking receipt via LINE:", res.reason);
   }
+  await notifyAdmins(buildOrderAlertForAdmin(created, cfg.publicBaseUrl));
 
   return { ok: true, order: created };
 }

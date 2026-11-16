@@ -110,13 +110,16 @@ function handleWrite(action, payload) {
       return createUserRow(normalizeUser(payload));
     case "updateUser":
       return updateById(SHEET_NAMES.USERS, payload.userId || payload.id, normalizeUser(payload));
-    case "setConfig":
-      if (payload.lineAdminGroupId !== undefined) {
-        PropertiesService.getScriptProperties().setProperty("LINE_ADMIN_GROUP_ID", String(payload.lineAdminGroupId || ""));
-      }
+    case "setConfig": {
+      // กลุ่ม/บัญชี LINE แอดมิน เก็บใน Script Properties (เว็บตรวจ PIN ก่อนเรียก)
+      const props = PropertiesService.getScriptProperties();
+      if (payload.lineAdminGroupId !== undefined) props.setProperty("LINE_ADMIN_GROUP_ID", String(payload.lineAdminGroupId || ""));
+      if (payload.lineAdminUserId !== undefined) props.setProperty("LINE_ADMIN_USER_ID", String(payload.lineAdminUserId || ""));
       return {
-        lineAdminGroupId: PropertiesService.getScriptProperties().getProperty("LINE_ADMIN_GROUP_ID") || ""
+        lineAdminGroupId: props.getProperty("LINE_ADMIN_GROUP_ID") || "",
+        lineAdminUserId: props.getProperty("LINE_ADMIN_USER_ID") || "",
       };
+    }
     default:
       throw new Error("UNKNOWN_ACTION: " + action);
   }

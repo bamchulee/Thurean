@@ -44,7 +44,7 @@ import { OrderSuccessModal } from "../components/OrderSuccessModal";
 import { CartDrawerModal } from "../components/CartDrawerModal";
 import { DurianIcon, LineIcon } from "../components/Icons";
 import { LineDirectLink } from "../components/LineDirectLink";
-import { formatProductStock } from "../lib/stock";
+import { estimateUnitPrice, formatProductStock } from "../lib/stock";
 
 // Helper formatting user display name cleanly (never showing raw line_U... ID)
 function formatUserTitle(
@@ -857,9 +857,12 @@ function ProductCard({
             )}
             <div className="price-tag inline-flex items-baseline px-2.5 py-0.5">
               <span className="text-2xl font-semibold">
-                ฿{product.price.toLocaleString()}
+                ฿{(product.pricePerKg || product.price).toLocaleString()}
               </span>
-              <span className="text-xs font-medium ml-1">/{product.unit}</span>
+              <span className="text-xs font-medium ml-1">/กก.</span>
+              <span className="text-[11px] text-stone-500 ml-1.5">
+                (~฿{estimateUnitPrice(product).toLocaleString()}/{product.unit})
+              </span>
             </div>
           </div>
 
@@ -1111,7 +1114,7 @@ function OrderModal({
 
   const shippingCost =
     shopInfo.shippingMethods.find((s) => s.name === shipping)?.price || 0;
-  const totalPrice = product.price * qty + shippingCost;
+  const totalPrice = estimateUnitPrice(product) * qty + shippingCost;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1206,7 +1209,7 @@ function OrderModal({
                 {product.origin} • {product.weight}
               </p>
               <p className="font-extrabold text-[#1B4D31] text-base mt-0.5">
-                ฿{product.price.toLocaleString()} /{product.unit}
+                ฿{(product.pricePerKg || product.price).toLocaleString()}/กก. (~฿{estimateUnitPrice(product).toLocaleString()}/{product.unit})
               </p>
             </div>
           </div>

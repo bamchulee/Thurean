@@ -215,6 +215,7 @@ export interface DatabaseState {
   users?: User[];
   config?: {
     lineAdminGroupId?: string;
+    lineAdminUserId?: string;
   };
 }
 

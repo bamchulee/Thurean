@@ -31,6 +31,7 @@ import { shopInfo } from "../../data/mock";
 import type { Order } from "../../types/durian";
 import { LineIcon } from "../../components/Icons";
 import { resolveCourierInfo } from "../../lib/courier";
+import { normalizeOrderStatus } from "../../lib/order-status";
 
 interface CurrentUser {
   id: string;
@@ -43,48 +44,39 @@ interface CurrentUser {
 
 const statusSteps = [
   {
-    key: "รอชั่งน้ำหนัก/สรุปยอด",
-    aliases: ["received", "pending_weigh"],
+    key: "สั่งจอง",
     icon: Scale,
-    label: "1. รอชั่งน้ำหนัก & สรุปราคา",
-    desc: "ทีมงานคัดผลผลิตตามเกรดและไซส์ นำขึ้นตาชั่งเพื่อสรุปราคาจริง",
+    label: "1. สั่งจอง / รอชั่งน้ำหนัก",
+    desc: "ทีมงานคัดผลตามเกรดและไซส์ นำขึ้นตาชั่งเพื่อสรุปราคาจริง — ยังไม่ต้องโอนเงิน",
   },
   {
     key: "รอชำระเงิน",
-    aliases: ["pending_payment", "weighed"],
     icon: Clock,
     label: "2. รอชำระเงิน",
     desc: "แจ้งยอดชั่งจริงพร้อม QR Code PromptPay ให้ลูกค้าชำระเงิน",
   },
   {
     key: "ชำระเงินแล้ว/เตรียมจัดส่ง",
-    aliases: ["paid", "preparing", "packed"],
     icon: Package,
     label: "3. ชำระเงินแล้ว / เตรียมจัดส่ง",
     desc: "ร้านตรวจสอบยอดชำระ แพ็กกล่องเจาะรูระบายอากาศ / คุมความเย็น",
   },
   {
     key: "กำลังจัดส่ง",
-    aliases: ["shipped", "shipping"],
     icon: Truck,
     label: "4. กำลังจัดส่ง",
     desc: "ส่งมอบให้บริษัทขนส่ง อยู่ระหว่างเดินทาง มีเลขพัสดุสำหรับติดตาม",
   },
   {
     key: "จัดส่งสำเร็จ",
-    aliases: ["delivered", "completed", "claimed"],
     icon: CheckCircle2,
     label: "5. จัดส่งสำเร็จ (ประกัน 24 ชม.)",
     desc: "พัสดุถึงมือผู้รับเรียบร้อย • สามารถกดแจ้งเคลมได้ภายใน 24 ชม.",
   },
 ];
 
-function getStatusIndex(status?: string): number {
-  if (!status) return 0;
-  if (status === "claimed") return 4;
-  const idx = statusSteps.findIndex(
-    (s) => s.key === status || s.aliases.includes(status)
-  );
+function getStatusIndex(status?: string, paymentStatus?: string): number {
+  const idx = statusSteps.findIndex((s) => s.key === normalizeOrderStatus(status, paymentStatus));
   return idx >= 0 ? idx : 0;
 }
 
@@ -311,7 +303,7 @@ export default function TrackingPage() {
   });
 
   const displayOrder = selectedOrder;
-  const currentStep = displayOrder ? getStatusIndex(displayOrder.orderStatus) : -1;
+  const currentStep = displayOrder ? getStatusIndex(displayOrder.orderStatus, displayOrder.paymentStatus) : -1;
   const courierInfo = displayOrder
     ? resolveCourierInfo(
         displayOrder.trackingNo,
@@ -569,7 +561,7 @@ export default function TrackingPage() {
                     ) : (
                       <Clock className="w-3.5 h-3.5 text-amber-700" />
                     )}
-                    <span>{displayOrder.orderStatus || "รอชั่งน้ำหนัก/สรุปยอด"}</span>
+                    <span>{normalizeOrderStatus(displayOrder.orderStatus, displayOrder.paymentStatus)}</span>
                   </span>
 
                   <span className="text-[11px] text-stone-500">
@@ -973,7 +965,7 @@ export default function TrackingPage() {
                                   : "bg-amber-100 text-amber-900 border border-amber-200"
                               }`}
                             >
-                              {order.orderStatus || "รอชั่งน้ำหนัก/สรุปยอด"}
+                              {normalizeOrderStatus(order.orderStatus, order.paymentStatus)}
                             </span>
                           </div>
                           <p className="text-[11px] text-stone-400 mt-0.5">

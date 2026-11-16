@@ -1,144 +1,152 @@
 // ============================================================
-// Order Status & Payment Status Single Source of Truth
-// (ตามข้อกำหนดใน docs/ANTIGRAVITY.md ข้อ 2.2)
+// สถานะออเดอร์ชุดเดียวของทั้งระบบ (เว็บ หลังบ้าน LINE เคลม)
+// flow: สั่งจอง → รอชำระเงิน → ชำระเงินแล้ว/เตรียมจัดส่ง → กำลังจัดส่ง → จัดส่งสำเร็จ
+// สถานะเก่า (received / preparing / รอชั่งน้ำหนัก/สรุปยอด ...) อ่านได้ แต่ห้ามเขียนลงออเดอร์ใหม่
 // ============================================================
 
-export type CanonicalOrderStatus =
-  | "สั่งจอง"
-  | "รอชำระเงิน"
-  | "ชำระเงินแล้ว/เตรียมจัดส่ง"
-  | "กำลังจัดส่ง"
-  | "จัดส่งสำเร็จ"
-  | "ยกเลิก";
+export const ORDER_STATUSES = [
+  "สั่งจอง",
+  "รอชำระเงิน",
+  "ชำระเงินแล้ว/เตรียมจัดส่ง",
+  "กำลังจัดส่ง",
+  "จัดส่งสำเร็จ",
+  "ยกเลิก",
+] as const;
 
-export type CanonicalPaymentStatus =
-  | "pending"
-  | "slip_submitted"
-  | "confirmed"
-  | "refunded";
+export type CanonicalOrderStatus = (typeof ORDER_STATUSES)[number];
+
+export type CanonicalPaymentStatus = "pending" | "slip_submitted" | "confirmed" | "refunded";
 
 export interface StatusMeta {
-  orderStatus: CanonicalOrderStatus;
-  paymentStatus: CanonicalPaymentStatus;
-  step: number;
+  step: number; // 0 = ยกเลิก
   label: string;
-  badgeColor: string;
-  description: string;
+  emoji: string;
+  color: string;
+  /** ข้อความบอกลูกค้าว่าตอนนี้อยู่ขั้นไหน และต้องทำอะไรต่อ */
+  customerHint: string;
 }
 
-export const ORDER_STATUS_STEPS: Record<CanonicalOrderStatus, StatusMeta> = {
+export const ORDER_STATUS_META: Record<CanonicalOrderStatus, StatusMeta> = {
   สั่งจอง: {
-    orderStatus: "สั่งจอง",
-    paymentStatus: "pending",
     step: 1,
     label: "สั่งจอง",
-    badgeColor: "#F59E0B",
-    description: "บันทึกการสั่งจองสำเร็จ รอแอดมินคัดและชั่งน้ำหนักจริง",
+    emoji: "🟡",
+    color: "#D97706",
+    customerHint: "รับจองแล้ว รอแอดมินคัดผลและชั่งน้ำหนักจริง — ยังไม่ต้องโอนเงิน",
   },
   รอชำระเงิน: {
-    orderStatus: "รอชำระเงิน",
-    paymentStatus: "pending",
     step: 2,
     label: "รอชำระเงิน",
-    badgeColor: "#EA580C",
-    description: "แอดมินชั่งน้ำหนักและสรุปยอดจริงแล้ว รอลูกค้าโอนและแนบสลิป",
+    emoji: "🟠",
+    color: "#EA580C",
+    customerHint: "ชั่งน้ำหนักแล้ว โอนตามยอดจริงแล้วส่งรูปสลิปเข้าแชทนี้ได้เลย",
   },
   "ชำระเงินแล้ว/เตรียมจัดส่ง": {
-    orderStatus: "ชำระเงินแล้ว/เตรียมจัดส่ง",
-    paymentStatus: "confirmed",
-    step: 4,
+    step: 3,
     label: "ชำระเงินแล้ว/เตรียมจัดส่ง",
-    badgeColor: "#16A34A",
-    description: "แอดมินตรวจสอบยอดเงินถูกต้องแล้ว กำลังเตรียมบรรจุทุเรียนเพื่อส่ง",
+    emoji: "🟢",
+    color: "#16A34A",
+    customerHint: "ได้รับยอดชำระแล้ว กำลังแพ็กเตรียมจัดส่ง",
   },
   กำลังจัดส่ง: {
-    orderStatus: "กำลังจัดส่ง",
-    paymentStatus: "confirmed",
-    step: 5,
+    step: 4,
     label: "กำลังจัดส่ง",
-    badgeColor: "#2563EB",
-    description: "สินค้าออกจากสวนแล้ว อยู่ระหว่างการนำส่งโดยรถควบคุมอุณหภูมิ/ขนส่ง",
+    emoji: "🚚",
+    color: "#2563EB",
+    customerHint: "สินค้าออกจากร้านแล้ว เช็กเลขพัสดุได้จากปุ่มด้านล่าง",
   },
   จัดส่งสำเร็จ: {
-    orderStatus: "จัดส่งสำเร็จ",
-    paymentStatus: "confirmed",
-    step: 6,
+    step: 5,
     label: "จัดส่งสำเร็จ",
-    badgeColor: "#15803D",
-    description: "จัดส่งถึงมือลูกค้าเรียบร้อยแล้ว (สามารถแจ้งเคลมได้ภายใน 24 ชม.)",
+    emoji: "✅",
+    color: "#15803D",
+    customerHint: "ส่งถึงแล้ว หากพบปัญหาแจ้งเคลมได้ภายใน 24 ชม.",
   },
   ยกเลิก: {
-    orderStatus: "ยกเลิก",
-    paymentStatus: "refunded",
     step: 0,
     label: "ยกเลิก",
-    badgeColor: "#DC2626",
-    description: "คำสั่งซื้อถูกยกเลิก และคืนสต็อกเรียบร้อยแล้ว",
+    emoji: "❌",
+    color: "#DC2626",
+    customerHint: "ออเดอร์นี้ถูกยกเลิกแล้ว",
   },
 };
 
-/**
- * แปลงสถานะรุ่นเก่า (ภาษาอังกฤษ หรือภาษาไทยรุ่นเดิม) ให้เป็น CanonicalOrderStatus มาตรฐาน
- */
-export function normalizeOrderStatus(raw?: string): CanonicalOrderStatus {
+export const PAYMENT_STATUS_LABEL: Record<CanonicalPaymentStatus, string> = {
+  pending: "ยังไม่ชำระ",
+  slip_submitted: "ส่งสลิปแล้ว รอตรวจ",
+  confirmed: "ชำระแล้ว",
+  refunded: "คืนเงินแล้ว",
+};
+
+/** แปลงสถานะเก่า/สะกดต่าง ให้เป็นชุดมาตรฐาน — paymentStatus ช่วยตัดสินออเดอร์ "received" รุ่นเก่า */
+export function normalizeOrderStatus(raw?: string, paymentStatus?: string): CanonicalOrderStatus {
   const s = (raw || "").trim().toLowerCase();
-  if (!s) return "สั่งจอง";
-
-  if (s === "สั่งจอง" || s === "จอง" || s === "booking") return "สั่งจอง";
-  if (
-    s === "รอชำระเงิน" ||
-    s === "รอชั่งน้ำหนัก/สรุปยอด" ||
-    s === "weighed" ||
-    s === "awaiting_payment"
-  ) {
-    return "รอชำระเงิน";
+  const paid = paymentStatus === "confirmed";
+  switch (s) {
+    case "":
+    case "สั่งจอง":
+    case "จอง":
+    case "booking":
+    case "รอชั่งน้ำหนัก/สรุปยอด":
+      return "สั่งจอง";
+    case "received":
+      return paid ? "ชำระเงินแล้ว/เตรียมจัดส่ง" : "สั่งจอง";
+    case "รอชำระเงิน":
+    case "awaiting_payment":
+      return "รอชำระเงิน";
+    case "ชำระเงินแล้ว/เตรียมจัดส่ง":
+    case "preparing":
+    case "packed":
+    case "paid":
+      return "ชำระเงินแล้ว/เตรียมจัดส่ง";
+    case "กำลังจัดส่ง":
+    case "shipped":
+      return "กำลังจัดส่ง";
+    case "จัดส่งสำเร็จ":
+    case "delivered":
+    case "claimed":
+      return "จัดส่งสำเร็จ";
+    case "ยกเลิก":
+    case "cancelled":
+    case "canceled":
+      return "ยกเลิก";
+    default:
+      return "สั่งจอง";
   }
-  if (
-    s === "ชำระเงินแล้ว/เตรียมจัดส่ง" ||
-    s === "preparing" ||
-    s === "packed" ||
-    s === "received" ||
-    s === "paid"
-  ) {
-    return "ชำระเงินแล้ว/เตรียมจัดส่ง";
-  }
-  if (s === "กำลังจัดส่ง" || s === "shipped" || s === "delivering") {
-    return "กำลังจัดส่ง";
-  }
-  if (s === "จัดส่งสำเร็จ" || s === "delivered" || s === "claimed") {
-    return "จัดส่งสำเร็จ";
-  }
-  if (s === "ยกเลิก" || s === "cancelled" || s === "canceled") {
-    return "ยกเลิก";
-  }
-
-  return "สั่งจอง";
 }
 
-/**
- * ตรวจสอบว่าสามารถเปลี่ยนสถานะจาก current ไปเป็น next ได้หรือไม่
- * ตามกติกาใน docs/ANTIGRAVITY.md ข้อ 2.2:
- * 1->2, 2->3 (slip), 3->4, 3->2 (สลิปไม่ผ่าน), 4->5, 5->6, (1|2|3)->ยกเลิก
- */
+export function normalizePaymentStatus(raw?: string): CanonicalPaymentStatus {
+  if (raw === "slip_submitted" || raw === "confirmed" || raw === "refunded") return raw;
+  return "pending";
+}
+
+export function orderStatusOf(order: { orderStatus?: string; paymentStatus?: string }): CanonicalOrderStatus {
+  return normalizeOrderStatus(order.orderStatus, order.paymentStatus);
+}
+
+/** เปลี่ยนสถานะได้เฉพาะเดินหน้าทีละขั้น หรือยกเลิกก่อนส่งของ */
+const NEXT: Record<CanonicalOrderStatus, CanonicalOrderStatus[]> = {
+  สั่งจอง: ["รอชำระเงิน", "ยกเลิก"],
+  รอชำระเงิน: ["ชำระเงินแล้ว/เตรียมจัดส่ง", "ยกเลิก"],
+  "ชำระเงินแล้ว/เตรียมจัดส่ง": ["กำลังจัดส่ง", "ยกเลิก"],
+  กำลังจัดส่ง: ["จัดส่งสำเร็จ"],
+  จัดส่งสำเร็จ: [],
+  ยกเลิก: [],
+};
+
 export function canTransitionOrderStatus(
   current: CanonicalOrderStatus,
   next: CanonicalOrderStatus
 ): boolean {
-  if (current === next) return true;
-  if (next === "ยกเลิก") {
-    return current === "สั่งจอง" || current === "รอชำระเงิน";
-  }
+  return current === next || NEXT[current].includes(next);
+}
 
-  switch (current) {
-    case "สั่งจอง":
-      return next === "รอชำระเงิน";
-    case "รอชำระเงิน":
-      return next === "ชำระเงินแล้ว/เตรียมจัดส่ง";
-    case "ชำระเงินแล้ว/เตรียมจัดส่ง":
-      return next === "กำลังจัดส่ง";
-    case "กำลังจัดส่ง":
-      return next === "จัดส่งสำเร็จ";
-    default:
-      return false;
-  }
+export function allowedNextStatuses(current: CanonicalOrderStatus): CanonicalOrderStatus[] {
+  return NEXT[current];
+}
+
+/** ชั่งน้ำหนัก / แก้ยอดได้เฉพาะก่อนลูกค้าจ่าย */
+export function canWeigh(order: { orderStatus?: string; paymentStatus?: string }): boolean {
+  const s = orderStatusOf(order);
+  return (s === "สั่งจอง" || s === "รอชำระเงิน") && normalizePaymentStatus(order.paymentStatus) !== "confirmed";
 }

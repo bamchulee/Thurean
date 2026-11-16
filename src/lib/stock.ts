@@ -84,6 +84,34 @@ export function getAvailableUnits(p: Product): number | undefined {
   return undefined;
 }
 
+/**
+ * ราคาประเมินต่อลูก/ชิ้นตอนจอง = ราคา/กก. × น้ำหนักเฉลี่ยต่อลูก (ยอดจริงคิดใหม่หลังชั่ง)
+ * หมายเหตุ: ชั้นข้อมูลตั้ง product.price = ราคาต่อกิโล จึงห้ามใช้ price × จำนวน เป็นราคาต่อลูก
+ */
+export function estimateUnitPrice(p: Pick<Product, "price" | "pricePerKg" | "avgWeightKg">): number {
+  const perKg = Number(p.pricePerKg) || 0;
+  const avg = Number(p.avgWeightKg) || 0;
+  if (perKg > 0 && avg > 0) return Math.round(perKg * avg);
+  return Math.round(Number(p.price) || 0);
+}
+
+/** คืนสต็อกเมื่อออเดอร์ถูกยกเลิก (ต้องตรงกับ restoreStock ใน google-apps-script/4_Orders.gs) */
+export function restoreProductStock(product: Product, orderedQty: number): void {
+  const qty = Math.max(1, orderedQty);
+  const isQtyBased = product.stockUnit === "qty" || product.type === "flesh";
+  let wasSoldOut = false;
+  if (typeof product.stockQty === "number") {
+    wasSoldOut = product.stockQty <= 0;
+    product.stockQty += qty;
+  }
+  if (typeof product.stockKg === "number") {
+    if (typeof product.stockQty !== "number") wasSoldOut = product.stockKg <= 0;
+    const unitKg = product.avgWeightKg && product.avgWeightKg > 0 ? product.avgWeightKg : isQtyBased ? 1 : 3;
+    product.stockKg = Number((product.stockKg + qty * unitKg).toFixed(1));
+  }
+  if (wasSoldOut) product.isAvailable = true;
+}
+
 export function deductProductStock(product: Product, orderedQty: number): void {
   const qty = Math.max(1, orderedQty);
   if (typeof product.stockQty === "number") {
