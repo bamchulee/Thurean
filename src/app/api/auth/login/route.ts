@@ -67,8 +67,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (safe.role === "admin") {
-      const cfg = getRuntimeConfig();
-      const adminToken = createAdminSessionToken(cfg.adminPin || "");
+      const adminToken = createAdminSessionToken(safe.id || "admin");
       response.cookies.set(ADMIN_COOKIE_NAME, adminToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",

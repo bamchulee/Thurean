@@ -77,6 +77,12 @@ export function AuthModal() {
         );
         setTab("password");
         return;
+      } else if (loginErr === "not_admin") {
+        setErrorMsg(
+          "บัญชี LINE นี้ไม่มีสิทธิ์ผู้ดูแลระบบ (Admin) จึงไม่สามารถเข้าสู่แผงควบคุมหลังบ้านได้"
+        );
+        setTab("line");
+        return;
       } else if (loginErr) {
         setErrorMsg(
           "เข้าสู่ระบบผ่าน LINE ไม่สำเร็จ กรุณากดปุ่มด้านล่างเพื่อลองใหม่ หรือเข้าสู่ระบบด้วยชื่อผู้ใช้"

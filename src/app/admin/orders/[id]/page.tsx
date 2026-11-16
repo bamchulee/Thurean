@@ -15,9 +15,11 @@ import {
   Plus,
   Receipt,
   Scale,
+  ShieldCheck,
   Truck,
   XCircle,
 } from "lucide-react";
+import { LineIcon } from "../../../../components/Icons";
 import { COURIER_OPTIONS } from "../../../../lib/courier";
 import {
   ORDER_STATUS_META,
@@ -50,7 +52,6 @@ export default function AdminOrderPage() {
 
   const [loading, setLoading] = useState(true);
   const [needLogin, setNeedLogin] = useState(false);
-  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -114,27 +115,6 @@ export default function AdminOrderPage() {
     };
   }, [fetchOrder, showResponse]);
 
-  const login = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const res = await fetch("/api/admin/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.ok) setError(json.error || "PIN ไม่ถูกต้อง");
-      else {
-        setPin("");
-        await load();
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const patch = async (payload: Record<string, unknown>, okText: string) => {
     if (!order) return;
     setBusy(true);
@@ -164,32 +144,37 @@ export default function AdminOrderPage() {
   }
 
   if (needLogin) {
+    const returnUrl = encodeURIComponent(`/admin/orders/${orderId}`);
     return (
       <Shell>
-        <form onSubmit={login} className="bg-white rounded-2xl border border-stone-200 p-6 space-y-4 max-w-sm mx-auto mt-10">
-          <div className="flex items-center gap-2 text-stone-900 font-extrabold">
-            <Lock className="w-5 h-5 text-[#1B4D31]" />
-            <span>ล็อกอินแอดมินเพื่อเปิดออเดอร์ #{orderId}</span>
+        <div className="bg-white rounded-3xl border border-stone-200 p-8 space-y-5 max-w-sm mx-auto mt-10 text-center shadow-lg">
+          <div className="w-16 h-16 mx-auto rounded-3xl bg-[#06C755]/10 border border-[#06C755]/30 flex items-center justify-center">
+            <LineIcon className="w-9 h-9 text-[#06C755]" />
           </div>
-          <input
-            type="password"
-            inputMode="numeric"
-            autoFocus
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            placeholder="PIN หลังบ้าน"
-            className="w-full border border-stone-300 rounded-xl px-3 py-3 text-center text-lg font-mono tracking-widest"
-          />
-          {error && <p className="text-xs text-rose-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={busy || !pin}
-            className="w-full bg-[#1B4D31] text-white font-bold py-3 rounded-xl disabled:opacity-50"
+          <div>
+            <h3 className="text-lg font-extrabold text-stone-900">
+              เข้าถึงเฉพาะแอดมิน
+            </h3>
+            <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+              กรุณาเข้าสู่ระบบด้วยบัญชี LINE ผู้ดูแลระบบ เพื่อเปิดและจัดการออเดอร์ #{orderId}
+            </p>
+          </div>
+          {error && <p className="text-xs text-rose-600 bg-rose-50 py-2 px-3 rounded-xl">{error}</p>}
+          <a
+            href={`/api/auth/line/login?redirect=${returnUrl}`}
+            className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white font-black py-3.5 px-4 rounded-2xl text-sm transition flex items-center justify-center gap-2 shadow-md active:scale-[0.99]"
           >
-            {busy ? "กำลังตรวจสอบ..." : "เข้าสู่ระบบ"}
-          </button>
-          <p className="text-[11px] text-stone-500 text-center">ล็อกอินครั้งเดียว เปิดออเดอร์ถัดไปได้เลย</p>
-        </form>
+            <LineIcon className="w-5 h-5 text-white" />
+            <span>เข้าสู่ระบบด้วย LINE</span>
+          </a>
+          <a
+            href="/"
+            className="inline-flex items-center gap-1 text-xs text-stone-400 hover:text-stone-600 pt-1"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>กลับไปหน้าร้านค้า</span>
+          </a>
+        </div>
       </Shell>
     );
   }

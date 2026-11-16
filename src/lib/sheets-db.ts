@@ -205,20 +205,41 @@ export function getDataSourceMode(): "google-sheets" | "local" {
 // ============================================================
 // Auth Helpers (Admin Session Token)
 // ============================================================
-export function createAdminSessionToken(pin: string): string {
-  return crypto
+export function createAdminSessionToken(adminId: string = "admin"): string {
+  const payload = JSON.stringify({
+    adminId,
+    role: "admin",
+    exp: Date.now() + 1000 * 60 * 60 * 24 * 7, // 7 days
+  });
+  const hmac = crypto
     .createHmac("sha256", getSigningSecret())
-    .update(`admin-session:${pin}`)
-    .digest("hex");
+    .update(payload)
+    .digest("base64url");
+  const b64Payload = Buffer.from(payload, "utf-8").toString("base64url");
+  return `${b64Payload}.${hmac}`;
 }
 
 export function verifyAdminSessionToken(token?: string | null): boolean {
-  if (!token) return false;
-  const cfg = getRuntimeConfig();
-  if (!cfg.adminPin || !cfg.adminPin.trim()) return false;
-  const expected = createAdminSessionToken(cfg.adminPin.trim());
+  if (!token || !token.includes(".")) return false;
+  const [b64Payload, hmac] = token.split(".");
+  if (!b64Payload || !hmac) return false;
+
   try {
-    return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected));
+    const payloadStr = Buffer.from(b64Payload, "base64url").toString("utf-8");
+    const expectedHmac = crypto
+      .createHmac("sha256", getSigningSecret())
+      .update(payloadStr)
+      .digest("base64url");
+
+    const a = Buffer.from(hmac);
+    const b = Buffer.from(expectedHmac);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+
+    const data = JSON.parse(payloadStr);
+    if (data.role !== "admin") return false;
+    if (data.exp && Date.now() > data.exp) return false;
+
+    return true;
   } catch {
     return false;
   }

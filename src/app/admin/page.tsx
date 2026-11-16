@@ -153,40 +153,10 @@ interface ConfigInfo {
 }
 
 // ============== LOGIN SCREEN ==============
-function PinLoginScreen({ onSuccess }: { onSuccess: () => void }) {
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/admin/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
-      });
-      const json = (await res.json()) as { ok: boolean; error?: string };
-      if (res.ok && json.ok) {
-        onSuccess();
-      } else {
-        setError(json.error || "รหัส PIN ไม่ถูกต้อง");
-      }
-    } catch {
-      setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+function AdminLoginScreen() {
   return (
     <div className="min-h-screen bg-[#11301F] flex items-center justify-center p-4">
-      <form
-        onSubmit={handleLogin}
-        className="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl border border-stone-200 text-center space-y-5"
-      >
+      <div className="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl border border-stone-200 text-center space-y-6">
         <img
           src={shopInfo.logo}
           alt={shopInfo.name}
@@ -201,54 +171,21 @@ function PinLoginScreen({ onSuccess }: { onSuccess: () => void }) {
           </p>
         </div>
 
-        <div>
-          <label className="block text-xs font-bold text-stone-700 mb-2">
-            กรอกรหัส PIN เข้าสู่ระบบ
-          </label>
-          <input
-            type="password"
-            inputMode="numeric"
-            required
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            placeholder="••••"
-            className="w-full text-center text-2xl tracking-[0.5em] font-mono border border-stone-300 rounded-2xl py-3 focus:border-[#1B4D31] focus:outline-none"
-          />
-          <p className="text-[11px] text-stone-400 mt-2">
-            ใช้รหัส PIN ที่ตั้งไว้ในตัวแปร ADMIN_PIN ของระบบ
-          </p>
-        </div>
-
-        {error && (
-          <p className="text-xs text-rose-700 font-semibold bg-rose-50 border border-rose-200 py-2 px-3 rounded-xl flex items-center justify-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>{error}</span>
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold py-3.5 rounded-xl text-sm transition shadow-md disabled:opacity-60 inline-flex items-center justify-center gap-2"
-        >
-          <Unlock className="w-4 h-4 text-amber-300" />
-          <span>{loading ? "กำลังตรวจสอบ..." : "เข้าสู่ระบบด้วยรหัส PIN"}</span>
-        </button>
-
-        <div className="relative pt-1">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-stone-200" />
+        <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-left space-y-2">
+          <div className="flex items-center gap-2 text-emerald-950 font-extrabold text-xs">
+            <ShieldCheck className="w-4 h-4 text-[#06C755]" />
+            <span>เข้าถึงเฉพาะผู้ดูแลระบบ (Admin)</span>
           </div>
-          <div className="relative flex justify-center text-[11px]">
-            <span className="bg-white px-2 text-stone-400">หรือ</span>
-          </div>
+          <p className="text-[11px] text-emerald-800 leading-relaxed">
+            ระบบใช้การยืนยันตัวตนผ่านบัญชี LINE ของแอดมินเท่านั้น ไม่ต้องใช้รหัส PIN เพื่อความปลอดภัยสูงสุด
+          </p>
         </div>
 
         <a
-          href="/api/auth/line/login"
-          className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition shadow-xs"
+          href="/api/auth/line/login?redirect=/admin"
+          className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 transition shadow-lg shadow-emerald-700/20 active:scale-[0.99]"
         >
-          <LineIcon className="w-4 h-4" />
+          <LineIcon className="w-5 h-5 text-white" />
           <span>เข้าสู่ระบบด้วย LINE (บัญชีแอดมิน)</span>
         </a>
 
@@ -259,7 +196,7 @@ function PinLoginScreen({ onSuccess }: { onSuccess: () => void }) {
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>กลับไปหน้าร้านค้า</span>
         </a>
-      </form>
+      </div>
     </div>
   );
 }
@@ -3385,7 +3322,6 @@ function SettingsTab({
   const [liveUrl, setLiveUrl] = useState("");
   const [liveNote, setLiveNote] = useState("");
   const [isLiveNow, setIsLiveNow] = useState(false);
-  const [newPin, setNewPin] = useState("");
   const [statusMsg, setStatusMsg] = useState<{
     ok: boolean;
     text: string;
@@ -3857,18 +3793,14 @@ function SettingsTab({
           </label>
         </div>
 
-        <div>
-          <label className="block text-xs font-bold text-stone-700 mb-1">
-            เปลี่ยนรหัส PIN เข้าหลังบ้าน (เว้นว่างถ้าไม่เปลี่ยน)
-          </label>
-          <input
-            type="password"
-            inputMode="numeric"
-            value={newPin}
-            onChange={(e) => setNewPin(e.target.value)}
-            placeholder="อย่างน้อย 4 หลัก"
-            className="w-full sm:w-64 border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
-          />
+        <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+          <div className="flex items-center gap-2 text-emerald-950 font-extrabold text-xs mb-1">
+            <ShieldCheck className="w-4 h-4 text-[#06C755]" />
+            <span>ความปลอดภัยหลังบ้าน: เข้าสู่ระบบผ่าน LINE เท่านั้น</span>
+          </div>
+          <p className="text-[11px] text-emerald-800 leading-relaxed">
+            ระบบยกเลิกการใช้รหัส PIN แล้วเพื่อความปลอดภัย โดยอนุญาตเฉพาะบัญชี LINE ที่มีสิทธิ์แอดมิน (สามารถตั้งค่าบทบาทผู้ใช้เป็น admin ได้ในแท็บ &quot;สมาชิก&quot;)
+          </p>
         </div>
 
         {statusMsg && (
@@ -3911,7 +3843,6 @@ function SettingsTab({
                 liveStreamUrl: liveUrl,
                 liveStreamNote: liveNote,
                 isLiveNow: isLiveNow,
-                adminPin: newPin || undefined,
               })
             }
             className="bg-[#1B4D31] hover:bg-[#143B25] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
@@ -4377,14 +4308,7 @@ export default function AdminPage() {
   }
 
   if (!authenticated) {
-    return (
-      <PinLoginScreen
-        onSuccess={() => {
-          setAuthenticated(true);
-          loadAllAdminData();
-        }}
-      />
-    );
+    return <AdminLoginScreen />;
   }
 
   const pendingPayments = orders.filter(

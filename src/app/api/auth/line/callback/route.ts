@@ -123,13 +123,25 @@ export async function GET(req: NextRequest) {
     const safe = toSafeUser(user);
     const sessionToken = createSessionToken(safe);
 
-    // If user is Admin, redirect to /admin directly, otherwise to home
-    const redirectUrl =
-      safe.role === "admin"
-        ? new URL("/admin", req.url)
-        : homeUrl;
+    const targetRedirect = req.cookies.get("winkin_line_redirect")?.value;
+    let redirectUrl: URL;
 
-    if (safe.role !== "admin") {
+    if (safe.role === "admin") {
+      redirectUrl =
+        targetRedirect && targetRedirect.startsWith("/admin")
+          ? new URL(targetRedirect, req.url)
+          : new URL("/admin", req.url);
+    } else {
+      if (targetRedirect && targetRedirect.startsWith("/admin")) {
+        // บัญชีทั่วไปที่ไม่มีสิทธิ์แอดมิน พยายามเข้าหน้าหลังบ้าน
+        redirectUrl = new URL("/", req.url);
+        redirectUrl.searchParams.set("line_login_error", "not_admin");
+      } else if (targetRedirect && targetRedirect.startsWith("/")) {
+        redirectUrl = new URL(targetRedirect, req.url);
+      } else {
+        redirectUrl = homeUrl;
+      }
+
       redirectUrl.searchParams.set("login_success", "line");
       if (!user.phone || !user.address || user.phone.length < 9) {
         redirectUrl.searchParams.set("setup_address", "1");
@@ -147,7 +159,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (safe.role === "admin") {
-      const adminToken = createAdminSessionToken(cfg.adminPin || "");
+      const adminToken = createAdminSessionToken(safe.id || safe.lineUserId || "admin");
       res.cookies.set(ADMIN_COOKIE_NAME, adminToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -158,6 +170,7 @@ export async function GET(req: NextRequest) {
     }
 
     res.cookies.delete("winkin_line_state");
+    res.cookies.delete("winkin_line_redirect");
     return res;
   } catch (err) {
     console.error("LINE Login Callback Error:", err);

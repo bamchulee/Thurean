@@ -49,5 +49,16 @@ export async function GET(req: NextRequest) {
     maxAge: 60 * 15, // 15 minutes
   });
 
+  const redirectParam = req.nextUrl.searchParams.get("redirect");
+  if (redirectParam && redirectParam.startsWith("/")) {
+    res.cookies.set("winkin_line_redirect", redirectParam, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 15, // 15 minutes
+    });
+  }
+
   return res;
 }
