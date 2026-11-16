@@ -319,6 +319,12 @@ export function buildCustomerStatusFlex(order: Order): unknown[] {
     shipped: "🚚 จัดส่งแล้ว! กำลังเดินทางไปหาคุณ",
     delivered: "🎉 จัดส่งสำเร็จแล้ว",
     claimed: "🛡️ อยู่ระหว่างดำเนินการเคลม",
+    "รอชั่งน้ำหนัก/สรุปยอด": "⚖️ กำลังคัดผลและชั่งน้ำหนักจริง",
+    "รอชำระเงิน": "💰 ชั่งน้ำหนักเรียบร้อยแล้ว (รอชำระเงิน)",
+    "ชำระเงินแล้ว/เตรียมจัดส่ง": "✅ ได้รับยอดชำระแล้ว (เตรียมจัดส่ง)",
+    "กำลังจัดส่ง": "🚚 กำลังจัดส่งถึงบ้านคุณ",
+    "จัดส่งสำเร็จ": "🎉 จัดส่งสำเร็จเรียบร้อยแล้ว",
+    "ยกเลิก": "❌ ยกเลิกคำสั่งซื้อ",
   };
 
   const courierInfo = resolveCourierInfo(
@@ -326,6 +332,8 @@ export function buildCustomerStatusFlex(order: Order): unknown[] {
     order.courier,
     order.shippingMethod
   );
+
+  const grandTotal = order.totalPrice + (order.shippingCost || 0);
 
   const bodyContents: unknown[] = [
     {
@@ -352,6 +360,26 @@ export function buildCustomerStatusFlex(order: Order): unknown[] {
       wrap: true,
     },
   ];
+
+  if (order.weightPerItem) {
+    bodyContents.push({
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        { type: "text", text: "⚖️ น้ำหนักต่อลูก:", size: "xs", color: "#6B7280", flex: 4 },
+        { type: "text", text: String(order.weightPerItem), size: "xs", weight: "bold", color: "#166534", flex: 6 },
+      ],
+    });
+  }
+
+  bodyContents.push({
+    type: "box",
+    layout: "horizontal",
+    contents: [
+      { type: "text", text: "💰 ยอดรวมสุทธิ:", size: "xs", color: "#6B7280", flex: 4 },
+      { type: "text", text: `฿${grandTotal.toLocaleString()}`, size: "sm", weight: "bold", color: "#15803d", flex: 6 },
+    ],
+  });
 
   if (order.trackingNo) {
     bodyContents.push({

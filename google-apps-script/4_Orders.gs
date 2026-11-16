@@ -46,6 +46,14 @@ function flattenOrder(o) {
       const items = Array.isArray(o.items) ? o.items : [];
       out.itemsJson = JSON.stringify(items);
       out.itemSummary = items.map((it) => it.productName + " x" + it.qty).join(", ");
+      if (items.length > 0) {
+        if (!out.productType && items[0].productType) out.productType = items[0].productType;
+        if (!out.productId && items[0].productId) out.productId = items[0].productId;
+        if (!out.productName && items[0].productName) out.productName = items[0].productName;
+        if (!out.pricePerItem && items[0].price) out.pricePerItem = Number(items[0].price) || 0;
+        if (!out.weightPerItem && items[0].weightPerItem) out.weightPerItem = items[0].weightPerItem;
+        if (!out.quantity && items[0].qty) out.quantity = Number(items[0].qty) || 1;
+      }
     } else if (k !== "createdAt") {
       out[k] = o[k];
     }
@@ -53,6 +61,12 @@ function flattenOrder(o) {
   if (!out.createDate && o.createdAt) out.createDate = o.createdAt;
   if (out.totalPrice !== undefined) out.totalPrice = Number(out.totalPrice) || 0;
   if (out.shippingCost !== undefined) out.shippingCost = Number(out.shippingCost) || 0;
+  if (out.pricePerItem !== undefined) out.pricePerItem = Number(out.pricePerItem) || 0;
+  if (out.quantity !== undefined) out.quantity = Number(out.quantity) || 1;
+  if (!out.channel) out.channel = out.lineUserId ? "LINE Official" : "หน้าร้าน / Web";
+  if (!out.courier) out.courier = "Flash Express";
+  if (!out.vehicleType) out.vehicleType = "รถห้องเย็นปรับอุณหภูมิ";
+  if (!out.orderStatus) out.orderStatus = "รอชั่งน้ำหนัก/สรุปยอด";
   return out;
 }
 

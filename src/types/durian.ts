@@ -64,16 +64,28 @@ export interface OrderItem {
   productName: string;
   qty: number;
   price: number;
+  productType?: string;
+  grade?: string;
+  weightPerItem?: string | number;
+  pricePerKg?: number;
+  actualWeightKg?: number;
 }
 
-export type PaymentStatus = "pending" | "confirmed" | "refunded";
+export type PaymentStatus = "pending" | "confirmed" | "refunded" | string;
 export type OrderStatus =
   | "received"
   | "preparing"
   | "packed"
   | "shipped"
   | "delivered"
-  | "claimed";
+  | "claimed"
+  | "รอชั่งน้ำหนัก/สรุปยอด"
+  | "รอชำระเงิน"
+  | "ชำระเงินแล้ว/เตรียมจัดส่ง"
+  | "กำลังจัดส่ง"
+  | "จัดส่งสำเร็จ"
+  | "ยกเลิก"
+  | string;
 
 export interface Order extends BaseAuditLog {
   id: string;
@@ -85,15 +97,24 @@ export interface Order extends BaseAuditLog {
   address?: string;
   lineUserId?: string;
   ripenessPref?: string;
-  items: OrderItem[];
+  productType?: string;
+  productId?: string;
+  productName?: string;
+  pricePerItem?: number;
+  weightPerItem?: string | number;
+  quantity?: number;
   totalPrice: number;
+  courier?: string;
+  channel?: string;
+  vehicleType?: string;
+  trackingNo?: string;
+  items: OrderItem[];
   shippingMethod: string;
   shippingCost: number;
+  grandTotal?: number;
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
   deliveredAt?: string;
-  trackingNo?: string;
-  courier?: string;
   slipUrl?: string;
   lotId?: string;
   mapsUrl?: string;

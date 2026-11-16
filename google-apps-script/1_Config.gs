@@ -52,7 +52,7 @@ const AUDIT_HEADERS = ["isActive", "createDate", "createdBy", "updatedAt", "upda
 // เลขใหม่ = เลขสูงสุดที่ตรงรูปแบบในตาราง + 1 — รหัสเก่าที่ไม่ตรงรูปแบบจะถูกข้าม
 const ID_FORMATS = {
   Users: { prefix: "USR-", pad: 5 },
-  Orders: { prefix: "WK-", pad: 4 },
+  Orders: { prefix: "OD", pad: 6 },
   Claims: { prefix: "CLM-", pad: 5 },
   Products: { prefix: "WK-", pad: 2 },
   Rounds: { prefix: "WK-ROUND-", pad: 2 },
@@ -95,11 +95,12 @@ const SHEET_DEFS = {
     color: "#166534",
     idCol: "id",
     headers: [
-      "id", "createDate", "roundId", "userId", "customerName", "phone", "address",
-      "mapsUrl", "lineUserId", "ripenessPref", "itemsJson", "itemSummary", "totalPrice",
-      "shippingMethod", "shippingCost", "grandTotal", "paymentStatus", "orderStatus",
-      "deliveredAt", "trackingNo", "lotId", "notes", "courier", "slipUrl", "isActive", "createdBy",
-      "updatedAt", "updatedBy",
+      "id", "roundId", "userId", "lineUserId", "customerName", "phone", "address",
+      "productType", "productId", "productName", "pricePerItem", "weightPerItem", "quantity",
+      "totalPrice", "courier", "channel", "vehicleType", "trackingNo", "orderStatus",
+      "paymentStatus", "shippingMethod", "shippingCost", "grandTotal", "itemsJson", "itemSummary",
+      "mapsUrl", "slipUrl", "notes", "lotId", "deliveredAt", "ripenessPref",
+      "isActive", "createDate", "createdBy", "updatedAt", "updatedBy",
     ],
   },
   Lots_Cost: {

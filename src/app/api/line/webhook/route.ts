@@ -4,6 +4,7 @@ import {
   getAllDatabase,
   getRuntimeConfig,
   saveRuntimeConfig,
+  updateOrderRecord,
   upsertLineUser,
 } from "../../../../lib/sheets-db";
 import {
@@ -222,6 +223,61 @@ export async function POST(req: NextRequest) {
           }
           continue;
         }
+
+        // Admin quick weigh command in group: ชั่ง <OrderID> <WeightKg>
+        const weighMatchGroup = (ev.message?.type === "text" ? (ev.message.text || "").trim() : "").match(/^(?:ชั่ง|นน|weight)\s+([a-zA-Z0-9_-]+)\s+([0-9.]+)/i);
+        if (weighMatchGroup) {
+          let orderTargetId = weighMatchGroup[1].trim().toUpperCase();
+          if (/^\d+$/.test(orderTargetId)) {
+            orderTargetId = `OD${orderTargetId.padStart(6, "0")}`;
+          }
+          const weightNum = parseFloat(weighMatchGroup[2]);
+          const { data } = await getAllDatabase();
+          const foundOrder = data.orders.find((o) => o.id.toUpperCase() === orderTargetId);
+          if (!foundOrder) {
+            await replyLineMessage(
+              replyToken,
+              [{ type: "text", text: `❌ ไม่พบคำสั่งซื้อ "${orderTargetId}" ในระบบครับ` }],
+              token
+            );
+            continue;
+          }
+
+          const prod = data.products.find((p) => p.id === foundOrder.productId || p.name === foundOrder.productName) || data.products[0];
+          const pricePerKg = prod?.pricePerKg || prod?.price || foundOrder.pricePerItem || 220;
+          const qty = foundOrder.quantity || 1;
+          const calculatedTotal = Math.round(weightNum * pricePerKg * qty);
+
+          const updated = await updateOrderRecord(foundOrder.id, {
+            weightPerItem: `${weightNum} กก.`,
+            totalPrice: calculatedTotal,
+            grandTotal: calculatedTotal + (foundOrder.shippingCost || 0),
+            orderStatus: "รอชำระเงิน",
+            updatedBy: "Admin (LINE)",
+            updatedAt: new Date().toISOString(),
+          });
+
+          await replyLineMessage(
+            replyToken,
+            [
+              {
+                type: "text",
+                text: `✅ บันทึกน้ำหนักออเดอร์ #${foundOrder.id} สำเร็จ!\n\n📦 สินค้า: ${foundOrder.productName || foundOrder.id}\n⚖️ น้ำหนักจริง: ${weightNum} กก.\n💰 ราคารวม: ฿${calculatedTotal.toLocaleString()} (จาก ฿${pricePerKg}/กก.)\n📌 สถานะ: รอชำระเงิน\n\n📲 ระบบส่งการ์ดยอดชำระเงินและแจ้งลูกค้าทาง LINE เรียบร้อยแล้วครับ! 🍈✨`,
+              },
+            ],
+            token
+          );
+
+          if (updated && updated.lineUserId) {
+            await pushLineMessage(
+              updated.lineUserId,
+              buildCustomerStatusFlex(updated),
+              token
+            );
+          }
+          continue;
+        }
+
         // In group, ignore customer ordering flow so team conversation isn't interrupted
         continue;
       }
@@ -747,6 +803,53 @@ export async function POST(req: NextRequest) {
             token
           );
           continue;
+        }
+
+        // Admin quick weigh command in 1-on-1 chat: ชั่ง <OrderID> <WeightKg>
+        const weighMatchDm = msgType === "text" ? text.match(/^(?:ชั่ง|นน|weight)\s+([a-zA-Z0-9_-]+)\s+([0-9.]+)/i) : null;
+        if (weighMatchDm) {
+          let orderTargetId = weighMatchDm[1].trim().toUpperCase();
+          if (/^\d+$/.test(orderTargetId)) {
+            orderTargetId = `OD${orderTargetId.padStart(6, "0")}`;
+          }
+          const weightNum = parseFloat(weighMatchDm[2]);
+          const { data } = await getAllDatabase();
+          const foundOrder = data.orders.find((o) => o.id.toUpperCase() === orderTargetId);
+          if (foundOrder) {
+            const prod = data.products.find((p) => p.id === foundOrder.productId || p.name === foundOrder.productName) || data.products[0];
+            const pricePerKg = prod?.pricePerKg || prod?.price || foundOrder.pricePerItem || 220;
+            const qty = foundOrder.quantity || 1;
+            const calculatedTotal = Math.round(weightNum * pricePerKg * qty);
+
+            const updated = await updateOrderRecord(foundOrder.id, {
+              weightPerItem: `${weightNum} กก.`,
+              totalPrice: calculatedTotal,
+              grandTotal: calculatedTotal + (foundOrder.shippingCost || 0),
+              orderStatus: "รอชำระเงิน",
+              updatedBy: `Admin (${userId ? userId.slice(-6) : "LINE"})`,
+              updatedAt: new Date().toISOString(),
+            });
+
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: `✅ บันทึกน้ำหนักออเดอร์ #${foundOrder.id} สำเร็จ!\n\n📦 สินค้า: ${foundOrder.productName || foundOrder.id}\n⚖️ น้ำหนักจริง: ${weightNum} กก.\n💰 ราคารวม: ฿${calculatedTotal.toLocaleString()} (จาก ฿${pricePerKg}/กก.)\n📌 สถานะ: รอชำระเงิน\n\n📲 ระบบส่งการ์ดยอดชำระเงินให้ลูกค้าทาง LINE เรียบร้อยแล้วครับ! 🍈✨`,
+                },
+              ],
+              token
+            );
+
+            if (updated && updated.lineUserId) {
+              await pushLineMessage(
+                updated.lineUserId,
+                buildCustomerStatusFlex(updated),
+                token
+              );
+            }
+            continue;
+          }
         }
 
         if (

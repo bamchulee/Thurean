@@ -54,12 +54,23 @@ export function OrderSuccessModal({
           <strong className="font-mono text-[#1B4D31] text-sm">{order.id}</strong>
         </p>
 
-        {/* Real Scannable Thai PromptPay QR */}
-        <PromptPayQR
-          target={shopInfo.bankAccount.promptPay}
-          amount={grandTotal}
-          accountName={shopInfo.bankAccount.name}
-        />
+        {/* Status Alert: Weighing vs PromptPay QR */}
+        {order.orderStatus === "รอชั่งน้ำหนัก/สรุปยอด" ? (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 my-3 text-left space-y-1.5">
+            <span className="font-extrabold text-amber-950 text-xs flex items-center gap-1.5">
+              <span>⚖️ รอแอดมินชั่งน้ำหนักจริงต่อลูก</span>
+            </span>
+            <p className="text-xs text-amber-900 leading-relaxed">
+              ทุเรียนตัดสดแต่ละผลมีน้ำหนักต่างกัน (~3.5 - 4.5 กก.) ขณะนี้ทีมงานกำลังคัดผลและนำขึ้นชั่งน้ำหนักจริงให้ท่าน เมื่อชั่งเสร็จแล้ว จะส่งสรุปยอดเงินสุทธิและ QR สำหรับชำระเงินให้ทาง LINE ทันทีครับ! 🍈✨
+            </p>
+          </div>
+        ) : (
+          <PromptPayQR
+            target={shopInfo.bankAccount.promptPay}
+            amount={grandTotal}
+            accountName={shopInfo.bankAccount.name}
+          />
+        )}
 
         <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 text-xs text-stone-700 text-left space-y-1.5 mb-4">
           <p className="font-bold text-stone-900 flex items-center gap-1.5">

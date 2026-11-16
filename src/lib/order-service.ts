@@ -23,7 +23,7 @@ import {
 import { shopInfo } from "../data/mock";
 import { resolveCourierInfo } from "./courier";
 import { checkClaimEligibility } from "./claim-policy";
-import type { Claim, Order, OrderItem } from "../types/durian";
+import type { Claim, Order, OrderItem, OrderStatus } from "../types/durian";
 
 export interface SubmitOrderInput {
   userId?: string;
@@ -37,11 +37,14 @@ export interface SubmitOrderInput {
   roundId?: string;
   slipUrl?: string;
   courier?: string;
+  channel?: string;
+  vehicleType?: string;
+  weightPerItem?: string | number;
   notes?: string;
-  paymentStatus?: "pending" | "confirmed" | "refunded";
-  orderStatus?: "received" | "preparing" | "packed" | "shipped" | "delivered" | "claimed";
+  paymentStatus?: "pending" | "confirmed" | "refunded" | string;
+  orderStatus?: OrderStatus;
   createdBy?: string;
-  items?: { productId: string; qty: number; ripenessPref?: string }[];
+  items?: { productId: string; qty: number; ripenessPref?: string; weightPerItem?: string | number }[];
 }
 
 export type SubmitOrderResult =
@@ -173,15 +176,31 @@ export async function submitNewOrder(
   }
 
   const usedOrderIds = new Set(data.orders.map((o) => o.id));
+  const firstProd = data.products.find((p) => p.id === verifiedItems[0]?.productId);
+  const totalFruitCount = verifiedItems.reduce((sum, it) => sum + it.qty, 0);
+
   const newOrder: Order = {
     id: localNextId("orders", usedOrderIds),
     createdAt: new Date().toISOString(),
+    createDate: new Date().toISOString(),
     roundId: activeRound?.id || "WK-ROUND-46",
     userId: finalUserId,
     customerName: body.customerName.trim(),
     phone: body.phone.trim(),
     address: body.address.trim(),
     lineUserId: body.lineUserId?.trim() || undefined,
+    productType: firstProd?.productType || "รับคัดลูก",
+    productId: firstProd?.id || verifiedItems[0]?.productId || "",
+    productName: firstProd?.name || verifiedItems[0]?.productName || "",
+    pricePerItem: firstProd?.pricePerKg || firstProd?.price || verifiedItems[0]?.price || 0,
+    weightPerItem: body.weightPerItem || firstProd?.weight || "รอชั่งน้ำหนักจริง",
+    quantity: totalFruitCount,
+    channel: body.channel || (body.lineUserId ? "LINE Official" : "หน้าร้าน / Web"),
+    vehicleType: body.vehicleType || "รถห้องเย็นปรับอุณหภูมิ",
+    courier:
+      body.courier?.trim() ||
+      resolveCourierInfo(undefined, undefined, shipMethod.name).name ||
+      "Flash Express",
     ripenessPref:
       body.ripenessPref ||
       (ripenessSummarySet.length > 0
@@ -192,11 +211,10 @@ export async function submitNewOrder(
     shippingMethod: shipMethod.name,
     shippingCost: typeof body.shippingCost === "number" ? body.shippingCost : shipMethod.price,
     paymentStatus: body.paymentStatus || "pending",
-    orderStatus: body.orderStatus || "received",
+    orderStatus: body.orderStatus || "รอชั่งน้ำหนัก/สรุปยอด",
     createdBy: body.createdBy || "customer",
-    courier:
-      body.courier?.trim() ||
-      resolveCourierInfo(undefined, undefined, shipMethod.name).name,
+    updatedBy: body.createdBy || "customer",
+    isActive: 1,
     slipUrl: body.slipUrl?.trim() || undefined,
     notes: body.notes?.trim() || undefined,
   };

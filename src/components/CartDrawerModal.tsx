@@ -305,13 +305,18 @@ export function CartDrawerModal({
               ))}
             </select>
 
-            <div className="bg-white border border-stone-200 rounded-2xl p-3.5 flex justify-between items-center">
-              <span className="text-xs font-semibold text-stone-600">
-                ยอดรวมสุทธิ (รวมค่าส่ง ฿{shippingCost})
-              </span>
-              <span className="text-xl font-black text-[#1B4D31]">
-                ฿{grandTotal.toLocaleString()}
-              </span>
+            <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-semibold text-amber-950">
+                  ยอดประเมินเบื้องต้น (รวมค่าส่ง ฿{shippingCost})
+                </span>
+                <span className="text-xl font-black text-[#1B4D31]">
+                  ~฿{grandTotal.toLocaleString()}
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                ⚖️ <strong>ทุเรียนแต่ละผลมีน้ำหนักต่างกัน:</strong> แอดมินจะชั่งน้ำหนักจริงต่อลูก และส่งสรุปยอดเงินสุทธิที่แท้จริง พร้อม QR ชำระเงินให้ท่านทาง LINE ทันทีครับ
+              </p>
             </div>
 
             {errorMsg && (
@@ -328,8 +333,8 @@ export function CartDrawerModal({
               <CheckCircle2 className="w-4 h-4 text-amber-300" />
               <span>
                 {submitting
-                  ? "กำลังสร้างออเดอร์..."
-                  : `ยืนยันสั่งซื้อทั้งหมด ฿${grandTotal.toLocaleString()}`}
+                  ? "กำลังส่งคำสั่งซื้อเข้าระบบ..."
+                  : `ยืนยันสั่งซื้อ (ส่งออเดอร์ให้แอดมินชั่งจริง)`}
               </span>
             </button>
           </form>

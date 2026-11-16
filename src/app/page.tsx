@@ -1394,19 +1394,24 @@ function OrderModal({
           </div>
 
           {/* ยอดรวม */}
-          <div className="bg-stone-50 rounded-2xl p-4 flex items-center justify-between border border-stone-200">
-            <div>
-              <span className="text-[10px] text-stone-500 font-bold uppercase block">
-                ยอดรวมทั้งสิ้น (รวมค่าส่ง)
-              </span>
-              <span className="text-2xl font-extrabold text-[#1B4D31]">
-                ฿{totalPrice.toLocaleString()}
+          <div className="bg-amber-50/80 rounded-2xl p-4 border border-amber-200 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-amber-900 font-bold uppercase block">
+                  ยอดประเมินเบื้องต้น (รวมค่าส่ง)
+                </span>
+                <span className="text-2xl font-extrabold text-[#1B4D31]">
+                  ~฿{totalPrice.toLocaleString()}
+                </span>
+              </div>
+              <span className="text-xs font-bold text-emerald-800 bg-white px-3 py-1 rounded-full border border-emerald-200 inline-flex items-center gap-1 shadow-xs">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>การันตีเนื้อ 100%</span>
               </span>
             </div>
-            <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 inline-flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>การันตี 100%</span>
-            </span>
+            <p className="text-[11px] text-amber-800 leading-relaxed pt-0.5">
+              ⚖️ <strong>ทุเรียนตัดสดแต่ละผลมีน้ำหนักต่างกัน:</strong> แอดมินจะนำทุเรียนขึ้นชั่งน้ำหนักจริงต่อลูก และส่งสรุปยอดเงินสุทธิที่แท้จริง พร้อม QR Code ชำระเงินให้ทาง LINE ทันทีครับ
+            </p>
           </div>
 
           {errorMsg && (
@@ -1435,8 +1440,8 @@ function OrderModal({
               <CheckCircle2 className="w-4 h-4 text-amber-300" />
               <span>
                 {submitting
-                  ? "กำลังบันทึก..."
-                  : `ยืนยันสั่งซื้อ ฿${totalPrice.toLocaleString()}`}
+                  ? "กำลังส่งคำสั่งซื้อ..."
+                  : `ยืนยันสั่งซื้อ (ส่งให้แอดมินชั่งจริง)`}
               </span>
             </button>
           </div>

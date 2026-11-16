@@ -29,6 +29,7 @@ import {
   Printer,
   Receipt,
   RefreshCw,
+  Scale,
   Search,
   Send,
   ShieldAlert,
@@ -1372,6 +1373,78 @@ function OrdersTab({
   const [notifyLine, setNotifyLine] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
 
+  // States for Weighing & Price Confirmation Modal (ชั่งน้ำหนักต่อลูก & สรุปราคา)
+  const [weighingOrder, setWeighingOrder] = useState<Order | null>(null);
+  const [weighWeightKg, setWeighWeightKg] = useState<string>("3.8");
+  const [weighPricePerKg, setWeighPricePerKg] = useState<string>("220");
+  const [weighCourier, setWeighCourier] = useState<string>("Flash Express");
+  const [weighChannel, setWeighChannel] = useState<string>("LINE Official");
+  const [weighVehicleType, setWeighVehicleType] = useState<string>("รถห้องเย็นปรับอุณหภูมิ");
+  const [weighStatus, setWeighStatus] = useState<string>("รอชำระเงิน");
+  const [weighTrackingNo, setWeighTrackingNo] = useState<string>("");
+  const [weighNotifyLine, setWeighNotifyLine] = useState<boolean>(true);
+  const [weighSaving, setWeighSaving] = useState<boolean>(false);
+
+  const openWeighModal = (order: Order) => {
+    setWeighingOrder(order);
+    const existingWeight = typeof order.weightPerItem === "string" 
+      ? parseFloat(order.weightPerItem.replace(/[^\d.]/g, "")) 
+      : typeof order.weightPerItem === "number" 
+      ? order.weightPerItem 
+      : 3.8;
+    setWeighWeightKg(String(existingWeight || 3.8));
+    const prod = products.find((p) => p.id === order.productId || p.name === order.productName);
+    const pKg = prod?.pricePerKg || prod?.price || order.pricePerItem || 220;
+    setWeighPricePerKg(String(pKg));
+    setWeighCourier(order.courier || "Flash Express");
+    setWeighChannel(order.channel || (order.lineUserId ? "LINE Official" : "หน้าร้าน / Web"));
+    setWeighVehicleType(order.vehicleType || "รถห้องเย็นปรับอุณหภูมิ");
+    setWeighStatus((order.orderStatus === "รอชั่งน้ำหนัก/สรุปยอด" ? "รอชำระเงิน" : order.orderStatus) as string);
+    setWeighTrackingNo(order.trackingNo || "");
+    setWeighNotifyLine(Boolean(order.lineUserId));
+  };
+
+  const handleSaveWeighing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!weighingOrder) return;
+    setWeighSaving(true);
+    try {
+      const weightNum = parseFloat(weighWeightKg) || 1;
+      const priceKg = parseFloat(weighPricePerKg) || 220;
+      const qty = weighingOrder.quantity || 1;
+      const calculatedTotal = Math.round(weightNum * priceKg * qty);
+
+      const payload = {
+        weightPerItem: `${weightNum} กก.`,
+        pricePerItem: priceKg,
+        totalPrice: calculatedTotal,
+        shippingCost: weighingOrder.shippingCost || 0,
+        courier: weighCourier,
+        channel: weighChannel,
+        vehicleType: weighVehicleType,
+        orderStatus: weighStatus,
+        trackingNo: weighTrackingNo.trim() || undefined,
+        notifyLine: weighNotifyLine,
+        updatedBy: "Admin",
+      };
+
+      const res = await fetch(`/api/orders/${encodeURIComponent(weighingOrder.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (res.ok && json.ok && json.order) {
+        onOrderUpdated(json.order);
+        setWeighingOrder(null);
+      } else {
+        alert(json.error || "เกิดข้อผิดพลาดในการบันทึก");
+      }
+    } finally {
+      setWeighSaving(false);
+    }
+  };
+
   // Top alert metrics:
   const pendingSlipOrders = orders.filter((o) => o.paymentStatus === "pending");
   const readyToShipOrders = orders.filter(
@@ -1874,8 +1947,59 @@ function OrdersTab({
                 </div>
               )}
 
+              {/* Product Weighed Details Box */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-amber-50/70 p-3 rounded-xl border border-amber-200/70 mb-3">
+                <div>
+                  <span className="text-stone-500 block text-[10px]">ประเภท / สินค้า:</span>
+                  <span className="font-bold text-amber-950">
+                    {order.productType || "รับคัดลูก"} ({order.productName || order.items[0]?.productName || "-"})
+                  </span>
+                  <span className="text-[10px] text-stone-400 block font-mono">
+                    รหัส: {order.productId || order.items[0]?.productId || "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-500 block text-[10px]">น้ำหนักต่อลูก (ชั่งจริง):</span>
+                  <span className="font-black text-emerald-800 text-sm font-mono">
+                    {order.weightPerItem || "⏳ ยังไม่ชั่งน้ำหนัก"}
+                  </span>
+                  <span className="text-[10px] text-stone-500 block">
+                    ราคา: ฿{(order.pricePerItem || order.items[0]?.price || 0).toLocaleString()} /ลูก
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-500 block text-[10px]">จำนวนที่สั่ง:</span>
+                  <span className="font-extrabold text-stone-900 font-mono text-sm">
+                    {order.quantity || order.items.reduce((s, it) => s + it.qty, 0)} ลูก
+                  </span>
+                  <span className="text-[10px] text-stone-500 block">
+                    ช่องทาง: <strong className="text-emerald-700">{order.channel || "LINE Official"}</strong>
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-500 block text-[10px]">ขนส่ง / รถจัดส่ง:</span>
+                  <span className="font-bold text-stone-800">
+                    {order.courier || "Flash Express"}
+                  </span>
+                  <span className="text-[10px] text-stone-500 block">
+                    รถ: {order.vehicleType || "รถห้องเย็นปรับอุณหภูมิ"}
+                  </span>
+                </div>
+              </div>
+
               {/* Actions row: Chat LINE, Call, Map, Update, Label, Confirm */}
               <div className="flex flex-wrap gap-2 pt-3 border-t border-stone-100">
+                {/* ⚖️ Weighing & Pricing Button */}
+                <button
+                  type="button"
+                  onClick={() => openWeighModal(order)}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-xs inline-flex items-center gap-1.5"
+                  title="ชั่งน้ำหนักจริงต่อลูก คำนวณราคาสรุป และส่งยอดพร้อม QR ให้ลูกค้าทาง LINE"
+                >
+                  <Scale className="w-3.5 h-3.5 text-amber-300" />
+                  <span>⚖️ ชั่ง นน. & สรุปราคา</span>
+                </button>
+
                 {/* 💬 LINE Chat button */}
                 <button
                   type="button"
@@ -1948,6 +2072,18 @@ function OrdersTab({
                   <Printer className="w-3.5 h-3.5" />
                   <span>พิมพ์ใบปะหน้ากล่อง</span>
                 </button>
+              </div>
+
+              {/* Order Full Columns Audit Bar */}
+              <div className="flex items-center gap-2 text-[10px] text-stone-400 pt-2 font-mono flex-wrap border-t border-stone-100 mt-2">
+                <span>Order ID: <strong className="text-stone-700">{order.id}</strong></span>
+                <span>• รอบ: {order.roundId}</span>
+                <span>• ช่องทาง: <strong className="text-emerald-700">{order.channel || "LINE Official"}</strong></span>
+                <span>• รถ: {order.vehicleType || "รถห้องเย็นปรับอุณหภูมิ"}</span>
+                <span>• ผู้สร้าง: {order.createdBy || "customer"}</span>
+                <span>• Update By: <strong className="text-stone-600 underline font-bold">{order.updatedBy || "Admin"}</strong></span>
+                <span>• วันที่: {new Date(order.createDate || order.createdAt).toLocaleDateString("th-TH")}</span>
+                {order.updatedAt && <span>• เวลาอัปเดต: {new Date(order.updatedAt).toLocaleTimeString("th-TH")}</span>}
               </div>
             </div>
           ))
@@ -2085,6 +2221,232 @@ function OrdersTab({
                 type="button"
                 onClick={() => setEditingOrder(null)}
                 className="px-4 py-2.5 bg-stone-100 rounded-xl text-xs font-bold text-stone-600"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL: WEIGHING & PRICE CONFIRMATION (ชั่งน้ำหนักต่อลูก & สรุปราคา) */}
+      {weighingOrder && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={() => setWeighingOrder(null)}
+        >
+          <form
+            onSubmit={handleSaveWeighing}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-lg rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl border border-stone-200 my-8 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-800">
+                  <Scale className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-stone-900">
+                    ชั่งน้ำหนักจริง & สรุปยอด ({weighingOrder.id})
+                  </h3>
+                  <p className="text-[11px] text-stone-500">
+                    ลูกค้า: {weighingOrder.customerName} ({weighingOrder.phone})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWeighingOrder(null)}
+                className="text-stone-400 hover:text-stone-600 text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-amber-50 rounded-2xl p-3.5 border border-amber-200 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-amber-900 font-semibold">สินค้าที่สั่ง:</span>
+                <span className="font-bold text-stone-900">{weighingOrder.productName || weighingOrder.items[0]?.productName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-amber-900 font-semibold">ประเภท / จำนวน:</span>
+                <span className="font-bold text-stone-900">{weighingOrder.productType || "รับคัดลูก"} • {weighingOrder.quantity || 1} ลูก</span>
+              </div>
+              {weighingOrder.ripenessPref && (
+                <div className="flex justify-between">
+                  <span className="text-amber-900 font-semibold">ความสุกที่เลือก:</span>
+                  <span className="font-bold text-amber-800">{weighingOrder.ripenessPref}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  ⚖️ น้ำหนักจริงต่อลูก (กก.) *
+                </label>
+                <input
+                  type="number"
+                  step="0.05"
+                  required
+                  min={0.5}
+                  max={20}
+                  value={weighWeightKg}
+                  onChange={(e) => setWeighWeightKg(e.target.value)}
+                  placeholder="เช่น 3.85"
+                  className="w-full border-2 border-emerald-500 rounded-xl px-3 py-2 text-base font-black font-mono text-emerald-900 bg-emerald-50/30 text-center"
+                />
+                <span className="text-[10px] text-stone-500 mt-0.5 block">
+                  ระบุน้ำหนักที่ชั่งจริงจากสวน/หน้าตาชั่ง
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  🏷️ ราคาต่อโล (บาท/กก.) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={weighPricePerKg}
+                  onChange={(e) => setWeighPricePerKg(e.target.value)}
+                  placeholder="เช่น 220"
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-base font-bold font-mono text-stone-900 text-center"
+                />
+                <span className="text-[10px] text-stone-500 mt-0.5 block">
+                  คำนวณราคารวม = น้ำหนัก × ราคาต่อโล
+                </span>
+              </div>
+            </div>
+
+            {/* Price Preview Card */}
+            <div className="bg-emerald-900 text-white rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-emerald-200 block">สรุปยอดรวมสินค้า ({weighWeightKg} กก. × ฿{weighPricePerKg})</span>
+                <span className="text-[11px] text-emerald-300">
+                  + ค่าจัดส่ง: ฿{(weighingOrder.shippingCost || 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-black font-mono text-amber-300">
+                  ฿{(Math.round((parseFloat(weighWeightKg) || 0) * (parseFloat(weighPricePerKg) || 0) * (weighingOrder.quantity || 1)) + (weighingOrder.shippingCost || 0)).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-emerald-200 block">ยอดสุทธิที่ต้องชำระ</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  สถานะคำสั่งซื้อ (ดรอปดาวน์) *
+                </label>
+                <select
+                  value={weighStatus}
+                  onChange={(e) => setWeighStatus(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold bg-white"
+                >
+                  <option value="รอชั่งน้ำหนัก/สรุปยอด">รอชั่งน้ำหนัก/สรุปยอด</option>
+                  <option value="รอชำระเงิน">รอชำระเงิน (ส่งยอดให้ลูกค้า)</option>
+                  <option value="ชำระเงินแล้ว/เตรียมจัดส่ง">ชำระเงินแล้ว/เตรียมจัดส่ง</option>
+                  <option value="กำลังจัดส่ง">กำลังจัดส่ง</option>
+                  <option value="จัดส่งสำเร็จ">จัดส่งสำเร็จ</option>
+                  <option value="ยกเลิก">ยกเลิก</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  สั่งผ่านช่องทาง (ดรอปดาวน์) *
+                </label>
+                <select
+                  value={weighChannel}
+                  onChange={(e) => setWeighChannel(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold bg-white"
+                >
+                  <option value="LINE Official">LINE Official</option>
+                  <option value="หน้าร้าน / Web">หน้าร้าน / Web</option>
+                  <option value="Facebook">Facebook</option>
+                  <option value="โทรสั่ง / หน้าร้าน">โทรสั่ง / หน้าร้าน</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  ส่งขนส่งไหน (ดรอปดาวน์) *
+                </label>
+                <select
+                  value={weighCourier}
+                  onChange={(e) => setWeighCourier(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold bg-white"
+                >
+                  <option value="Flash Express">Flash Express (ส่งด่วน)</option>
+                  <option value="Kerry Express">Kerry Express</option>
+                  <option value="Inter Express (รถเย็น)">Inter Express (รถเย็นปรับอุณหภูมิ)</option>
+                  <option value="Grab / Lalamove">Grab / Lalamove (ส่งด่วนภายในวัน)</option>
+                  <option value="รถสวนจัดส่งเอง">รถสวนวิ่งตรงจัดส่งเอง</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  รถอะไร (ประเภทยานพาหนะ) *
+                </label>
+                <select
+                  value={weighVehicleType}
+                  onChange={(e) => setWeighVehicleType(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold bg-white"
+                >
+                  <option value="รถห้องเย็นปรับอุณหภูมิ">รถห้องเย็นปรับอุณหภูมิ (ควบคุมความเย็น)</option>
+                  <option value="รถกระบะห้องเย็น">รถกระบะห้องเย็นวิ่งตรงจากสวน</option>
+                  <option value="มอเตอร์ไซค์ส่งด่วน">มอเตอร์ไซค์ส่งด่วน</option>
+                  <option value="รถขนส่งพัสดุทั่วไป">รถขนส่งพัสดุทั่วไป</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                เลขพัสดุ (Tracking No.)
+              </label>
+              <input
+                type="text"
+                value={weighTrackingNo}
+                onChange={(e) => setWeighTrackingNo(e.target.value)}
+                placeholder="เช่น TH0123456789 (ระบุภายหลังได้)"
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono"
+              />
+            </div>
+
+            {weighingOrder.lineUserId && (
+              <label className="flex items-center gap-2 text-xs text-stone-700 p-2.5 bg-emerald-50 rounded-xl border border-emerald-200">
+                <input
+                  type="checkbox"
+                  checked={weighNotifyLine}
+                  onChange={(e) => setWeighNotifyLine(e.target.checked)}
+                  className="accent-[#1B4D31] w-4 h-4"
+                />
+                <span className="font-semibold text-emerald-950">
+                  📲 ส่งการ์ดสรุปยอดเงินและ QR ชำระเงินให้ลูกค้าทาง LINE ทันที
+                </span>
+              </label>
+            )}
+
+            <div className="flex gap-2 pt-2 border-t border-stone-100">
+              <button
+                type="submit"
+                disabled={weighSaving}
+                className="flex-1 bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold py-3 rounded-xl text-xs transition shadow-md disabled:opacity-50 inline-flex items-center justify-center gap-2"
+              >
+                <Scale className="w-4 h-4 text-amber-300" />
+                <span>{weighSaving ? "กำลังบันทึก..." : "ยืนยันบันทึกน้ำหนัก & สรุปยอดเงิน"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setWeighingOrder(null)}
+                className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-xs transition"
               >
                 ยกเลิก
               </button>

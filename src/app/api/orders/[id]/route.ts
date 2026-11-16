@@ -5,7 +5,7 @@ import {
   getRuntimeConfig,
   updateOrderRecord,
 } from "../../../../lib/sheets-db";
-import { isAdminRequest, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { isAdminRequest, unauthorizedResponse, getAdminOperatorName } from "../../../../lib/admin-auth";
 import {
   buildCustomerStatusFlex,
   pushLineMessage,
@@ -101,13 +101,24 @@ export async function PATCH(
     } else if (body.trackingNo) {
       updates.courier = resolveCourierInfo(body.trackingNo.trim()).name;
     }
+    if ((body as any).weightPerItem !== undefined) updates.weightPerItem = (body as any).weightPerItem;
+    if ((body as any).totalPrice !== undefined) {
+      updates.totalPrice = Number((body as any).totalPrice);
+      updates.grandTotal = Number((body as any).totalPrice) + Number((body as any).shippingCost || 0);
+    }
+    if ((body as any).pricePerItem !== undefined) updates.pricePerItem = Number((body as any).pricePerItem);
+    if ((body as any).quantity !== undefined) updates.quantity = Number((body as any).quantity);
+    if ((body as any).channel !== undefined) updates.channel = (body as any).channel;
+    if ((body as any).vehicleType !== undefined) updates.vehicleType = (body as any).vehicleType;
+    if ((body as any).productType !== undefined) updates.productType = (body as any).productType;
     if (body.slipUrl !== undefined) updates.slipUrl = body.slipUrl.trim();
     if (body.lotId !== undefined) updates.lotId = body.lotId.trim();
     if (body.notes !== undefined) updates.notes = body.notes;
     if ((body as any).isActive !== undefined) {
       updates.isActive = ((body as any).isActive === 0 || (body as any).isActive === "0" || (body as any).isActive === false) ? 0 : 1;
     }
-    if ((body as any).updatedBy !== undefined) updates.updatedBy = (body as any).updatedBy;
+    updates.updatedBy = (body as any).updatedBy?.trim() || getAdminOperatorName(req);
+    updates.updatedAt = new Date().toISOString();
 
     const updated = await updateOrderRecord(orderId, updates);
     if (!updated) {
