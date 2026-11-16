@@ -53,13 +53,55 @@ import { shopInfo } from "../../../../data/mock";
 import type { Order } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 interface LineWebhookEvent {
   type: string;
+  webhookEventId?: string;
+  deliveryContext?: { isRedelivery?: boolean };
   replyToken?: string;
   source?: { userId?: string };
   postback?: { data?: string };
   message?: { id?: string; type: string; text?: string };
+}
+
+// In-memory deduplication of LINE webhook events (protects against retry loops)
+const processedEventIds = new Map<string, number>();
+const activeProcessingEventIds = new Set<string>();
+
+function shouldSkipWebhookEvent(ev: LineWebhookEvent): boolean {
+  const eventId = ev.webhookEventId;
+  if (!eventId) return false;
+
+  const now = Date.now();
+  // Evict items older than 15 minutes if map grows large
+  if (processedEventIds.size > 1000) {
+    for (const [id, ts] of processedEventIds.entries()) {
+      if (now - ts > 15 * 60 * 1000) {
+        processedEventIds.delete(id);
+      }
+    }
+  }
+
+  if (processedEventIds.has(eventId) || activeProcessingEventIds.has(eventId)) {
+    console.warn(
+      `[LINE Webhook] Skipping duplicate/redelivered event: ${eventId} (isRedelivery=${Boolean(
+        ev.deliveryContext?.isRedelivery
+      )})`
+    );
+    return true;
+  }
+
+  activeProcessingEventIds.add(eventId);
+  return false;
+}
+
+function markWebhookEventFinished(ev: LineWebhookEvent) {
+  const eventId = ev.webhookEventId;
+  if (eventId) {
+    activeProcessingEventIds.delete(eventId);
+    processedEventIds.set(eventId, Date.now());
+  }
 }
 
 function resolvePublicBaseUrl(req: NextRequest, configuredUrl?: string): string {
@@ -178,9 +220,13 @@ export async function POST(req: NextRequest) {
     const events = body.events || [];
 
     for (const ev of events) {
-      const replyToken = ev.replyToken;
-      const userId = ev.source?.userId || "";
-      if (!replyToken || !token) continue;
+      if (shouldSkipWebhookEvent(ev)) {
+        continue;
+      }
+      try {
+        const replyToken = ev.replyToken;
+        const userId = ev.source?.userId || "";
+        if (!replyToken || !token) continue;
 
       // แสดง Animation จุดสามจุด (...) ขยับได้ "กำลังพิมพ์..." ให้ลูกค้าเห็นทันทีทุกครั้งที่กดริชเมนูหรือส่งข้อความ
       if (userId) {
@@ -784,9 +830,9 @@ export async function POST(req: NextRequest) {
                       height: "sm",
                       action: {
                         type: "postback",
-                        label: "✅ ยืนยันที่อยู่นี้ และรับ QR Code",
-                        data: `action=order_step&step=confirm&pid=${encodeURIComponent(prod.id)}&qty=${qty}&ripeness=${encodeURIComponent(ripeness)}&use_saved=1`,
-                        displayText: "ยืนยันที่อยู่จัดส่ง",
+                        label: "✅ ยืนยันการจอง",
+                        data: `action=order_step&step=confirm&pid=${encodeURIComponent(prod.id)}&qty=${qty}&ripeness=${encodeURIComponent(ripeness)}&use_saved=1&bkey=BK_${userId.slice(-6)}_${prod.id}_${qty}_${Date.now().toString(36)}`,
+                        displayText: "ยืนยันการจอง",
                       },
                     },
                     {
@@ -880,6 +926,7 @@ export async function POST(req: NextRequest) {
 
             const shipMethod = shopInfo.shippingMethods[0];
             const shippingCost = shipMethod.price;
+            const bookingKey = params.get("bkey") || `BK_${userId}_${prod.id}_${qty}`;
 
             const result = await submitNewOrder(
               {
@@ -892,6 +939,7 @@ export async function POST(req: NextRequest) {
                 lineUserId: userId || undefined,
                 channel: "LINE OA",
                 orderStatus: "สั่งจอง",
+                bookingKey,
                 notes: `สั่งจองผ่านระบบแชท LINE OA (ราคา ฿${pricePerKg}/กก. นน.เฉลี่ย ~${avgWeight} กก./ลูก)`,
                 items: [
                   {
@@ -976,6 +1024,7 @@ export async function POST(req: NextRequest) {
                 lineUserId: userId || undefined,
                 channel: "LINE OA",
                 orderStatus: "สั่งจอง",
+                bookingKey: `BK_${userId}_${prod.id}_${qty}_saved`,
                 notes: `สั่งจองผ่านแชท LINE OA (ยืนยันที่อยู่เดิม)`,
                 items: [
                   {
@@ -2284,9 +2333,9 @@ export async function POST(req: NextRequest) {
                     height: "sm",
                     action: {
                       type: "postback",
-                      label: "✅ ยืนยันที่อยู่นี้ และรับ QR Code",
-                      data: `action=order_step&step=confirm&pid=${encodeURIComponent(prod.id)}&qty=${qty}&ripeness=${encodeURIComponent(text)}&use_saved=1`,
-                      displayText: "ยืนยันที่อยู่จัดส่ง",
+                      label: "✅ ยืนยันการจอง",
+                      data: `action=order_step&step=confirm&pid=${encodeURIComponent(prod.id)}&qty=${qty}&ripeness=${encodeURIComponent(text)}&use_saved=1&bkey=BK_${userId.slice(-6)}_${prod.id}_${qty}_${Date.now().toString(36)}`,
+                      displayText: "ยืนยันการจอง",
                     },
                   },
                   {
@@ -2496,6 +2545,7 @@ export async function POST(req: NextRequest) {
                 lineUserId: userId || undefined,
                 channel: "LINE OA",
                 orderStatus: "สั่งจอง",
+                bookingKey: `BK_${userId}_${prod?.id || currentSession.productId || "WK-01"}_${qty}_${Date.now().toString(36)}`,
                 notes: `สั่งจองผ่านแชท LINE OA (ราคา ฿${pricePerKg}/กก. นน.เฉลี่ย ~${avgWeight} กก./ลูก)`,
                 items: [
                   {
@@ -3133,13 +3183,17 @@ export async function POST(req: NextRequest) {
           }
         }
       }
+    } finally {
+      markWebhookEventFinished(ev);
     }
+  }
 
-    return NextResponse.json({ ok: true });
-  } catch (err) {
+  return NextResponse.json({ ok: true });
+} catch (err) {
+    console.error("[LINE Webhook Fatal Error]", err);
     return NextResponse.json(
-      { ok: false, error: String(err) },
-      { status: 500 }
+      { ok: true, error: String(err) },
+      { status: 200 }
     );
   }
 }

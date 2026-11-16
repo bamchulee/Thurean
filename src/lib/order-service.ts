@@ -45,6 +45,7 @@ export interface SubmitOrderInput {
   paymentStatus?: "pending" | "confirmed" | "refunded" | string;
   orderStatus?: OrderStatus;
   createdBy?: string;
+  bookingKey?: string;
   items?: { productId: string; qty: number; ripenessPref?: string; weightPerItem?: string | number }[];
 }
 
@@ -73,6 +74,15 @@ export async function submitNewOrder(
   }
 
   const { data } = await getAllDatabase();
+
+  if (body.bookingKey) {
+    const cleanBkey = body.bookingKey.trim();
+    const existing = data.orders.find((o) => o.bookingKey === cleanBkey);
+    if (existing) {
+      console.log(`[order-service] Idempotent hit: Order ${existing.id} already exists for bookingKey ${cleanBkey}`);
+      return { ok: true, order: existing };
+    }
+  }
 
   const verifiedItems: OrderItem[] = [];
   const ripenessSummarySet: string[] = [];
@@ -218,6 +228,7 @@ export async function submitNewOrder(
     updatedBy: body.createdBy || "customer",
     isActive: 1,
     slipUrl: body.slipUrl?.trim() || undefined,
+    bookingKey: body.bookingKey?.trim() || undefined,
     notes: body.notes?.trim() || undefined,
   };
 

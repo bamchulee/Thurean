@@ -120,6 +120,18 @@ function createOrder(order) {
   if (!order) throw new Error("MISSING_DATA: ไม่มีข้อมูลออเดอร์");
   order = Object.assign({}, order);
   const orders = readTable(SHEET_NAMES.ORDERS);
+
+  // Idempotency: ถ้ามี bookingKey ซ้ำ ให้ส่งออเดอร์เดิมกลับมา ไม่ตัดสต็อกซ้ำ
+  if (order.bookingKey) {
+    const existing = orders.rows.find(function (r) {
+      return String(r.bookingKey || "").trim() === String(order.bookingKey).trim();
+    });
+    if (existing) {
+      Logger.log("Order with bookingKey already exists: " + existing.id);
+      return existing;
+    }
+  }
+
   if (order._autoId || !order.id) {
     order.id = nextId(orders);
   } else if (findRow(orders, order.id)) {
