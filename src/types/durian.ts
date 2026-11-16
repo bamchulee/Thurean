@@ -114,11 +114,17 @@ export interface Claim extends BaseAuditLog {
   createdAt: string;
   orderId: string;
   userId?: string;
+  lineUserId?: string;
+  customerName?: string;
   phone: string;
+  ripenessType?: "ready_to_eat" | "ripen_at_home" | string;
+  deliveredAt?: string;
   reason: string;
   description: string;
   evidenceName?: string;
+  evidencePhotos?: string[];
   status: ClaimStatus;
+  resolutionType?: "replacement" | "refund" | string;
   resolutionNote?: string;
   lotId?: string;
 }

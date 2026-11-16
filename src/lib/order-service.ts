@@ -264,6 +264,7 @@ export async function submitNewOrder(
 export interface SubmitClaimInput {
   orderId?: string;
   userId?: string;
+  lineUserId?: string;
   phone?: string;
   reason?: string;
   description?: string;
@@ -299,6 +300,24 @@ export async function submitNewClaim(
     };
   }
 
+  // ตรวจสอบความเป็นเจ้าของออเดอร์ (User/เบอร์โทร ต้องตรงกับคำสั่งซื้อนั้น)
+  const claimingPhone = (body.phone || "").replace(/[^\d]/g, "");
+  const orderPhone = (matchedOrder.phone || "").replace(/[^\d]/g, "");
+  const isOwner = Boolean(
+    (body.userId && matchedOrder.userId && body.userId === matchedOrder.userId) ||
+    (body.lineUserId && matchedOrder.lineUserId && body.lineUserId === matchedOrder.lineUserId) ||
+    (claimingPhone && orderPhone && claimingPhone === orderPhone) ||
+    !matchedOrder.userId
+  );
+
+  if (!isOwner) {
+    return {
+      ok: false,
+      error: `รหัสคำสั่งซื้อ "${orderIdClean}" ไม่ตรงกับข้อมูลบัญชีหรือเบอร์โทรศัพท์ของคุณ (${body.phone}) กรุณาตรวจสอบรหัสออเดอร์อีกครั้งครับ`,
+      status: 403,
+    };
+  }
+
   // ตรวจสอบเงื่อนไขการรับประกันเคลม (Master Data Claim Policy)
   const eligibility = checkClaimEligibility(matchedOrder, data.claims || []);
   if (!eligibility.eligible) {
@@ -315,7 +334,11 @@ export async function submitNewClaim(
     createdAt: new Date().toISOString(),
     orderId: orderIdClean,
     userId: body.userId?.trim() || matchedOrder?.userId || undefined,
+    lineUserId: matchedOrder?.lineUserId || undefined,
+    customerName: matchedOrder?.customerName || undefined,
     phone: body.phone.trim(),
+    ripenessType: eligibility.warrantyType,
+    deliveredAt: matchedOrder?.deliveredAt || undefined,
     reason: body.reason.trim(),
     description: body.description?.trim() || "",
     evidenceName: body.evidenceName?.trim() || undefined,

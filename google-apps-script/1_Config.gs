@@ -69,7 +69,7 @@ const SHEET_DEFS = {
     idCol: "userId",
     headers: [
       "userId", "lineUserId", "username", "displayName", "firstName", "lastName",
-      "phone", "address", "postalCode", "avatarUrl", "role", "source", "notes",
+      "phone", "address", "postalCode", "mapsUrl", "latitude", "longitude", "avatarUrl", "role", "source", "notes",
       "passwordHash", "lastLoginAt",
     ].concat(AUDIT_HEADERS),
   },
@@ -95,9 +95,9 @@ const SHEET_DEFS = {
     idCol: "id",
     headers: [
       "id", "createDate", "roundId", "userId", "customerName", "phone", "address",
-      "lineUserId", "ripenessPref", "itemsJson", "itemSummary", "totalPrice",
+      "mapsUrl", "lineUserId", "ripenessPref", "itemsJson", "itemSummary", "totalPrice",
       "shippingMethod", "shippingCost", "grandTotal", "paymentStatus", "orderStatus",
-      "trackingNo", "lotId", "notes", "courier", "slipUrl", "isActive", "createdBy",
+      "deliveredAt", "trackingNo", "lotId", "notes", "courier", "slipUrl", "isActive", "createdBy",
       "updatedAt", "updatedBy",
     ],
   },
@@ -113,9 +113,10 @@ const SHEET_DEFS = {
     color: "#991b1b",
     idCol: "claimId",
     headers: [
-      "claimId", "createDate", "orderId", "userId", "phone", "reason", "description",
-      "evidenceName", "status", "resolutionNote", "lotId", "isActive", "createdBy",
-      "updatedAt", "updatedBy",
+      "claimId", "createDate", "orderId", "userId", "lineUserId", "customerName", "phone",
+      "ripenessType", "deliveredAt", "reason", "description",
+      "evidencePhotos", "evidenceName", "status", "resolutionType", "resolutionNote", "lotId",
+      "isActive", "createdBy", "updatedAt", "updatedBy",
     ],
   },
   Promotions: {
@@ -131,4 +132,5 @@ const SHEET_DEFS = {
 const TEXT_COLUMNS = {
   phone: 1, supplierPhone: 1, postalCode: 1, trackingNo: 1, promoCode: 1,
   username: 1, passwordHash: 1, createDate: 1, updatedAt: 1, date: 1, lastLoginAt: 1,
+  mapsUrl: 1, deliveredAt: 1, ripenessType: 1, evidencePhotos: 1, resolutionType: 1,
 };

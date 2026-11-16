@@ -1518,6 +1518,32 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
+            // ตรวจสอบความเป็นเจ้าของออเดอร์ใน LINE (User ต้องตรงกับคำสั่งซื้อนั้น)
+            const matchedUser = data.users?.find(
+              (u) => (u.lineUserId && u.lineUserId === userId) || u.username === `line_${userId}` || u.id === userId
+            );
+            const userPhoneDigits = (matchedUser?.phone || "").replace(/[^\d]/g, "");
+            const orderPhoneDigits = (targetOrder.phone || "").replace(/[^\d]/g, "");
+
+            const isOrderOwner = Boolean(
+              (targetOrder.lineUserId && targetOrder.lineUserId === userId) ||
+              (matchedUser?.id && targetOrder.userId && targetOrder.userId === matchedUser.id) ||
+              (userPhoneDigits && orderPhoneDigits && userPhoneDigits === orderPhoneDigits) ||
+              !targetOrder.lineUserId
+            );
+
+            if (!isOrderOwner) {
+              await replyLineMessage(
+                replyToken,
+                quickReplyMsg(
+                  `⚠️ ออเดอร์ #${targetOrder.id} ไม่ตรงกับบัญชี LINE หรือเบอร์โทรศัพท์ของคุณครับ\n\nท่านสามารถเคลมได้เฉพาะออเดอร์ที่สั่งซื้อด้วยบัญชีนี้เท่านั้นครับ 🙏`,
+                  [{ label: "ดูออเดอร์ของฉัน", text: "ออเดอร์ของฉัน" }, { label: "ยกเลิก", text: "ยกเลิก" }]
+                ),
+                token
+              );
+              continue;
+            }
+
             // ตรวจสอบสิทธิ์เคลมและเงื่อนไขระยะเวลา (Master Data Claim Policy)
             const eligibility = checkClaimEligibility(targetOrder, data.claims || []);
             if (!eligibility.eligible) {
