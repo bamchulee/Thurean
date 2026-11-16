@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
       const adminToken = createAdminSessionToken(cfg.adminPin || "");
       res.cookies.set(ADMIN_COOKIE_NAME, adminToken, {
         httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
         maxAge: 60 * 60 * 24 * 7, // 7 days

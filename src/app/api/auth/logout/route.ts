@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ADMIN_COOKIE_NAME, USER_COOKIE_NAME } from "../../../../lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,11 +9,9 @@ export async function POST() {
     message: "ออกจากระบบเรียบร้อยแล้ว",
   });
 
-  response.cookies.set("winkin_user_token", "", {
-    httpOnly: true,
-    expires: new Date(0),
-    path: "/",
-  });
+  response.cookies.delete(USER_COOKIE_NAME);
+  response.cookies.delete(ADMIN_COOKIE_NAME);
 
   return response;
 }
+

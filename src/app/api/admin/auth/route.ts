@@ -5,7 +5,7 @@ import {
   createAdminSessionToken,
   getRuntimeConfig,
 } from "../../../../lib/sheets-db";
-import { ADMIN_COOKIE_NAME, isAdminRequest } from "../../../../lib/admin-auth";
+import { ADMIN_COOKIE_NAME, USER_COOKIE_NAME, isAdminRequest } from "../../../../lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({ ok: true, authenticated: true });
     res.cookies.set(ADMIN_COOKIE_NAME, token, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7, // 7 days
@@ -86,5 +87,6 @@ export async function POST(req: NextRequest) {
 export async function DELETE() {
   const res = NextResponse.json({ ok: true, authenticated: false });
   res.cookies.delete(ADMIN_COOKIE_NAME);
+  res.cookies.delete(USER_COOKIE_NAME);
   return res;
 }

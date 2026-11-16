@@ -215,7 +215,8 @@ export function createAdminSessionToken(pin: string): string {
 export function verifyAdminSessionToken(token?: string | null): boolean {
   if (!token) return false;
   const cfg = getRuntimeConfig();
-  const expected = createAdminSessionToken(cfg.adminPin || "");
+  if (!cfg.adminPin || !cfg.adminPin.trim()) return false;
+  const expected = createAdminSessionToken(cfg.adminPin.trim());
   try {
     return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected));
   } catch {
