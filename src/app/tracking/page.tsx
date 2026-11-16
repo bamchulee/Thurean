@@ -16,13 +16,16 @@ import {
   RefreshCw,
   Scale,
   Search,
+  Send,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
   Timer,
   Truck,
   User,
+  X,
   XCircle,
+  MessageSquare,
 } from "lucide-react";
 import { shopInfo } from "../../data/mock";
 import type { Order } from "../../types/durian";
@@ -152,6 +155,59 @@ export default function TrackingPage() {
 
   // Filter tab for user's order list
   const [filterTab, setFilterTab] = useState<"all" | "in_progress" | "delivered" | "cancelled">("all");
+
+  // Ticket Modal state
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [ticketOrder, setTicketOrder] = useState<Order | null>(null);
+  const [ticketName, setTicketName] = useState("");
+  const [ticketPhone, setTicketPhone] = useState("");
+  const [ticketMessage, setTicketMessage] = useState("");
+  const [submittingTicket, setSubmittingTicket] = useState(false);
+  const [ticketSuccess, setTicketSuccess] = useState<string | null>(null);
+
+  const handleOpenTicket = (order?: Order | null) => {
+    const targetOrder = order || selectedOrder || null;
+    setTicketOrder(targetOrder);
+    if (targetOrder) {
+      setTicketName(targetOrder.customerName || "");
+      setTicketPhone(targetOrder.phone || "");
+    } else if (currentUser) {
+      setTicketName(currentUser.name || currentUser.displayName || "");
+    }
+    setTicketMessage("");
+    setTicketSuccess(null);
+    setShowTicketModal(true);
+  };
+
+  const handleSubmitTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ticketMessage.trim()) return;
+    setSubmittingTicket(true);
+    try {
+      const res = await fetch("/api/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: ticketName,
+          phone: ticketPhone,
+          orderId: ticketOrder?.id,
+          message: ticketMessage,
+          source: "web-tracking",
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        setTicketSuccess(json.ticketId);
+        setTicketMessage("");
+      } else {
+        alert(json.error || "เกิดข้อผิดพลาดในการส่งข้อความ");
+      }
+    } catch {
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setSubmittingTicket(false);
+    }
+  };
 
   // Load current session & user orders
   const loadUserAndOrders = async () => {
@@ -294,6 +350,15 @@ export default function TrackingPage() {
               className="p-2 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 transition"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingOrders ? "animate-spin text-[#1B4D31]" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenTicket(selectedOrder)}
+              className="text-xs font-bold bg-amber-400 hover:bg-amber-300 text-stone-950 px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-xs"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">คุยกับแอดมิน (Ticket)</span>
+              <span className="sm:hidden">Ticket</span>
             </button>
             <a
               href="/"
@@ -779,6 +844,14 @@ export default function TrackingPage() {
 
             {/* Contact Action */}
             <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => handleOpenTicket(displayOrder)}
+                className="flex-1 py-3.5 rounded-xl bg-amber-400 text-stone-950 text-xs font-bold text-center hover:bg-amber-300 transition shadow-xs inline-flex items-center justify-center gap-2"
+              >
+                <MessageSquare className="w-4 h-4 text-stone-950" />
+                <span>💬 เปิด Ticket คุยกับแอดมิน (#{displayOrder.id})</span>
+              </button>
               <a
                 href={`https://line.me/R/ti/p/${shopInfo.lineOA}`}
                 target="_blank"
@@ -982,6 +1055,146 @@ export default function TrackingPage() {
                 })}
               </div>
             )}
+          </div>
+        )}
+        {/* Support Ticket Modal */}
+        {showTicketModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 relative animate-in fade-in zoom-in duration-150">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTicketModal(false);
+                  setTicketSuccess(null);
+                }}
+                className="absolute right-4 top-4 p-2 rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-stone-900">
+                    เปิด Ticket สอบถาม / แจ้งเรื่องแอดมิน
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    ข้อความจะแจ้งเตือนเข้ากลุ่มแอดมินทันที ทีมงานจะรีบตอบกลับครับ
+                  </p>
+                </div>
+              </div>
+
+              {ticketSuccess ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-emerald-900 text-sm">
+                      แจ้งทีมงานเรียบร้อยแล้ว!
+                    </h4>
+                    <p className="font-mono text-xs text-emerald-700 mt-1 font-bold">
+                      รหัส Ticket: #{ticketSuccess}
+                    </p>
+                    <p className="text-xs text-stone-600 mt-2">
+                      แอดมินได้รับข้อความของคุณแล้ว และจะรีบติดต่อกลับตามข้อมูลที่ระบุไว้ครับ 🙏
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTicketModal(false);
+                      setTicketSuccess(null);
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-[#1B4D31] text-white text-xs font-bold hover:bg-[#143B25] transition"
+                  >
+                    ปิดหน้าต่าง
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitTicket} className="space-y-4">
+                  {ticketOrder && (
+                    <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 text-xs flex justify-between items-center">
+                      <span className="text-stone-500">อ้างอิงคำสั่งซื้อ:</span>
+                      <span className="font-mono font-bold text-[#1B4D31]">
+                        #{ticketOrder.id}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 mb-1">
+                        ชื่อผู้ติดต่อ *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={ticketName}
+                        onChange={(e) => setTicketName(e.target.value)}
+                        placeholder="ชื่อของคุณ"
+                        className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] focus:outline-none bg-stone-50/50 text-stone-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 mb-1">
+                        เบอร์โทรศัพท์ (ถ้ามี)
+                      </label>
+                      <input
+                        type="tel"
+                        value={ticketPhone}
+                        onChange={(e) => setTicketPhone(e.target.value)}
+                        placeholder="0812345678"
+                        className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] focus:outline-none bg-stone-50/50 text-stone-900"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">
+                      ข้อความ / เรื่องที่ต้องการสอบถาม *
+                    </label>
+                    <textarea
+                      required
+                      rows={4}
+                      value={ticketMessage}
+                      onChange={(e) => setTicketMessage(e.target.value)}
+                      placeholder="เช่น สอบถามสถานะการจัดส่ง, ขอเปลี่ยนที่อยู่จัดส่ง, ทุเรียนสุกระดับไหนพร้อมทาน..."
+                      className="w-full border border-stone-300 rounded-xl p-3 text-xs focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] focus:outline-none bg-stone-50/50 text-stone-900 resize-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowTicketModal(false)}
+                      className="px-4 py-2.5 rounded-xl border border-stone-200 text-stone-600 text-xs font-bold hover:bg-stone-50 transition"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingTicket || !ticketMessage.trim()}
+                      className="px-5 py-2.5 rounded-xl bg-[#1B4D31] hover:bg-[#143B25] text-white text-xs font-bold transition shadow-xs disabled:opacity-60 flex items-center gap-2"
+                    >
+                      {submittingTicket ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>กำลังส่งเรื่อง...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          <span>ส่งข้อความถึงแอดมิน</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         )}
       </div>

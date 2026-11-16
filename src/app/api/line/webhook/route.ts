@@ -20,6 +20,7 @@ import {
   buildPromotionsCarouselFlex,
   buildPromptPayQrPaymentFlex,
   buildStockOverviewMessages,
+  buildTicketAlertForAdmin,
   buildWelcomeFlex,
   pushLineMessage,
   replyLineMessage,
@@ -436,6 +437,431 @@ export async function POST(req: NextRequest) {
             );
           }
           continue;
+        }
+
+        // ----------------------------------------------------
+        // Action: open_ticket (Customer wants to talk to admin / open support ticket)
+        // ----------------------------------------------------
+        if (action === "open_ticket") {
+          const orderId = params.get("orderId") || "";
+          setLineSession(userId, {
+            flow: "ticket",
+            step: "await_message",
+            orderId,
+            updatedAt: Date.now(),
+          });
+          await replyLineMessage(
+            replyToken,
+            [
+              {
+                type: "text",
+                text: `🍈 สอบถามทีมงาน / เปิด Ticket ติดต่อแอดมิน 💬${orderId ? `\n(อ้างอิงออเดอร์ #${orderId})` : ""}\n\nกรุณาพิมพ์ข้อความหรือคำถามของคุณส่งเข้ามาในแชทนี้ได้เลยครับ\n\nทีมงานจะได้รับการแจ้งเตือนเข้ากลุ่มแอดมินทันที และจะรีบเปิดแชทเข้ามาตอบกลับคุณโดยเร็วที่สุดครับ 🙏`,
+                quickReply: {
+                  items: [
+                    { type: "action", action: { type: "message", label: "สอบถามสถานะพัสดุ", text: "สอบถามสถานะพัสดุ" } },
+                    { type: "action", action: { type: "message", label: "สอบถามเรื่องความสุก", text: "สอบถามเรื่องความสุก" } },
+                    { type: "action", action: { type: "message", label: "แจ้งเปลี่ยนที่อยู่", text: "แจ้งเปลี่ยนที่อยู่" } },
+                    { type: "action", action: { type: "message", label: "ยกเลิก", text: "ยกเลิก" } },
+                  ],
+                },
+              },
+            ],
+            token
+          );
+          continue;
+        }
+
+        // ----------------------------------------------------
+        // Action: order_step (Stateless Ordering Wizard: Variety -> Qty -> Ripeness -> Address -> PromptPay QR)
+        // ----------------------------------------------------
+        if (action === "order_step" || action === "order_pick") {
+          const step = params.get("step") || (action === "order_pick" ? "qty" : "qty");
+          const pid = params.get("pid") || params.get("productId") || "WK-01";
+          const qty = Math.max(1, parseInt(params.get("qty") || "1", 10) || 1);
+          const ripeness = params.get("ripeness") || "กรอบนอกนุ่มใน (ไก่ฉีก)";
+
+          const { data } = await getAllDatabase();
+          const prod = data.products.find((p) => p.id === pid) || data.products[0];
+          const pricePerKg = prod?.pricePerKg || prod?.price || 220;
+          const avgWeight = prod?.avgWeightKg || parseFloat(prod?.weight || "4.0") || 4.0;
+          const stockInfo = prod ? formatProductStock(prod) : null;
+
+          if (!prod || !prod.isAvailable || stockInfo?.isOutOfStock) {
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: "ขออภัยครับ สินค้าพันธุ์นี้หมดสต็อกชั่วคราวแล้ว กดสั่งซื้อเพื่อดูพันธุ์อื่นนะครับ 🍈",
+                  quickReply: buildMainQuickReply(),
+                },
+              ],
+              token
+            );
+            continue;
+          }
+
+          // Step 1: Qty Selection (เลือกกี่ลูก - ราคาต่อกิโลกรัม)
+          if (step === "qty") {
+            setLineSession(userId, {
+              flow: "order",
+              step: "pick_qty",
+              productId: prod.id,
+              productName: prod.name,
+              price: pricePerKg,
+              updatedAt: Date.now(),
+            });
+
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: `🍈 ${prod.name}\n💰 ราคา: ฿${pricePerKg.toLocaleString()} / กิโลกรัม (ไม่ใช่ราคาต่อลูก)\n⚖️ น้ำหนักประมาณ ${prod.weight || "3.5 - 4.5 กก."} ต่อลูก\n📦 สต็อก: ${stockInfo?.summary || "มีสินค้าพร้อมส่ง"}\n\nต้องการรับกี่ลูกดีครับ? (กดเลือกจำนวนด้านล่างได้เลยครับ):`,
+                  quickReply: {
+                    items: [
+                      {
+                        type: "action",
+                        action: {
+                          type: "postback",
+                          label: "1 ลูก",
+                          data: `action=order_step&step=ripeness&pid=${encodeURIComponent(prod.id)}&qty=1`,
+                          displayText: "1 ลูก",
+                        },
+                      },
+                      {
+                        type: "action",
+                        action: {
+                          type: "postback",
+                          label: "2 ลูก",
+                          data: `action=order_step&step=ripeness&pid=${encodeURIComponent(prod.id)}&qty=2`,
+                          displayText: "2 ลูก",
+                        },
+                      },
+                      {
+                        type: "action",
+                        action: {
+                          type: "postback",
+                          label: "3 ลูก",
+                          data: `action=order_step&step=ripeness&pid=${encodeURIComponent(prod.id)}&qty=3`,
+                          displayText: "3 ลูก",
+                        },
+                      },
+                      {
+                        type: "action",
+                        action: {
+                          type: "postback",
+                          label: "4 ลูก",
+                          data: `action=order_step&step=ripeness&pid=${encodeURIComponent(prod.id)}&qty=4`,
+                          displayText: "4 ลูก",
+                        },
+                      },
+                      {
+                        type: "action",
+                        action: {
+                          type: "postback",
+                          label: "5 ลูก",
+                          data: `action=order_step&step=ripeness&pid=${encodeURIComponent(prod.id)}&qty=5`,
+                          displayText: "5 ลูก",
+                        },
+                      },
+                      {
+                        type: "action",
+                        action: { type: "message", label: "ยกเลิก", text: "ยกเลิก" },
+                      },
+                    ],
+                  },
+                },
+              ],
+              token
+            );
+            continue;
+          }
+
+          // Step 2: Ripeness Selection (เลือกระดับความสุก / Texture)
+          if (step === "ripeness") {
+            setLineSession(userId, {
+              flow: "order",
+              step: "pick_ripeness",
+              productId: prod.id,
+              productName: prod.name,
+              price: pricePerKg,
+              qty,
+              updatedAt: Date.now(),
+            });
+
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: `🍈 ${prod.name} จำนวน ${qty} ลูก\n💰 ราคา: ฿${pricePerKg.toLocaleString()} / กก. (คัดแก่จัด 85%+)\n\nเลือกระดับความสุก/Texture ที่ต้องการได้เลยครับ:`,
+                  quickReply: {
+                    items: [
+                      {
+                        type: "action",
+                        action: {
+                          type: "postback",
+                          label: "กรอบนอกนุ่มใน",
+                          data: `action=order_step&step=address&pid=${encodeURIComponent(prod.id)}&qty=${qty}&ripeness=${encodeURIComponent("กรอบนอกนุ่มใน (ไก่ฉีก)")}`,
+                          displayText: "กรอบนอกนุ่มใน (ไก่ฉีก)",
+                        },
+                      },
+                      {
+                        type: "action",
+                        action: {
+                          type: "postback",
+                          label: "สุกพอดีกิน",
+                          data: `action=order_step&step=address&pid=${encodeURIComponent(prod.id)}&qty=${qty}&ripeness=${encodeURIComponent("สุกพอดีกิน (เนื้อเนียนครีม)")}`,
+                          displayText: "สุกพอดีกิน (เนื้อเนียนครีม)",
+                        },
+                      },
+                      {
+                        type: "action",
+                        action: {
+                          type: "postback",
+                          label: "ห่าม-กรอบมัน",
+                          data: `action=order_step&step=address&pid=${encodeURIComponent(prod.id)}&qty=${qty}&ripeness=${encodeURIComponent("ห่าม-กรอบมัน")}`,
+                          displayText: "ห่าม-กรอบมัน",
+                        },
+                      },
+                      {
+                        type: "action",
+                        action: {
+                          type: "postback",
+                          label: "สุกงอมหวานจัด",
+                          data: `action=order_step&step=address&pid=${encodeURIComponent(prod.id)}&qty=${qty}&ripeness=${encodeURIComponent("สุกงอม (เนื้อนุ่มหวานจัด)")}`,
+                          displayText: "สุกงอม (เนื้อนุ่มหวานจัด)",
+                        },
+                      },
+                      {
+                        type: "action",
+                        action: { type: "message", label: "ยกเลิก", text: "ยกเลิก" },
+                      },
+                    ],
+                  },
+                },
+              ],
+              token
+            );
+            continue;
+          }
+
+          // Step 3: Address Confirmation (ยืนยันที่อยู่)
+          if (step === "address") {
+            const users = Array.isArray(data?.users) ? data.users : [];
+            const userObj = users.find((u) => u.lineUserId === userId);
+            const hasSavedAddress = Boolean(userObj && userObj.address && userObj.phone);
+
+            setLineSession(userId, {
+              flow: "order",
+              step: "enter_contact",
+              productId: prod.id,
+              productName: prod.name,
+              price: pricePerKg,
+              qty,
+              ripenessPref: ripeness,
+              updatedAt: Date.now(),
+            });
+
+            if (hasSavedAddress && userObj) {
+              const customerName = `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.displayName || "คุณลูกค้า";
+              const addressBubble = {
+                type: "bubble",
+                header: {
+                  type: "box",
+                  layout: "vertical",
+                  backgroundColor: "#1B4D31",
+                  paddingAll: "lg",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "📍 ยืนยันที่อยู่จัดส่งทุเรียน",
+                      color: "#FDE047",
+                      weight: "bold",
+                      size: "md",
+                    },
+                    {
+                      type: "text",
+                      text: `${prod.name} x${qty} ลูก (${ripeness})`,
+                      color: "#FFFFFF",
+                      size: "xs",
+                      margin: "xs",
+                    },
+                  ],
+                },
+                body: {
+                  type: "box",
+                  layout: "vertical",
+                  spacing: "sm",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `👤 ผู้รับ: ${customerName}`,
+                      weight: "bold",
+                      size: "sm",
+                      color: "#111827",
+                    },
+                    {
+                      type: "text",
+                      text: `📞 เบอร์โทร: ${userObj.phone}`,
+                      size: "xs",
+                      color: "#4B5563",
+                    },
+                    {
+                      type: "text",
+                      text: `🏠 ที่อยู่: ${userObj.address}`,
+                      size: "xs",
+                      color: "#374151",
+                      wrap: true,
+                    },
+                  ],
+                },
+                footer: {
+                  type: "box",
+                  layout: "vertical",
+                  spacing: "sm",
+                  contents: [
+                    {
+                      type: "button",
+                      style: "primary",
+                      color: "#15803D",
+                      height: "sm",
+                      action: {
+                        type: "postback",
+                        label: "✅ ยืนยันที่อยู่นี้ และรับ QR Code",
+                        data: `action=order_step&step=confirm&pid=${encodeURIComponent(prod.id)}&qty=${qty}&ripeness=${encodeURIComponent(ripeness)}&use_saved=1`,
+                        displayText: "ยืนยันที่อยู่จัดส่ง",
+                      },
+                    },
+                    {
+                      type: "button",
+                      style: "secondary",
+                      height: "sm",
+                      action: {
+                        type: "message",
+                        label: "✏️ พิมพ์ที่อยู่ใหม่ในแชท",
+                        text: "เปลี่ยนที่อยู่",
+                      },
+                    },
+                  ],
+                },
+              };
+
+              await replyLineMessage(
+                replyToken,
+                [
+                  {
+                    type: "flex",
+                    altText: "ยืนยันที่อยู่จัดส่งทุเรียน",
+                    contents: addressBubble,
+                  },
+                ],
+                token
+              );
+              continue;
+            } else {
+              const formUrl = `${publicBaseUrl || "https://durianwinkin.vercel.app"}/address?userId=${encodeURIComponent(userId)}`;
+              await replyLineMessage(
+                replyToken,
+                [
+                  {
+                    type: "text",
+                    text: `🍈 ได้รับข้อมูล: ${prod.name} x${qty} ลูก (${ripeness})\n\n📍 กรุณาแจ้ง "ชื่อผู้รับ เบอร์โทรศัพท์ 10 หลัก และที่อยู่จัดส่ง" ส่งมาในแชทนี้ได้เลยครับ\n\nตัวอย่าง:\nสมชาย 0812345678 99/1 สุขุมวิท กทม. 10110\n\n(หรือกดปุ่มปักหมุด 🗺️ แผนที่ด้านล่างได้เลยครับ)`,
+                    quickReply: {
+                      items: [
+                        {
+                          type: "action",
+                          action: { type: "location", label: "🗺️ ปักหมุดแผนที่" },
+                        },
+                        {
+                          type: "action",
+                          action: {
+                            type: "uri",
+                            label: "📝 เปิดฟอร์มที่อยู่",
+                            uri: formUrl,
+                          },
+                        },
+                        {
+                          type: "action",
+                          action: { type: "message", label: "ยกเลิก", text: "ยกเลิก" },
+                        },
+                      ],
+                    },
+                  },
+                ],
+                token
+              );
+              continue;
+            }
+          }
+
+          // Step 4: Confirm -> Create Order with ODxxxxxx and Show PromptPay QR immediately!
+          if (step === "confirm") {
+            const users = Array.isArray(data?.users) ? data.users : [];
+            const userObj = users.find((u) => u.lineUserId === userId);
+            const customerName = userObj ? (`${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.displayName || "ลูกค้า") : "ลูกค้า";
+            const phone = userObj?.phone || "-";
+            const address = userObj?.address || "-";
+
+            const estimatedItemTotal = Math.round(pricePerKg * avgWeight * qty);
+            const shippingCost = 120;
+            const grandTotal = estimatedItemTotal + shippingCost;
+
+            const result = await submitNewOrder({
+              customerName,
+              phone,
+              address,
+              ripenessPref: ripeness,
+              shippingMethod: "รถห้องเย็น (฿120)",
+              shippingCost,
+              lineUserId: userId || undefined,
+              channel: "LINE OA",
+              notes: `สั่งซื้อผ่านระบบแชท LINE OA (ราคา ฿${pricePerKg}/กก. นน.เฉลี่ย ~${avgWeight} กก./ลูก)`,
+              items: [
+                {
+                  productId: prod.id,
+                  qty,
+                  ripenessPref: ripeness,
+                  weightPerItem: `${avgWeight} กก.`,
+                },
+              ],
+            });
+
+            clearLineSession(userId);
+
+            if (!result.ok) {
+              await replyLineMessage(
+                replyToken,
+                [{ type: "text", text: `เกิดข้อผิดพลาดในการสร้างคำสั่งซื้อ: ${result.error}`, quickReply: buildMainQuickReply() }],
+                token
+              );
+              continue;
+            }
+
+            const createdOrder = result.order;
+
+            await replyLineMessage(
+              replyToken,
+              buildPromptPayQrPaymentFlex({
+                orderId: createdOrder.id,
+                productName: prod.name,
+                qty,
+                ripenessPref: ripeness,
+                shippingMethod: "รถห้องเย็น (คุมอุณหภูมิ)",
+                customerName,
+                phone,
+                totalPrice: estimatedItemTotal,
+                shippingCost,
+                grandTotal,
+                publicBaseUrl,
+                pricePerKg,
+                approxWeight: `${avgWeight} กก.`,
+              }),
+              token
+            );
+            continue;
+          }
         }
 
         if (action === "confirm_saved_address") {
@@ -1131,6 +1557,44 @@ export async function POST(req: NextRequest) {
             lower === "เช็คพัสดุ" ||
             lower === "สถานะ";
 
+          const isTicketCmd =
+            lower === "คุยกับแอดมิน" ||
+            lower === "ติดต่อแอดมิน" ||
+            lower === "แอดมิน" ||
+            lower === "เปิด ticket" ||
+            lower === "ticket" ||
+            lower === "สอบถาม" ||
+            lower === "ช่วยด้วย" ||
+            lower === "ติดต่อเจ้าหน้าที่" ||
+            lower === "ถามแอดมิน";
+
+          if (isTicketCmd) {
+            setLineSession(userId, {
+              flow: "ticket",
+              step: "await_message",
+              updatedAt: Date.now(),
+            });
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: "🍈 สอบถามทีมงาน / เปิด Ticket ติดต่อแอดมิน 💬\n\nพิมพ์ข้อความหรือคำถามของคุณส่งเข้ามาในแชทนี้ได้เลยครับ\n\nทีมงานจะได้รับการแจ้งเตือนเข้ากลุ่มแอดมินทันที และจะรีบเปิดแชทเข้ามาตอบกลับคุณโดยเร็วที่สุดครับ 🙏",
+                  quickReply: {
+                    items: [
+                      { type: "action", action: { type: "message", label: "สอบถามสถานะพัสดุ", text: "สอบถามสถานะพัสดุ" } },
+                      { type: "action", action: { type: "message", label: "สอบถามเรื่องความสุก", text: "สอบถามเรื่องความสุก" } },
+                      { type: "action", action: { type: "message", label: "แจ้งเปลี่ยนที่อยู่", text: "แจ้งเปลี่ยนที่อยู่" } },
+                      { type: "action", action: { type: "message", label: "ยกเลิก", text: "ยกเลิก" } },
+                    ],
+                  },
+                },
+              ],
+              token
+            );
+            continue;
+          }
+
           const isMyOrdersCmd =
             lower === "ประวัติคำสั่งซื้อ" ||
             lower === "ออเดอร์ของฉัน" ||
@@ -1378,6 +1842,222 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // Ticket Wizard Steps (Customer talking to admin / answering prompt)
+        if (currentSession?.flow === "ticket" && msgType === "text") {
+          const ticketId = `TCK-${Math.floor(100000 + Math.random() * 900000)}`;
+          const { data } = await getAllDatabase();
+          const users = Array.isArray(data?.users) ? data.users : [];
+          const userObj = users.find((u) => u.lineUserId === userId);
+          const customerName = userObj
+            ? (`${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.displayName || "ลูกค้า LINE")
+            : "ลูกค้า LINE";
+
+          const ticketAlert = buildTicketAlertForAdmin(
+            {
+              ticketId,
+              customerName,
+              phone: userObj?.phone,
+              lineUserId: userId,
+              orderId: currentSession.orderId,
+              message: text,
+              createdAt: new Date().toLocaleString("th-TH"),
+            },
+            publicBaseUrl
+          );
+
+          // Push alert to Admin Group and any admin targets
+          const adminTargets: string[] = [];
+          if (cfg.lineAdminGroupId) adminTargets.push(cfg.lineAdminGroupId);
+          if (cfg.lineAdminUserId && !adminTargets.includes(cfg.lineAdminUserId)) {
+            adminTargets.push(cfg.lineAdminUserId);
+          }
+
+          for (const tId of adminTargets) {
+            try {
+              await pushLineMessage(tId, ticketAlert, token);
+            } catch (pushErr) {
+              console.warn("Failed to push ticket alert to:", tId, pushErr);
+            }
+          }
+
+          clearLineSession(userId);
+
+          await replyLineMessage(
+            replyToken,
+            [
+              {
+                type: "text",
+                text: `✅ ส่งเรื่องถึงแอดมินเรียบร้อยแล้วครับ! (Ticket #${ticketId}) 🍈\n\nเรื่อง: "${text}"\n\nทีมงานได้รับข้อความแล้ว แอดมินจะรีบเปิดแชทเข้ามาตอบกลับคุณโดยเร็วที่สุดครับ ขอบคุณครับ 🙏✨`,
+                quickReply: buildMainQuickReply(),
+              },
+            ],
+            token
+          );
+          continue;
+        }
+
+        // Direct Ripeness Selection via free-form text ("กรอบนอกนุ่มใน", "สุกพอดีกิน", etc.)
+        const isRipenessText =
+          text.includes("กรอบนอก") ||
+          text.includes("ไก่ฉีก") ||
+          text.includes("สุกพอดี") ||
+          text.includes("เนื้อเนียน") ||
+          text.includes("ห่าม") ||
+          text.includes("สุกงอม");
+
+        if (msgType === "text" && isRipenessText) {
+          const pid = (currentSession && currentSession.flow === "order" ? currentSession.productId : undefined) || "WK-01";
+          const qty = (currentSession && currentSession.flow === "order" ? currentSession.qty : undefined) || 1;
+          const { data } = await getAllDatabase();
+          const prod = data.products.find((p) => p.id === pid) || data.products[0];
+          const pricePerKg = prod?.pricePerKg || prod?.price || 220;
+          const users = Array.isArray(data?.users) ? data.users : [];
+          const userObj = users.find((u) => u.lineUserId === userId);
+          const hasSavedAddress = Boolean(userObj && userObj.address && userObj.phone);
+
+          setLineSession(userId, {
+            flow: "order",
+            step: "enter_contact",
+            productId: prod.id,
+            productName: prod.name,
+            price: pricePerKg,
+            qty,
+            ripenessPref: text,
+            updatedAt: Date.now(),
+          });
+
+          if (hasSavedAddress && userObj) {
+            const customerName = `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.displayName || "คุณลูกค้า";
+            const addressBubble = {
+              type: "bubble",
+              header: {
+                type: "box",
+                layout: "vertical",
+                backgroundColor: "#1B4D31",
+                paddingAll: "lg",
+                contents: [
+                  {
+                    type: "text",
+                    text: "📍 ยืนยันที่อยู่จัดส่งทุเรียน",
+                    color: "#FDE047",
+                    weight: "bold",
+                    size: "md",
+                  },
+                  {
+                    type: "text",
+                    text: `${prod.name} x${qty} ลูก (${text})`,
+                    color: "#FFFFFF",
+                    size: "xs",
+                    margin: "xs",
+                  },
+                ],
+              },
+              body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                contents: [
+                  {
+                    type: "text",
+                    text: `👤 ผู้รับ: ${customerName}`,
+                    weight: "bold",
+                    size: "sm",
+                    color: "#111827",
+                  },
+                  {
+                    type: "text",
+                    text: `📞 เบอร์โทร: ${userObj.phone}`,
+                    size: "xs",
+                    color: "#4B5563",
+                  },
+                  {
+                    type: "text",
+                    text: `🏠 ที่อยู่: ${userObj.address}`,
+                    size: "xs",
+                    color: "#374151",
+                    wrap: true,
+                  },
+                ],
+              },
+              footer: {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                contents: [
+                  {
+                    type: "button",
+                    style: "primary",
+                    color: "#15803D",
+                    height: "sm",
+                    action: {
+                      type: "postback",
+                      label: "✅ ยืนยันที่อยู่นี้ และรับ QR Code",
+                      data: `action=order_step&step=confirm&pid=${encodeURIComponent(prod.id)}&qty=${qty}&ripeness=${encodeURIComponent(text)}&use_saved=1`,
+                      displayText: "ยืนยันที่อยู่จัดส่ง",
+                    },
+                  },
+                  {
+                    type: "button",
+                    style: "secondary",
+                    height: "sm",
+                    action: {
+                      type: "message",
+                      label: "✏️ พิมพ์ที่อยู่ใหม่ในแชท",
+                      text: "เปลี่ยนที่อยู่",
+                    },
+                  },
+                ],
+              },
+            };
+
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "flex",
+                  altText: "ยืนยันที่อยู่จัดส่งทุเรียน",
+                  contents: addressBubble,
+                },
+              ],
+              token
+            );
+            continue;
+          } else {
+            const formUrl = `${publicBaseUrl || "https://durianwinkin.vercel.app"}/address?userId=${encodeURIComponent(userId)}`;
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: `🍈 ได้รับข้อมูล: ${prod.name} x${qty} ลูก (${text})\n\n📍 กรุณาแจ้ง "ชื่อผู้รับ เบอร์โทรศัพท์ 10 หลัก และที่อยู่จัดส่ง" ส่งมาในแชทนี้ได้เลยครับ\n\nตัวอย่าง:\nสมชาย 0812345678 99/1 สุขุมวิท กทม. 10110\n\n(หรือกดปุ่มปักหมุด 🗺️ แผนที่ด้านล่างได้เลยครับ)`,
+                  quickReply: {
+                    items: [
+                      {
+                        type: "action",
+                        action: { type: "location", label: "🗺️ ปักหมุดแผนที่" },
+                      },
+                      {
+                        type: "action",
+                        action: {
+                          type: "uri",
+                          label: "📝 เปิดฟอร์มที่อยู่",
+                          uri: formUrl,
+                        },
+                      },
+                      {
+                        type: "action",
+                        action: { type: "message", label: "ยกเลิก", text: "ยกเลิก" },
+                      },
+                    ],
+                  },
+                },
+              ],
+              token
+            );
+            continue;
+          }
+        }
+
         // Order Wizard Steps
         if (currentSession?.flow === "order") {
           if (currentSession.step === "pick_qty" && msgType === "text") {
@@ -1486,11 +2166,16 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
+            const { data } = await getAllDatabase();
+            const prod = data.products.find((p) => p.id === currentSession.productId) || data.products[0];
+            const pricePerKg = prod?.pricePerKg || prod?.price || currentSession.price || 220;
+            const avgWeight = prod?.avgWeightKg || parseFloat(prod?.weight || "4.0") || 4.0;
             const qty = currentSession.qty || 1;
-            const totalPrice = currentSession.price * qty;
+            const estimatedItemTotal = Math.round(pricePerKg * avgWeight * qty);
             const shipOpt = resolveShippingOption(currentSession.shippingMethod);
             const shippingCost = shipOpt.price;
-            const grandTotal = totalPrice + shippingCost;
+            const grandTotal = estimatedItemTotal + shippingCost;
+            const ripenessPref = currentSession.ripenessPref || "กรอบนอกนุ่มใน (ไก่ฉีก)";
 
             // Auto-save customer to Google Sheet Users table
             try {
@@ -1500,37 +2185,64 @@ export async function POST(req: NextRequest) {
                 phone: parsed.phone,
                 address: parsed.address,
                 source: "line-chat",
-                notes: `ขั้นตอนสั่งซื้อ ${currentSession.productName} (${currentSession.qty || 1} รายการ)`,
+                notes: `ขั้นตอนสั่งซื้อ ${prod?.name || currentSession.productName} (${qty} ลูก)`,
               });
             } catch (userErr) {
               console.warn("Auto-save user during contact step failed:", userErr);
             }
+
+            // Create Order immediately
+            const orderRes = await submitNewOrder({
+              customerName: parsed.customerName,
+              phone: parsed.phone,
+              address: parsed.address,
+              ripenessPref,
+              shippingMethod: shipOpt.name,
+              shippingCost,
+              lineUserId: userId || undefined,
+              channel: "LINE OA",
+              notes: `สั่งซื้อผ่านแชท LINE OA (ราคา ฿${pricePerKg}/กก. นน.เฉลี่ย ~${avgWeight} กก./ลูก)`,
+              items: [
+                {
+                  productId: prod?.id || currentSession.productId || "WK-01",
+                  qty,
+                  ripenessPref,
+                  weightPerItem: `${avgWeight} กก.`,
+                },
+              ],
+            });
+
+            const createdOrderId = orderRes.ok ? orderRes.order.id : undefined;
 
             setLineSession(userId, {
               ...currentSession,
               step: "await_slip",
               shippingMethod: shipOpt.name,
               shippingCost,
-              totalPrice,
+              totalPrice: estimatedItemTotal,
               grandTotal,
               customerName: parsed.customerName,
               phone: parsed.phone,
               address: parsed.address,
+              orderId: createdOrderId,
             });
 
             await replyLineMessage(
               replyToken,
               buildPromptPayQrPaymentFlex({
-                productName: currentSession.productName,
+                orderId: createdOrderId,
+                productName: prod?.name || currentSession.productName || "ทุเรียนวิ่นขิ่น",
                 qty,
-                ripenessPref: currentSession.ripenessPref || "ตามมาตรฐานร้าน",
+                ripenessPref,
                 shippingMethod: shipOpt.name,
                 customerName: parsed.customerName,
                 phone: parsed.phone,
-                totalPrice,
+                totalPrice: estimatedItemTotal,
                 shippingCost,
                 grandTotal,
                 publicBaseUrl,
+                pricePerKg,
+                approxWeight: `${avgWeight} กก.`,
               }),
               token
             );

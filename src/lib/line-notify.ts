@@ -34,6 +34,10 @@ export function buildMainQuickReply() {
       },
       {
         type: "action",
+        action: { type: "message", label: "💬 คุยกับแอดมิน", text: "คุยกับแอดมิน" },
+      },
+      {
+        type: "action",
         action: { type: "message", label: "📍 ที่อยู่จัดส่ง", text: "ที่อยู่" },
       },
       {
@@ -572,6 +576,170 @@ export function buildClaimAlertForAdmin(claim: Claim, publicBaseUrl?: string): u
                 uri: `tel:${claim.phone}`,
               },
             },
+          ],
+        },
+      },
+    },
+  ];
+}
+
+export interface TicketInfo {
+  ticketId: string;
+  customerName: string;
+  phone?: string;
+  lineUserId?: string;
+  orderId?: string;
+  message: string;
+  source?: string;
+  createdAt?: string;
+}
+
+export function buildTicketAlertForAdmin(
+  ticket: TicketInfo,
+  publicBaseUrl?: string
+): unknown[] {
+  const baseUrl = publicBaseUrl || "https://durianwinkin.vercel.app";
+  return [
+    {
+      type: "flex",
+      altText: `💬 [Ticket #${ticket.ticketId}] ลูกค้า ${ticket.customerName} สอบถาม: ${ticket.message.slice(0, 40)}`,
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#0369A1",
+          paddingAll: "lg",
+          contents: [
+            {
+              type: "text",
+              text: "💬 มีลูกค้าเปิด Ticket สอบถาม! (ทีมงาน)",
+              color: "#ffffff",
+              weight: "bold",
+              size: "sm",
+            },
+            {
+              type: "text",
+              text: `รหัส Ticket: #${ticket.ticketId}${ticket.orderId ? ` • ออเดอร์ #${ticket.orderId}` : ""}`,
+              color: "#bae6fd",
+              size: "xs",
+              margin: "xs",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "text",
+              text: `ลูกค้า: ${ticket.customerName}`,
+              weight: "bold",
+              size: "sm",
+              color: "#111827",
+            },
+            ...(ticket.phone
+              ? [
+                  {
+                    type: "text",
+                    text: `เบอร์โทร: ${ticket.phone}`,
+                    size: "xs",
+                    color: "#4b5563",
+                  },
+                ]
+              : []),
+            ...(ticket.orderId
+              ? [
+                  {
+                    type: "text",
+                    text: `รหัสคำสั่งซื้อ: #${ticket.orderId}`,
+                    size: "xs",
+                    color: "#0284c7",
+                    weight: "bold",
+                  },
+                ]
+              : []),
+            {
+              type: "box",
+              layout: "vertical",
+              backgroundColor: "#f0f9ff",
+              borderColor: "#bae6fd",
+              borderWidth: "1px",
+              cornerRadius: "md",
+              paddingAll: "md",
+              margin: "sm",
+              contents: [
+                {
+                  type: "text",
+                  text: "ข้อความจากลูกค้า:",
+                  size: "xxs",
+                  color: "#0369a1",
+                  weight: "bold",
+                },
+                {
+                  type: "text",
+                  text: ticket.message,
+                  size: "xs",
+                  color: "#0f172a",
+                  wrap: true,
+                  margin: "xs",
+                },
+              ],
+            },
+            {
+              type: "text",
+              text: `🕒 เวลา: ${ticket.createdAt || new Date().toLocaleString("th-TH")}`,
+              size: "xxs",
+              color: "#9ca3af",
+              margin: "xs",
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#06C755",
+              height: "sm",
+              action: {
+                type: "uri",
+                label: "💬 เปิดแชทตอบลูกค้าทันที (LINE Chat)",
+                uri: "https://chat.line.biz/",
+              },
+            },
+            ...(ticket.orderId
+              ? [
+                  {
+                    type: "button",
+                    style: "secondary",
+                    height: "sm",
+                    action: {
+                      type: "uri",
+                      label: `📦 ดูออเดอร์ #${ticket.orderId} ในระบบ`,
+                      uri: `${baseUrl}/tracking?q=${encodeURIComponent(ticket.orderId)}`,
+                    },
+                  },
+                ]
+              : []),
+            ...(ticket.phone
+              ? [
+                  {
+                    type: "button",
+                    style: "link",
+                    height: "sm",
+                    action: {
+                      type: "uri",
+                      label: `📞 โทรหาลูกค้า (${ticket.phone})`,
+                      uri: `tel:${ticket.phone}`,
+                    },
+                  },
+                ]
+              : []),
           ],
         },
       },
@@ -1253,7 +1421,7 @@ export function buildOrderCatalogMessages(
                 action: {
                   type: "postback",
                   label: "🛒 สั่งซื้อพันธุ์นี้",
-                  data: `action=order_pick&productId=${encodeURIComponent(p.id)}`,
+                  data: `action=order_step&step=qty&pid=${encodeURIComponent(p.id)}`,
                   displayText: `เลือกสั่ง ${p.name}`,
                 },
               }
@@ -1954,11 +2122,15 @@ export function buildPromptPayQrPaymentFlex(params: {
   shippingCost: number;
   grandTotal: number;
   publicBaseUrl?: string;
+  orderId?: string;
+  pricePerKg?: number;
+  approxWeight?: string;
 }): unknown[] {
-  const qrUrl =
+  const baseUrl =
     params.publicBaseUrl && params.publicBaseUrl.startsWith("https://")
-      ? `${params.publicBaseUrl}/api/promptpay-qr?amount=${encodeURIComponent(String(params.grandTotal))}`
-      : "";
+      ? params.publicBaseUrl.replace(/\/+$/, "")
+      : "https://durianwinkin.vercel.app";
+  const qrUrl = `${baseUrl}/api/promptpay-qr?amount=${encodeURIComponent(String(params.grandTotal))}`;
 
   const bubble: Record<string, unknown> = {
     type: "bubble",
@@ -1969,14 +2141,16 @@ export function buildPromptPayQrPaymentFlex(params: {
       contents: [
         {
           type: "text",
-          text: "สแกน QR ชำระเงิน & แนบสลิป",
+          text: "🍈 สแกน QR ชำระเงิน (PromptPay)",
           color: "#FDE047",
           weight: "bold",
           size: "md",
         },
         {
           type: "text",
-          text: `ยอดโอนสุทธิ ฿${params.grandTotal.toLocaleString()} (PromptPay)`,
+          text: params.orderId
+            ? `รหัสคำสั่งซื้อ: #${params.orderId} • ยอด ฿${params.grandTotal.toLocaleString()}`
+            : `ยอดโอนสุทธิ ฿${params.grandTotal.toLocaleString()} (PromptPay)`,
           color: "#FFFFFF",
           size: "xs",
           margin: "xs",
@@ -1990,24 +2164,78 @@ export function buildPromptPayQrPaymentFlex(params: {
       contents: [
         {
           type: "text",
-          text: `${params.productName} x${params.qty}`,
+          text: `${params.productName} x${params.qty} ลูก`,
           weight: "bold",
           size: "sm",
           wrap: true,
+          color: "#111827",
         },
         {
           type: "text",
           text: `ผู้รับ: ${params.customerName} (${params.phone})`,
           size: "xs",
-          color: "#57534E",
+          color: "#4B5563",
           wrap: true,
         },
         {
           type: "text",
-          text: `ความสุก: ${params.ripenessPref} • ${params.shippingMethod} (+฿${params.shippingCost})`,
+          text: `ความสุก: ${params.ripenessPref} • ${params.shippingMethod}`,
           size: "xs",
-          color: "#57534E",
+          color: "#059669",
+          weight: "bold",
           wrap: true,
+        },
+        ...(params.pricePerKg
+          ? [
+              {
+                type: "box",
+                layout: "vertical",
+                margin: "xs",
+                contents: [
+                  {
+                    type: "text",
+                    text: `💰 ราคา: ฿${params.pricePerKg.toLocaleString()} / กก. (นน.ประมาณ ${params.approxWeight || "4.0 กก."}/ลูก)`,
+                    size: "xs",
+                    color: "#B45309",
+                    weight: "bold",
+                  },
+                  {
+                    type: "text",
+                    text: `*ยอดคำนวณจากน้ำหนักเฉลี่ย เมื่อตัดส่งจริงแอดมินจะชั่งน้ำหนักเป๊ะๆ ให้อีกครั้งครับ`,
+                    size: "xxs",
+                    color: "#9CA3AF",
+                    wrap: true,
+                  },
+                ],
+              },
+            ]
+          : []),
+        { type: "separator", margin: "sm" },
+        {
+          type: "box",
+          layout: "horizontal",
+          margin: "xs",
+          contents: [
+            { type: "text", text: "ค่าสินค้าประมาณการ:", size: "xs", color: "#6B7280", flex: 6 },
+            { type: "text", text: `฿${params.totalPrice.toLocaleString()}`, size: "xs", color: "#111827", align: "end", flex: 4 },
+          ],
+        },
+        {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            { type: "text", text: "ค่าจัดส่ง:", size: "xs", color: "#6B7280", flex: 6 },
+            { type: "text", text: params.shippingCost === 0 ? "ฟรี" : `฿${params.shippingCost.toLocaleString()}`, size: "xs", color: "#111827", align: "end", flex: 4 },
+          ],
+        },
+        {
+          type: "box",
+          layout: "horizontal",
+          margin: "xs",
+          contents: [
+            { type: "text", text: "ยอดสุทธิที่ต้องโอน:", size: "sm", weight: "bold", color: "#166534", flex: 6 },
+            { type: "text", text: `฿${params.grandTotal.toLocaleString()}`, size: "md", weight: "bold", color: "#B45309", align: "end", flex: 4 },
+          ],
         },
         { type: "separator", margin: "sm" },
         {
@@ -2027,7 +2255,7 @@ export function buildPromptPayQrPaymentFlex(params: {
         },
         {
           type: "text",
-          text: "📸 โอนเสร็จแล้วส่งรูปสลิปเข้ามาในแชทนี้ได้เลย ระบบจะตรวจและออกเลข Order WK-xxxx ให้อัตโนมัติครับ",
+          text: "📸 สแกน QR แล้วส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ ระบบจะออกใบสรุปยอดให้ทันที 🍈✨",
           size: "xs",
           weight: "bold",
           color: "#B45309",
@@ -2043,18 +2271,30 @@ export function buildPromptPayQrPaymentFlex(params: {
       contents: [
         {
           type: "button",
+          style: "primary",
+          color: "#06C755",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: "💬 สอบถาม / คุยกับแอดมิน",
+            data: `action=open_ticket&orderId=${params.orderId || ""}`,
+            displayText: "คุยกับแอดมิน",
+          },
+        },
+        {
+          type: "button",
           style: "secondary",
           height: "sm",
           action: {
             type: "postback",
-            label: "ขอยังไม่แนบสลิป",
+            label: "ขอยังไม่แนบสลิป (บันทึกออเดอร์)",
             data: "action=confirm_without_slip",
             displayText: "ขอยืนยันจองและส่งสลิปภายหลัง",
           },
         },
         {
           type: "button",
-          style: "secondary",
+          style: "link",
           height: "sm",
           action: {
             type: "message",
@@ -2083,6 +2323,15 @@ export function buildPromptPayQrPaymentFlex(params: {
       altText: `สแกน QR PromptPay ฿${params.grandTotal.toLocaleString()} แล้วส่งสลิปในแชทเพื่อออกเลข Order`,
       quickReply: {
         items: [
+          {
+            type: "action",
+            action: {
+              type: "postback",
+              label: "💬 คุยกับแอดมิน",
+              data: `action=open_ticket&orderId=${params.orderId || ""}`,
+              displayText: "คุยกับแอดมิน",
+            },
+          },
           {
             type: "action",
             action: {

@@ -29,6 +29,7 @@ export type LineSessionFlow =
       mapsUrl?: string;
       latitude?: number;
       longitude?: number;
+      orderId?: string;
       updatedAt: number;
     }
   | {
@@ -42,6 +43,12 @@ export type LineSessionFlow =
   | {
       flow: "track";
       step: "enter_query";
+      updatedAt: number;
+    }
+  | {
+      flow: "ticket";
+      step: "await_message";
+      orderId?: string;
       updatedAt: number;
     };
 
