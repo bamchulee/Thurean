@@ -32,11 +32,15 @@ export interface SubmitOrderInput {
   address?: string;
   ripenessPref?: string;
   shippingMethod?: string;
+  shippingCost?: number;
   lineUserId?: string;
   roundId?: string;
   slipUrl?: string;
   courier?: string;
   notes?: string;
+  paymentStatus?: "pending" | "confirmed" | "refunded";
+  orderStatus?: "received" | "preparing" | "packed" | "shipped" | "delivered" | "claimed";
+  createdBy?: string;
   items?: { productId: string; qty: number; ripenessPref?: string }[];
 }
 
@@ -186,9 +190,10 @@ export async function submitNewOrder(
     items: verifiedItems,
     totalPrice,
     shippingMethod: shipMethod.name,
-    shippingCost: shipMethod.price,
-    paymentStatus: "pending",
-    orderStatus: "received",
+    shippingCost: typeof body.shippingCost === "number" ? body.shippingCost : shipMethod.price,
+    paymentStatus: body.paymentStatus || "pending",
+    orderStatus: body.orderStatus || "received",
+    createdBy: body.createdBy || "customer",
     courier:
       body.courier?.trim() ||
       resolveCourierInfo(undefined, undefined, shipMethod.name).name,

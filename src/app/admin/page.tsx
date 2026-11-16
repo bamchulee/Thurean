@@ -19,12 +19,18 @@ import {
   Lock,
   LogOut,
   MapPin,
+  MessageCircle,
+  Navigation,
   Package,
+  Phone,
   Plug,
   Plus,
+  PlusCircle,
   Printer,
   Receipt,
   RefreshCw,
+  Search,
+  Send,
   ShieldAlert,
   ShieldCheck,
   ShoppingBag,
@@ -36,6 +42,7 @@ import {
   Unlock,
   UploadCloud,
   User,
+  UserPlus,
   Users,
   XCircle,
 } from "lucide-react";
@@ -643,19 +650,720 @@ function DashboardTab({
   );
 }
 
+// ============== MODAL: NOTIFY CUSTOMER VIA LINE ==============
+function NotifyCustomerModal({
+  order,
+  onClose,
+}: {
+  order: Order;
+  onClose: () => void;
+}) {
+  const [message, setMessage] = useState(
+    `สวัสดีครับคุณ ${order.customerName} ทางร้านทุเรียนวิ่นขิ่นขอแจ้งอัปเดตออเดอร์ ${order.id} ครับ 🍈`
+  );
+  const [sending, setSending] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState(false);
+  const [sendError, setSendError] = useState("");
+
+  const presets = [
+    `สวัสดีครับคุณ ${order.customerName} ทางร้านได้รับออเดอร์ ${order.id} เรียบร้อยแล้ว กำลังจัดเตรียมคัดทุเรียนเกรดพรีเมียมให้ครับ 🍈`,
+    `แจ้งอัปเดตออเดอร์ ${order.id}: ทุเรียนของคุณลูกค้าแพ็กเสร็จสมบูรณ์แล้ว เตรียมส่งรอบวันนี้ครับ 📦`,
+    `แจ้งเลขพัสดุออเดอร์ ${order.id}: ขนส่ง ${order.courier || "ควบคุมอุณหภูมิ"} เลขพัสดุ ${order.trackingNo || "-"} ครับ 🚚`,
+    `ขออนุญาตสอบถามเรื่องสเปกความสุกเพิ่มเติมสำหรับออเดอร์ ${order.id} ครับ ลูกค้าต้องการรับเนื้อกรอบนอกนุ่มใน หรือสุกพร้อมทานดีครับ? 💬`,
+    `ขอบพระคุณที่อุดหนุนสวนทุเรียนวิ่นขิ่นครับ หากได้รับสินค้าแล้วอย่าลืมถ่ายคลิปตอนเปิดกล่องไว้ด้วยนะครับ 🙏`,
+  ];
+
+  const handleSend = async () => {
+    if (!message.trim() || !order.lineUserId) return;
+    setSending(true);
+    setSendError("");
+    try {
+      const res = await fetch("/api/admin/notify-customer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lineUserId: order.lineUserId,
+          orderId: order.id,
+          message: message.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setSendSuccess(true);
+        setTimeout(() => {
+          onClose();
+        }, 1500);
+      } else {
+        setSendError(data.error || "ไม่สามารถส่งข้อความได้ กรุณาลองใหม่");
+      }
+    } catch (err: any) {
+      setSendError(err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white w-full max-w-lg rounded-3xl p-6 space-y-4 shadow-2xl border border-stone-200"
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-[#06C755]/10 text-[#06C755] flex items-center justify-center font-bold">
+              <LineIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-base text-stone-900">
+                แชท LINE หาคุณ {order.customerName}
+              </h3>
+              <p className="text-xs text-stone-500 font-mono">
+                ออเดอร์ {order.id} {order.lineUserId ? `• ${order.lineUserId}` : "• ไม่พบ LINE ID"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-stone-400 hover:text-stone-600 text-sm p-1"
+          >
+            ✕
+          </button>
+        </div>
+
+        {order.lineUserId ? (
+          <>
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1.5">
+                เลือกข้อความด่วน (Quick Presets)
+              </label>
+              <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
+                {presets.map((p, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setMessage(p)}
+                    className="text-left text-xs bg-stone-50 hover:bg-[#1B4D31]/5 hover:border-[#1B4D31]/30 border border-stone-200 p-2 rounded-xl transition text-stone-700"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                ข้อความที่จะส่งตรงเข้า LINE ลูกค้า (Push Notification)
+              </label>
+              <textarea
+                rows={4}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="พิมพ์ข้อความที่ต้องการส่งหาลูกค้า..."
+                className="w-full border border-stone-300 rounded-2xl p-3 text-xs leading-relaxed focus:outline-none focus:border-[#1B4D31]"
+              />
+            </div>
+
+            {sendSuccess && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold p-3 rounded-xl flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>ส่งข้อความเข้าห้องแชท LINE ลูกค้าเรียบร้อยแล้ว!</span>
+              </div>
+            )}
+
+            {sendError && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold p-3 rounded-xl flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{sendError}</span>
+              </div>
+            )}
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
+              <button
+                type="button"
+                disabled={sending || sendSuccess || !message.trim()}
+                onClick={handleSend}
+                className="w-full sm:flex-1 bg-[#06C755] hover:bg-[#05b34c] text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition disabled:opacity-60 shadow-xs"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{sending ? "กำลังส่งเข้า LINE..." : "ส่งข้อความทันที"}</span>
+              </button>
+              <a
+                href="https://chat.line.biz/"
+                target="_blank"
+                rel="noreferrer"
+                className="w-full sm:w-auto px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition text-center"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>เปิด LINE OA Chat</span>
+              </a>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-4 py-2">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 leading-relaxed">
+              <p className="font-bold mb-1 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <span>ออเดอร์นี้ไม่มี LINE User ID</span>
+              </p>
+              <p>
+                ลูกค้าสั่งซื้อผ่านเว็บไซต์โดยไม่ได้ล็อกอินผ่าน LINE
+                คุณสามารถติดต่อลูกค้าผ่านเบอร์โทรศัพท์{" "}
+                <a href={`tel:${order.phone}`} className="font-bold underline text-[#1B4D31]">
+                  {order.phone}
+                </a>{" "}
+                หรือเปิดดูประวัติแชทใน LINE Official Account Manager
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <a
+                href={`tel:${order.phone}`}
+                className="flex-1 bg-[#1B4D31] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>โทรหาลูกค้า ({order.phone})</span>
+              </a>
+              <a
+                href="https://chat.line.biz/"
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 bg-[#06C755] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>เปิด LINE OA Chat</span>
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============== MODAL: MANUAL ORDER (POS / OFF-MENU) ==============
+function ManualOrderModal({
+  products,
+  rounds,
+  users,
+  onClose,
+  onOrderCreated,
+}: {
+  products: Product[];
+  rounds: Round[];
+  users: SafeUser[];
+  onClose: () => void;
+  onOrderCreated: (order: Order) => void;
+}) {
+  const [selectedUserMode, setSelectedUserMode] = useState<"new" | "existing">("new");
+  const [userSearch, setUserSearch] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [mapsUrl, setMapsUrl] = useState("");
+  const [lineUserId, setLineUserId] = useState("");
+
+  const [productId, setProductId] = useState(products[0]?.id || "");
+  const [qty, setQty] = useState(1);
+  const [customPrice, setCustomPrice] = useState(products[0]?.price || 590);
+  const [ripenessPref, setRipenessPref] = useState("กรอบนอกนุ่มใน");
+  const [roundId, setRoundId] = useState(rounds[0]?.id || "");
+  const [shippingMethod, setShippingMethod] = useState("ควบคุมอุณหภูมิ (เย็น)");
+  const [shippingCost, setShippingCost] = useState(120);
+  const [paymentStatus, setPaymentStatus] = useState<"confirmed" | "pending">("confirmed");
+  const [orderStatus, setOrderStatus] = useState<OrderStatus>("received");
+  const [notifyLine, setNotifyLine] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleProductChange = (id: string) => {
+    setProductId(id);
+    const prod = products.find((p) => p.id === id);
+    if (prod) {
+      setCustomPrice(prod.price);
+    }
+  };
+
+  const handleSelectUser = (u: SafeUser) => {
+    setSelectedUserId(u.userId || "");
+    setCustomerName(u.displayName || u.username);
+    setPhone(u.phone || "");
+    setAddress(u.address || "");
+    setMapsUrl(u.mapsUrl || "");
+    setLineUserId(u.lineUserId || "");
+  };
+
+  const selectedProd = products.find((p) => p.id === productId) || products[0];
+  const itemsTotal = customPrice * qty;
+  const grandTotal = itemsTotal + Number(shippingCost || 0);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerName.trim() || !phone.trim() || !address.trim()) {
+      setError("กรุณากรอกชื่อลูกค้า เบอร์โทรศัพท์ และที่อยู่จัดส่งให้ครบถ้วน");
+      return;
+    }
+    if (qty <= 0) {
+      setError("จำนวนต้องมากกว่า 0");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const payload = {
+        customerName: customerName.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        mapsUrl: mapsUrl.trim() || undefined,
+        items: [
+          {
+            productId: selectedProd ? selectedProd.id : "manual",
+            productName: selectedProd ? selectedProd.name : "ทุเรียนสั่งพิเศษ",
+            qty: Number(qty),
+            price: Number(customPrice),
+            variety: selectedProd ? selectedProd.variety : "หมอนทอง",
+          },
+        ],
+        shippingMethod,
+        shippingCost: Number(shippingCost || 0),
+        ripenessPref: ripenessPref || "กรอบนอกนุ่มใน",
+        roundId: roundId || undefined,
+        paymentStatus,
+        orderStatus,
+        userId: selectedUserId || undefined,
+        lineUserId: lineUserId.trim() || undefined,
+        isAdminRequest: true,
+        notifyLine: Boolean(notifyLine && lineUserId),
+      };
+
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.ok && json.order) {
+        onOrderCreated(json.order);
+        onClose();
+      } else {
+        setError(json.error || "ไม่สามารถสร้างออเดอร์ได้");
+      }
+    } catch (err: any) {
+      setError(err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const filteredUsers = users.filter(
+    (u) =>
+      u.displayName?.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.username?.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.phone?.includes(userSearch) ||
+      u.userId?.toLowerCase().includes(userSearch.toLowerCase())
+  );
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <form
+        onSubmit={handleSubmit}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white w-full max-w-2xl rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl border border-stone-200 my-8 max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+          <div>
+            <h3 className="font-extrabold text-lg text-stone-900 flex items-center gap-2">
+              <PlusCircle className="w-5 h-5 text-[#1B4D31]" />
+              <span>ออกออเดอร์ใหม่ (Manual Order / POS หน้าร้าน)</span>
+            </h3>
+            <p className="text-xs text-stone-500">
+              สร้างคำสั่งซื้อโดยตรงโดยแอดมิน ระบบจะตัดสต็อกและจัดสรรโควตารอบรถให้อัตโนมัติ
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-stone-400 hover:text-stone-600 text-sm p-1"
+          >
+            ✕
+          </button>
+        </div>
+
+        {error && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold p-3 rounded-xl flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* User Selection */}
+        <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-extrabold text-stone-800">
+              👤 ข้อมูลลูกค้า (Customer Info)
+            </span>
+            <div className="flex gap-1 bg-white p-1 rounded-xl border border-stone-200 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setSelectedUserMode("new")}
+                className={`px-2.5 py-1 rounded-lg transition ${
+                  selectedUserMode === "new"
+                    ? "bg-[#1B4D31] text-white"
+                    : "text-stone-600 hover:bg-stone-100"
+                }`}
+              >
+                กรอกข้อมูลใหม่
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedUserMode("existing")}
+                className={`px-2.5 py-1 rounded-lg transition ${
+                  selectedUserMode === "existing"
+                    ? "bg-[#1B4D31] text-white"
+                    : "text-stone-600 hover:bg-stone-100"
+                }`}
+              >
+                เลือกจากสมาชิก ({users.length})
+              </button>
+            </div>
+          </div>
+
+          {selectedUserMode === "existing" && (
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="ค้นหาชื่อ, เบอร์โทร หรือ User ID..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs"
+              />
+              <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
+                {filteredUsers.slice(0, 10).map((u) => (
+                  <div
+                    key={u.userId}
+                    onClick={() => handleSelectUser(u)}
+                    className={`cursor-pointer p-2 rounded-xl text-xs border flex items-center justify-between transition ${
+                      selectedUserId === u.userId
+                        ? "bg-[#1B4D31]/10 border-[#1B4D31] font-bold text-[#1B4D31]"
+                        : "bg-white border-stone-200 hover:bg-stone-100 text-stone-700"
+                    }`}
+                  >
+                    <span>{u.displayName || u.username} ({u.phone || "ไม่มีเบอร์"})</span>
+                    <span className="text-[10px] text-stone-400 font-mono">{u.userId}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                ชื่อผู้รับ *
+              </label>
+              <input
+                type="text"
+                required
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="เช่น สมชาย ใจดี"
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                เบอร์โทรศัพท์ *
+              </label>
+              <input
+                type="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="เช่น 0812345678"
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-mono"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-stone-700 mb-1">
+              ที่อยู่จัดส่ง *
+            </label>
+            <textarea
+              rows={2}
+              required
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="บ้านเลขที่ ซอย ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"
+              className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                Google Maps URL (ลิงก์หมุดนำทาง)
+              </label>
+              <input
+                type="url"
+                value={mapsUrl}
+                onChange={(e) => setMapsUrl(e.target.value)}
+                placeholder="https://maps.google.com/..."
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-mono text-[11px]"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                LINE User ID (ถ้าทราบ เช่น U062...)
+              </label>
+              <input
+                type="text"
+                value={lineUserId}
+                onChange={(e) => setLineUserId(e.target.value)}
+                placeholder="U..."
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-mono text-[11px]"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Product & Ripeness */}
+        <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-200/60 space-y-3">
+          <span className="text-xs font-extrabold text-stone-800">
+            🍈 รายการสินค้าและสเปกทุเรียน
+          </span>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                เลือกสินค้า
+              </label>
+              <select
+                value={productId}
+                onChange={(e) => handleProductChange(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
+              >
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.variety}) - ฿{p.price} [คงเหลือ: {formatProductStock(p).summary}]
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                จำนวน (กก./ลูก/กล่อง)
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={qty}
+                onChange={(e) => setQty(Number(e.target.value))}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold text-center font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                ราคาต่อหน่วย (฿)
+              </label>
+              <input
+                type="number"
+                value={customPrice}
+                onChange={(e) => setCustomPrice(Number(e.target.value))}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                ระดับความสุก (Ripeness)
+              </label>
+              <select
+                value={ripenessPref}
+                onChange={(e) => setRipenessPref(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
+              >
+                <option value="กรอบนอกนุ่มใน">กรอบนอกนุ่มใน (ยอดฮิต)</option>
+                <option value="พอดีกิน">พอดีกิน (นุ่มละมุน)</option>
+                <option value="สุกนิ่ม">สุกนิ่ม (หวานจัด)</option>
+                <option value="ไก่ฉีก">ไก่ฉีก (กรอบมาก)</option>
+                <option value="นำไปบ่มเอง">นำไปบ่มเอง (ตัดสด)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                รอบตัดส่ง (Round)
+              </label>
+              <select
+                value={roundId}
+                onChange={(e) => setRoundId(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
+              >
+                {rounds.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} ({r.deliveryDate || r.harvestDate || "รอบปัจจุบัน"})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Shipping & Payment */}
+        <div className="bg-sky-50/50 p-4 rounded-2xl border border-sky-200/60 space-y-3">
+          <span className="text-xs font-extrabold text-stone-800">
+            🚚 การจัดส่งและการชำระเงิน
+          </span>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                วิธีจัดส่ง
+              </label>
+              <select
+                value={shippingMethod}
+                onChange={(e) => setShippingMethod(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
+              >
+                <option value="ควบคุมอุณหภูมิ (เย็น)">รถห้องเย็นควบคุมอุณหภูมิ (Cold Chain)</option>
+                <option value="ด่วนมอเตอร์ไซค์">ส่งด่วน Grab / Lalamove</option>
+                <option value="นัดรับที่สวน">นัดรับที่สวน / หน้าร้าน</option>
+                <option value="ขนส่งเอกชนทั่วไป">ขนส่งพัสดุด่วนเอกชน (Kerry / Flash)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                ค่าจัดส่ง (฿)
+              </label>
+              <input
+                type="number"
+                value={shippingCost}
+                onChange={(e) => setShippingCost(Number(e.target.value))}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                สถานะการชำระเงิน
+              </label>
+              <select
+                value={paymentStatus}
+                onChange={(e) => setPaymentStatus(e.target.value as any)}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
+              >
+                <option value="confirmed">ชำระแล้ว (เงินสด / โอนเรียบร้อย)</option>
+                <option value="pending">รอตรวจสลิป</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                สถานะออเดอร์
+              </label>
+              <select
+                value={orderStatus}
+                onChange={(e) => setOrderStatus(e.target.value as OrderStatus)}
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
+              >
+                <option value="received">รับออเดอร์แล้ว</option>
+                <option value="preparing">กำลังคัดของจากสวน</option>
+                <option value="packed">แพ็กเสร็จแล้ว</option>
+                <option value="shipped">จัดส่งแล้ว</option>
+              </select>
+            </div>
+          </div>
+
+          {lineUserId && (
+            <label className="flex items-center gap-2 text-xs text-stone-700 pt-1">
+              <input
+                type="checkbox"
+                checked={notifyLine}
+                onChange={(e) => setNotifyLine(e.target.checked)}
+                className="accent-[#1B4D31]"
+              />
+              <span>ส่ง Flex Message สรุปคำสั่งซื้อเข้า LINE ลูกค้าทันที</span>
+            </label>
+          )}
+        </div>
+
+        {/* Total Summary */}
+        <div className="bg-[#1B4D31]/5 border border-[#1B4D31]/20 rounded-2xl p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-stone-500 font-bold">ยอดสุทธิที่ต้องชำระ (รวมค่าส่ง)</p>
+            <p className="text-xs text-stone-400">
+              ค่าสินค้า ฿{itemsTotal.toLocaleString()} + ค่าส่ง ฿{shippingCost.toLocaleString()}
+            </p>
+          </div>
+          <p className="text-2xl font-black text-[#1B4D31] font-mono">
+            ฿{grandTotal.toLocaleString()}
+          </p>
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-2 pt-2">
+          <button
+            type="submit"
+            disabled={submitting}
+            className="flex-1 bg-[#1B4D31] hover:bg-[#143B25] text-white font-extrabold py-3 rounded-2xl text-xs transition shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <CheckCircle2 className="w-4 h-4 text-amber-300" />
+            <span>{submitting ? "กำลังบันทึกออเดอร์..." : "บันทึกและสร้างออเดอร์ (Confirm Order)"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-2xl text-xs transition"
+          >
+            ยกเลิก
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // ============== TAB 2: ORDERS ==============
 function OrdersTab({
   orders,
   lots,
+  products = [],
+  rounds = [],
+  users = [],
+  claims = [],
   onOrderUpdated,
+  onOrderCreated,
+  onGoToTab,
 }: {
   orders: Order[];
   lots: LotCost[];
+  products?: Product[];
+  rounds?: Round[];
+  users?: SafeUser[];
+  claims?: Claim[];
   onOrderUpdated: (updated: Order) => void;
+  onOrderCreated?: (created: Order) => void;
+  onGoToTab?: (tab: TabId) => void;
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [labelOrder, setLabelOrder] = useState<Order | null>(null);
+  const [chatModalOrder, setChatModalOrder] = useState<Order | null>(null);
+  const [showManualOrder, setShowManualOrder] = useState(false);
   const [trackInput, setTrackInput] = useState("");
   const [courierInput, setCourierInput] = useState("");
   const [lotInput, setLotInput] = useState("");
@@ -663,10 +1371,57 @@ function OrdersTab({
   const [notifyLine, setNotifyLine] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const filtered =
-    statusFilter === "all"
-      ? orders
-      : orders.filter((o) => o.orderStatus === statusFilter);
+  // Top alert metrics:
+  const pendingSlipOrders = orders.filter((o) => o.paymentStatus === "pending");
+  const readyToShipOrders = orders.filter(
+    (o) =>
+      o.paymentStatus === "confirmed" &&
+      (o.orderStatus === "received" ||
+        o.orderStatus === "preparing" ||
+        o.orderStatus === "packed")
+  );
+  const shippedOrders = orders.filter((o) => o.orderStatus === "shipped");
+  const deliveredOrders = orders.filter((o) => o.orderStatus === "delivered");
+  const claimedOrders = orders.filter((o) => o.orderStatus === "claimed");
+  const lineUserOrders = orders.filter((o) => Boolean(o.lineUserId));
+  const pendingClaimsCount = claims.filter((c) => c.status === "pending").length;
+
+  const filtered = orders.filter((o) => {
+    // Status filter
+    if (statusFilter === "pending_slip") {
+      if (o.paymentStatus !== "pending") return false;
+    } else if (statusFilter === "ready_to_ship") {
+      if (
+        !(
+          o.paymentStatus === "confirmed" &&
+          (o.orderStatus === "received" ||
+            o.orderStatus === "preparing" ||
+            o.orderStatus === "packed")
+        )
+      )
+        return false;
+    } else if (statusFilter === "line_only") {
+      if (!o.lineUserId) return false;
+    } else if (statusFilter !== "all") {
+      if (o.orderStatus !== statusFilter) return false;
+    }
+
+    // Search query filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchId = o.id.toLowerCase().includes(q);
+      const matchName = o.customerName.toLowerCase().includes(q);
+      const matchPhone = o.phone.includes(q);
+      const matchAddress = o.address?.toLowerCase().includes(q);
+      const matchTrack = o.trackingNo?.toLowerCase().includes(q);
+      const matchUser = o.userId?.toLowerCase().includes(q);
+      if (!matchId && !matchName && !matchPhone && !matchAddress && !matchTrack && !matchUser) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   const patchOrder = async (
     orderId: string,
@@ -715,232 +1470,508 @@ function OrdersTab({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h2 className="text-xl font-extrabold text-stone-900">
-          คำสั่งซื้อ ({filtered.length})
-        </h2>
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
-          {["all", "received", "preparing", "packed", "shipped", "delivered", "claimed"].map(
-            (s) => (
+      {/* 1. TOP ALERT SUMMARY CARDS */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <button
+          type="button"
+          onClick={() => setStatusFilter("pending_slip")}
+          className={`text-left p-3.5 rounded-2xl border transition ${
+            statusFilter === "pending_slip"
+              ? "bg-amber-500 text-white border-amber-600 shadow-sm"
+              : pendingSlipOrders.length > 0
+              ? "bg-amber-50 border-amber-300 text-amber-950 hover:bg-amber-100"
+              : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold">⚡ รอตรวจสลิป</span>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                pendingSlipOrders.length > 0 ? "bg-amber-500 animate-pulse" : "bg-stone-300"
+              }`}
+            />
+          </div>
+          <div className="text-xl font-black font-mono">{pendingSlipOrders.length}</div>
+          <p className="text-[10px] opacity-80 mt-0.5">ต้องกดเช็คยอด</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter("ready_to_ship")}
+          className={`text-left p-3.5 rounded-2xl border transition ${
+            statusFilter === "ready_to_ship"
+              ? "bg-sky-600 text-white border-sky-700 shadow-sm"
+              : readyToShipOrders.length > 0
+              ? "bg-sky-50 border-sky-200 text-sky-950 hover:bg-sky-100"
+              : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold">📦 ต้องจัดส่ง</span>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                readyToShipOrders.length > 0 ? "bg-sky-500 animate-pulse" : "bg-stone-300"
+              }`}
+            />
+          </div>
+          <div className="text-xl font-black font-mono">{readyToShipOrders.length}</div>
+          <p className="text-[10px] opacity-80 mt-0.5">คัดของ / แพ็กกล่อง</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter("shipped")}
+          className={`text-left p-3.5 rounded-2xl border transition ${
+            statusFilter === "shipped"
+              ? "bg-indigo-600 text-white border-indigo-700 shadow-sm"
+              : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold">🚚 อยู่ระหว่างส่ง</span>
+          </div>
+          <div className="text-xl font-black font-mono">{shippedOrders.length}</div>
+          <p className="text-[10px] opacity-80 mt-0.5">มี Tracking แล้ว</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => (onGoToTab ? onGoToTab("claims") : setStatusFilter("claimed"))}
+          className={`text-left p-3.5 rounded-2xl border transition ${
+            pendingClaimsCount > 0
+              ? "bg-rose-50 border-rose-300 text-rose-950 hover:bg-rose-100"
+              : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold">🚨 รายการเคลม</span>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                pendingClaimsCount > 0 ? "bg-rose-500 animate-pulse" : "bg-stone-300"
+              }`}
+            />
+          </div>
+          <div className="text-xl font-black font-mono text-rose-600">
+            {pendingClaimsCount > 0 ? pendingClaimsCount : claimedOrders.length}
+          </div>
+          <p className="text-[10px] opacity-80 mt-0.5">กดดูศูนย์เคลม ↗</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter("line_only")}
+          className={`text-left p-3.5 rounded-2xl border transition ${
+            statusFilter === "line_only"
+              ? "bg-[#06C755] text-white border-[#05b34c] shadow-sm"
+              : "bg-[#06C755]/10 border-[#06C755]/30 text-stone-900 hover:bg-[#06C755]/15"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold">💬 ผ่าน LINE</span>
+            <LineIcon className="w-3.5 h-3.5 text-[#06C755]" />
+          </div>
+          <div className="text-xl font-black font-mono">{lineUserOrders.length}</div>
+          <p className="text-[10px] opacity-80 mt-0.5">แชทตรงได้ทันที</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter("all")}
+          className={`text-left p-3.5 rounded-2xl border transition ${
+            statusFilter === "all"
+              ? "bg-[#1B4D31] text-white border-[#143B25] shadow-sm"
+              : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold">📋 คำสั่งซื้อทั้งหมด</span>
+          </div>
+          <div className="text-xl font-black font-mono">{orders.length}</div>
+          <p className="text-[10px] opacity-80 mt-0.5">รวมทุกสถานะ</p>
+        </button>
+      </div>
+
+      {/* 2. CONTROLS BAR: SEARCH, STATUS PILLS, NEW ORDER BUTTON */}
+      <div className="bg-white rounded-2xl border border-stone-200 p-4 space-y-3 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-3 text-stone-400" />
+            <input
+              type="text"
+              placeholder="ค้นหา Order ID, ชื่อลูกค้า, เบอร์โทร, ที่อยู่, เลขพัสดุ หรือ User ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-stone-200 rounded-xl text-xs bg-stone-50 focus:bg-white focus:outline-none focus:border-[#1B4D31]"
+            />
+            {searchQuery && (
               <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                  statusFilter === s
-                    ? "bg-[#1B4D31] text-white"
-                    : "bg-white text-stone-600 border border-stone-200 hover:bg-stone-50"
-                }`}
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-2.5 text-xs text-stone-400 hover:text-stone-600"
               >
-                {s === "all" ? "ทั้งหมด" : orderStatusLabel[s]?.text || s}
+                ✕
               </button>
-            )
-          )}
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowManualOrder(true)}
+              className="w-full sm:w-auto bg-[#1B4D31] hover:bg-[#143B25] text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs inline-flex items-center justify-center gap-1.5"
+            >
+              <PlusCircle className="w-4 h-4 text-amber-300" />
+              <span>ออกออเดอร์ใหม่ (POS / สั่งนอกเมนู)</span>
+            </button>
+            <a
+              href="https://chat.line.biz/"
+              target="_blank"
+              rel="noreferrer"
+              className="hidden sm:inline-flex items-center gap-1.5 bg-[#06C755] hover:bg-[#05b34c] text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-xs"
+              title="เปิด LINE Official Account Manager"
+            >
+              <LineIcon className="w-3.5 h-3.5" />
+              <span>LINE Chat</span>
+            </a>
+          </div>
+        </div>
+
+        {/* Filter pills */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-stone-100">
+          {[
+            { id: "all", label: "ทั้งหมด" },
+            { id: "pending_slip", label: "⚡ รอตรวจสลิป" },
+            { id: "ready_to_ship", label: "📦 ต้องจัดส่ง" },
+            { id: "received", label: "รับออเดอร์" },
+            { id: "preparing", label: "คัดของจากสวน" },
+            { id: "packed", label: "แพ็กเสร็จ" },
+            { id: "shipped", label: "จัดส่งแล้ว" },
+            { id: "delivered", label: "สำเร็จ" },
+            { id: "claimed", label: "แจ้งเคลม" },
+            { id: "line_only", label: "💬 สั่งผ่าน LINE" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setStatusFilter(item.id)}
+              className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                statusFilter === item.id
+                  ? "bg-[#1B4D31] text-white shadow-xs"
+                  : "bg-stone-50 text-stone-600 border border-stone-200 hover:bg-stone-100"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       </div>
 
+      {/* 3. ORDER CARDS LIST */}
       <div className="space-y-3">
-        {filtered.map((order) => (
-          <div
-            key={order.id}
-            className="bg-white rounded-2xl shadow-xs border border-stone-200 p-5"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-extrabold text-stone-900 font-mono text-base">
-                    {order.id}
-                  </span>
-                  <span
-                    className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${
-                      paymentStatusLabel[order.paymentStatus]?.color || "bg-stone-100"
-                    }`}
-                  >
-                    {paymentStatusLabel[order.paymentStatus]?.text || order.paymentStatus}
-                  </span>
-                  {order.lotId && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 font-mono font-bold">
-                      ล็อต: {order.lotId}
+        {filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center text-stone-400">
+            <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-40" />
+            <p className="text-sm font-bold text-stone-600">ไม่พบคำสั่งซื้อที่ตรงกับเงื่อนไข</p>
+            <p className="text-xs mt-1">ลองเปลี่ยนตัวกรองสถานะ หรือคำค้นหา</p>
+          </div>
+        ) : (
+          filtered.map((order) => (
+            <div
+              key={order.id}
+              className="bg-white rounded-2xl shadow-xs border border-stone-200 p-5 hover:border-stone-300 transition"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="font-extrabold text-stone-900 font-mono text-base">
+                      {order.id}
                     </span>
-                  )}
-                  <button
-                    onClick={() => {
-                      const currentActive = (order.isActive === 0 || (order.isActive as any) === "0" || order.isActive === false) ? 0 : 1;
-                      const nextVal = currentActive === 1 ? 0 : 1;
-                      patchOrder(order.id, { isActive: nextVal });
-                    }}
-                    title="สลับสถานะ Is Active (1 = ใช้งาน, 0 = ปิดใช้งาน/ยกเลิก)"
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold border transition inline-flex items-center gap-1 ${
-                      (order.isActive === 0 || (order.isActive as any) === "0" || order.isActive === false)
-                        ? "bg-stone-100 text-stone-500 border-stone-300 hover:bg-stone-200"
-                        : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
-                    }`}
-                  >
                     <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        (order.isActive === 0 || (order.isActive as any) === "0" || order.isActive === false)
-                          ? "bg-stone-400"
-                          : "bg-emerald-500"
+                      className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${
+                        paymentStatusLabel[order.paymentStatus]?.color || "bg-stone-100"
                       }`}
-                    />
-                    <span>
-                      {(order.isActive === 0 || (order.isActive as any) === "0" || order.isActive === false)
-                        ? "IsActive: 0"
-                        : "IsActive: 1"}
-                    </span>
-                  </button>
-                </div>
-                <p className="text-[11px] text-stone-400 font-mono">
-                  {new Date(order.createDate || order.createdAt).toLocaleString("th-TH")} • โดย: {order.createdBy || order.userId || "customer"}
-                </p>
-              </div>
-              <span
-                className={`text-xs px-3 py-1 rounded-full font-bold ${
-                  orderStatusLabel[order.orderStatus]?.color || "bg-stone-100"
-                }`}
-              >
-                {orderStatusLabel[order.orderStatus]?.text || order.orderStatus}
-              </span>
-            </div>
-
-            <div className="bg-stone-50 rounded-xl p-3.5 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-stone-100">
-              <div>
-                <p className="font-bold text-sm text-stone-900 flex items-center gap-1.5 flex-wrap">
-                  <User className="w-3.5 h-3.5 text-stone-400" />
-                  <span>{order.customerName}</span>
-                  <span className="text-xs font-mono text-stone-500">
-                    ({order.phone})
-                  </span>
-                  {order.userId && (
-                    <span
-                      className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 font-mono font-bold"
-                      title="User ID เชื่อมโยงกับแท็บ User Sheet"
                     >
-                      User ID: {order.userId}
+                      {paymentStatusLabel[order.paymentStatus]?.text || order.paymentStatus}
                     </span>
-                  )}
-                  {order.lineUserId && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#06C755]/10 text-[#06C755] border border-[#06C755]/30 font-bold">
-                      LINE
-                    </span>
-                  )}
-                </p>
-                {order.address && (
-                  <p className="text-xs text-stone-500 mt-1 flex items-start gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-stone-400 shrink-0 mt-0.5" />
-                    <span>{order.address}</span>
-                  </p>
-                )}
-                {order.ripenessPref && (
-                  <p className="text-xs text-amber-800 font-semibold mt-1 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    <span>สเปกความสุก: {order.ripenessPref}</span>
-                  </p>
-                )}
-              </div>
-              <p className="text-xl font-extrabold text-[#1B4D31] shrink-0">
-                ฿{(order.totalPrice + order.shippingCost).toLocaleString()}
-              </p>
-            </div>
-
-            <div className="space-y-1 mb-3 text-xs">
-              {order.items.map((it, i) => (
-                <div key={i} className="flex justify-between text-stone-700 font-medium">
-                  <span>
-                    {it.productName} <strong>x{it.qty}</strong>
-                  </span>
-                  <span className="font-mono">฿{(it.price * it.qty).toLocaleString()}</span>
-                </div>
-              ))}
-              <div className="flex justify-between text-stone-400 pt-1.5 border-t border-stone-100">
-                <span className="flex items-center gap-1">
-                  <Truck className="w-3.5 h-3.5" />
-                  <span>{order.shippingMethod}</span>
-                </span>
-                <span className="font-mono">฿{order.shippingCost}</span>
-              </div>
-            </div>
-
-            {(order.trackingNo || order.courier) && (
-              <div className="bg-sky-50 border border-sky-200 rounded-xl p-2.5 text-xs text-sky-900 mb-3 flex flex-wrap items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5" />
-                  <span>
-                    ขนส่ง:{" "}
-                    <strong>
-                      {resolveCourierInfo(order.trackingNo, order.courier, order.shippingMethod).name}
-                    </strong>
-                    {order.trackingNo && (
-                      <>
-                        {" "}
-                        • เลขพัสดุ: <strong className="font-mono">{order.trackingNo}</strong>
-                      </>
+                    {order.lotId && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 font-mono font-bold">
+                        ล็อต: {order.lotId}
+                      </span>
                     )}
-                  </span>
+                    <button
+                      onClick={() => {
+                        const currentActive =
+                          order.isActive === 0 ||
+                          (order.isActive as any) === "0" ||
+                          order.isActive === false
+                            ? 0
+                            : 1;
+                        const nextVal = currentActive === 1 ? 0 : 1;
+                        patchOrder(order.id, { isActive: nextVal });
+                      }}
+                      title="สลับสถานะ Is Active (1 = ใช้งาน, 0 = ปิดใช้งาน/ยกเลิก)"
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold border transition inline-flex items-center gap-1 ${
+                        order.isActive === 0 ||
+                        (order.isActive as any) === "0" ||
+                        order.isActive === false
+                          ? "bg-stone-100 text-stone-500 border-stone-300 hover:bg-stone-200"
+                          : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          order.isActive === 0 ||
+                          (order.isActive as any) === "0" ||
+                          order.isActive === false
+                            ? "bg-stone-400"
+                            : "bg-emerald-500"
+                        }`}
+                      />
+                      <span>
+                        {order.isActive === 0 ||
+                        (order.isActive as any) === "0" ||
+                        order.isActive === false
+                          ? "IsActive: 0"
+                          : "IsActive: 1"}
+                      </span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-stone-400 font-mono">
+                    {new Date(order.createDate || order.createdAt).toLocaleString("th-TH")} • โดย:{" "}
+                    {order.createdBy || order.userId || "customer"}
+                  </p>
+                </div>
+                <span
+                  className={`text-xs px-3 py-1 rounded-full font-bold ${
+                    orderStatusLabel[order.orderStatus]?.color || "bg-stone-100"
+                  }`}
+                >
+                  {orderStatusLabel[order.orderStatus]?.text || order.orderStatus}
                 </span>
-                {order.slipUrl && (
+              </div>
+
+              {/* Customer Box */}
+              <div className="bg-stone-50 rounded-xl p-3.5 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-stone-100">
+                <div>
+                  <p className="font-bold text-sm text-stone-900 flex items-center gap-1.5 flex-wrap">
+                    <User className="w-3.5 h-3.5 text-stone-400" />
+                    <span>{order.customerName}</span>
+                    <a
+                      href={`tel:${order.phone}`}
+                      className="text-xs font-mono text-[#1B4D31] hover:underline font-bold inline-flex items-center gap-1 bg-stone-200/60 px-2 py-0.5 rounded-md"
+                      title="กดเพื่อโทรออก"
+                    >
+                      <Phone className="w-3 h-3 text-stone-500" />
+                      <span>{order.phone}</span>
+                    </a>
+                    {order.userId && (
+                      <span
+                        className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 font-mono font-bold"
+                        title="User ID เชื่อมโยงกับแท็บ User Sheet"
+                      >
+                        User ID: {order.userId}
+                      </span>
+                    )}
+                    {order.lineUserId && (
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-[#06C755]/10 text-[#06C755] border border-[#06C755]/30 font-bold inline-flex items-center gap-1"
+                        title={`LINE User ID: ${order.lineUserId}`}
+                      >
+                        <LineIcon className="w-3 h-3" />
+                        <span>LINE</span>
+                      </span>
+                    )}
+                  </p>
+                  {order.address && (
+                    <div className="text-xs text-stone-600 mt-1 flex items-start gap-1.5 flex-wrap">
+                      <MapPin className="w-3.5 h-3.5 text-stone-400 shrink-0 mt-0.5" />
+                      <span>{order.address}</span>
+                      {order.mapsUrl && (
+                        <a
+                          href={order.mapsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200 px-2 py-0.5 rounded-md transition"
+                        >
+                          <Navigation className="w-3 h-3 text-emerald-700" />
+                          <span>เปิดหมุด Google Maps ↗</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  {order.ripenessPref && (
+                    <p className="text-xs text-amber-800 font-semibold mt-1 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>สเปกความสุก: {order.ripenessPref}</span>
+                    </p>
+                  )}
+                </div>
+                <p className="text-xl font-extrabold text-[#1B4D31] shrink-0">
+                  ฿{(order.totalPrice + order.shippingCost).toLocaleString()}
+                </p>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-1 mb-3 text-xs">
+                {order.items.map((it, i) => (
+                  <div key={i} className="flex justify-between text-stone-700 font-medium">
+                    <span>
+                      {it.productName} <strong>x{it.qty}</strong>
+                    </span>
+                    <span className="font-mono">฿{(it.price * it.qty).toLocaleString()}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-stone-400 pt-1.5 border-t border-stone-100">
+                  <span className="flex items-center gap-1">
+                    <Truck className="w-3.5 h-3.5" />
+                    <span>{order.shippingMethod}</span>
+                  </span>
+                  <span className="font-mono">฿{order.shippingCost}</span>
+                </div>
+              </div>
+
+              {/* Tracking / Slip alert */}
+              {(order.trackingNo || order.courier) && (
+                <div className="bg-sky-50 border border-sky-200 rounded-xl p-2.5 text-xs text-sky-900 mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Package className="w-3.5 h-3.5" />
+                    <span>
+                      ขนส่ง:{" "}
+                      <strong>
+                        {resolveCourierInfo(order.trackingNo, order.courier, order.shippingMethod).name}
+                      </strong>
+                      {order.trackingNo && (
+                        <>
+                          {" "}
+                          • เลขพัสดุ: <strong className="font-mono">{order.trackingNo}</strong>
+                        </>
+                      )}
+                    </span>
+                  </span>
+                  {order.slipUrl && (
+                    <a
+                      href={order.slipUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="bg-white border border-sky-300 text-sky-800 px-2.5 py-0.5 rounded-lg font-bold hover:bg-sky-100 inline-flex items-center gap-1"
+                    >
+                      <Receipt className="w-3 h-3" />
+                      <span>ดูสลิป</span>
+                    </a>
+                  )}
+                </div>
+              )}
+              {!order.trackingNo && !order.courier && order.slipUrl && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-900 mb-3 flex items-center justify-between">
+                  <span>ลูกค้าแนบสลิปทาง LINE แล้ว</span>
                   <a
                     href={order.slipUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="bg-white border border-sky-300 text-sky-800 px-2.5 py-0.5 rounded-lg font-bold hover:bg-sky-100 inline-flex items-center gap-1"
+                    className="bg-white border border-emerald-300 text-emerald-800 px-2.5 py-0.5 rounded-lg font-bold hover:bg-emerald-100 inline-flex items-center gap-1"
                   >
                     <Receipt className="w-3 h-3" />
                     <span>ดูสลิป</span>
                   </a>
-                )}
-              </div>
-            )}
-            {!order.trackingNo && !order.courier && order.slipUrl && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-900 mb-3 flex items-center justify-between">
-                <span>ลูกค้าแนบสลิปทาง LINE แล้ว</span>
+                </div>
+              )}
+
+              {/* Actions row: Chat LINE, Call, Map, Update, Label, Confirm */}
+              <div className="flex flex-wrap gap-2 pt-3 border-t border-stone-100">
+                {/* 💬 LINE Chat button */}
+                <button
+                  type="button"
+                  onClick={() => setChatModalOrder(order)}
+                  className="bg-[#06C755] hover:bg-[#05b34c] text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-xs inline-flex items-center gap-1.5"
+                  title="ส่งข้อความแจ้งเตือนเข้าห้องแชท LINE ลูกค้า หรือเปิด LINE OA Manager"
+                >
+                  <LineIcon className="w-3.5 h-3.5" />
+                  <span>แชท LINE</span>
+                </button>
+
+                {/* 📞 Call Phone */}
                 <a
-                  href={order.slipUrl}
+                  href={`tel:${order.phone}`}
+                  className="bg-stone-100 hover:bg-stone-200 text-stone-800 px-3.5 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
+                >
+                  <Phone className="w-3.5 h-3.5 text-stone-500" />
+                  <span>โทรหาลูกค้า</span>
+                </a>
+
+                {/* 📍 Map */}
+                <a
+                  href={
+                    order.mapsUrl ||
+                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      order.address || order.customerName
+                    )}`
+                  }
                   target="_blank"
                   rel="noreferrer"
-                  className="bg-white border border-emerald-300 text-emerald-800 px-2.5 py-0.5 rounded-lg font-bold hover:bg-emerald-100 inline-flex items-center gap-1"
+                  className="bg-stone-100 hover:bg-stone-200 text-stone-800 px-3.5 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
                 >
-                  <Receipt className="w-3 h-3" />
-                  <span>ดูสลิป</span>
+                  <MapPin className="w-3.5 h-3.5 text-stone-500" />
+                  <span>แผนที่นำทาง</span>
                 </a>
-              </div>
-            )}
 
-            <div className="flex flex-wrap gap-2 pt-3 border-t border-stone-100">
-              {order.paymentStatus === "pending" && (
+                {/* Confirm Slip */}
+                {order.paymentStatus === "pending" && (
+                  <button
+                    disabled={savingId === order.id}
+                    onClick={() =>
+                      patchOrder(order.id, {
+                        paymentStatus: "confirmed",
+                        orderStatus: "preparing",
+                        notifyLine: true,
+                      })
+                    }
+                    className="bg-[#1B4D31] hover:bg-[#143B25] text-white px-4 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>ยืนยันสลิป + ส่งคัดของ</span>
+                  </button>
+                )}
+
+                {/* Tracking & Lot */}
                 <button
                   disabled={savingId === order.id}
-                  onClick={() =>
-                    patchOrder(order.id, {
-                      paymentStatus: "confirmed",
-                      orderStatus: "preparing",
-                      notifyLine: true,
-                    })
-                  }
-                  className="bg-[#1B4D31] hover:bg-[#143B25] text-white px-4 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                  onClick={() => openTrackingModal(order)}
+                  className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-4 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>ยืนยันสลิป + ส่งคัดของ</span>
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>อัปเดตสถานะ / ใส่ Tracking &amp; ล็อต</span>
                 </button>
-              )}
-              <button
-                disabled={savingId === order.id}
-                onClick={() => openTrackingModal(order)}
-                className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-4 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
-              >
-                <Truck className="w-3.5 h-3.5" />
-                <span>อัปเดตสถานะ / ใส่ Tracking &amp; ล็อต</span>
-              </button>
-              <button
-                onClick={() => setLabelOrder(order)}
-                className="bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>พิมพ์ใบปะหน้ากล่อง</span>
-              </button>
+
+                {/* Label Print */}
+                <button
+                  onClick={() => setLabelOrder(order)}
+                  className="bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>พิมพ์ใบปะหน้ากล่อง</span>
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
+
+      {/* MODALS */}
+      {showManualOrder && (
+        <ManualOrderModal
+          products={products}
+          rounds={rounds}
+          users={users}
+          onClose={() => setShowManualOrder(false)}
+          onOrderCreated={(newOrder) => {
+            if (onOrderCreated) onOrderCreated(newOrder);
+          }}
+        />
+      )}
+
+      {chatModalOrder && (
+        <NotifyCustomerModal
+          order={chatModalOrder}
+          onClose={() => setChatModalOrder(null)}
+        />
+      )}
 
       {labelOrder && (
         <ShippingLabelModal
@@ -3098,10 +4129,18 @@ export default function AdminPage() {
             <OrdersTab
               orders={orders}
               lots={lots}
+              products={products}
+              rounds={rounds}
+              users={users}
+              claims={claims}
+              onGoToTab={setActiveTab}
               onOrderUpdated={(updated) =>
                 setOrders((prev) =>
                   prev.map((o) => (o.id === updated.id ? updated : o))
                 )
+              }
+              onOrderCreated={(newOrder) =>
+                setOrders((prev) => [newOrder, ...prev])
               }
             />
           )}

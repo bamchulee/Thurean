@@ -30,14 +30,27 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const raw = (await req.json()) as SubmitOrderInput & { lineAccessToken?: string };
-    // ไม่เชื่อ userId / lineUserId จากเบราว์เซอร์ — ระบุตัวตนจาก session หรือ token ที่ LINE ยืนยันแล้ว
-    const { userId: _u, lineUserId: _l, lineAccessToken, ...body } = raw;
-    const session = getSessionUser(req);
-    const lineProfile = session ? null : await verifyLineAccessToken(lineAccessToken);
+    const isAdmin = isAdminRequest(req);
+
+    let targetUserId: string | undefined = undefined;
+    let targetLineUserId: string | undefined = undefined;
+
+    if (isAdmin) {
+      targetUserId = raw.userId;
+      targetLineUserId = raw.lineUserId;
+    } else {
+      // ไม่เชื่อ userId / lineUserId จากเบราว์เซอร์ลูกค้า — ระบุตัวตนจาก session หรือ token ที่ LINE ยืนยันแล้ว
+      const session = getSessionUser(req);
+      const lineProfile = session ? null : await verifyLineAccessToken(raw.lineAccessToken);
+      targetUserId = session?.id;
+      targetLineUserId = session?.lineUserId || lineProfile?.userId;
+    }
+
     const res = await submitNewOrder({
-      ...body,
-      userId: session?.id,
-      lineUserId: session?.lineUserId || lineProfile?.userId,
+      ...raw,
+      userId: targetUserId,
+      lineUserId: targetLineUserId,
+      createdBy: isAdmin ? "admin" : (targetUserId || "customer"),
     });
     if (!res.ok) {
       return NextResponse.json(
