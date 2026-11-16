@@ -143,6 +143,7 @@ interface ConfigInfo {
   hasLineToken: boolean;
   lineTokenMasked: string;
   lineAdminUserId: string;
+  lineAdminGroupId?: string;
   lineLiffId: string;
   lineLoginChannelId?: string;
   hasLineLoginSecret?: boolean;
@@ -3043,6 +3044,7 @@ function SettingsTab({
   const [lineToken, setLineToken] = useState("");
   const [lineOaId, setLineOaId] = useState("");
   const [lineAdminId, setLineAdminId] = useState("");
+  const [lineGroupId, setLineGroupId] = useState("");
   const [lineLiffId, setLineLiffId] = useState("");
   const [lineLoginChannelId, setLineLoginChannelId] = useState("");
   const [lineLoginSecret, setLineLoginSecret] = useState("");
@@ -3073,6 +3075,7 @@ function SettingsTab({
           if (json.config.thureanSheetViewUrl) setThureanSheetUrl(json.config.thureanSheetViewUrl);
           setLineOaId(json.config.lineOaId || "");
           setLineAdminId(json.config.lineAdminUserId || "");
+          setLineGroupId(json.config.lineAdminGroupId || "");
           setLineLiffId(json.config.lineLiffId || "");
           setLineLoginChannelId(json.config.lineLoginChannelId || "");
           setPublicBaseUrl(json.config.publicBaseUrl || "");
@@ -3349,17 +3352,17 @@ function SettingsTab({
               </div>
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-1">
-                  LINE Admin User ID (รับแจ้งเตือนร้านค้า)
+                  LINE Admin Group ID (กลุ่มไลน์แจ้งเตือนทีมงาน แยก 100%)
                 </label>
                 <input
                   type="text"
-                  value={lineAdminId}
-                  onChange={(e) => setLineAdminId(e.target.value)}
-                  placeholder="U... (พิมพ์ myid ในแชท Bot เพื่อดู ID)"
+                  value={lineGroupId}
+                  onChange={(e) => setLineGroupId(e.target.value)}
+                  placeholder="c... (ดึงบอทเข้ากลุ่ม ระบบจะตรวจจับและผูกให้อัตโนมัติ)"
                   className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs font-mono"
                 />
-                <p className="text-[10px] text-amber-700 mt-1">
-                  💡 พิมพ์คำว่า <code>myid</code> ในแชทไลน์บ็อตเพื่อดู ID ตัวเอง แล้วนำมากรอกที่นี่
+                <p className="text-[10px] text-emerald-700 mt-1">
+                  💡 สร้างกลุ่ม LINE แล้วเชิญบอท @713imada เข้ากลุ่ม ระบบจะบันทึก Group ID ให้อัตโนมัติทันที
                 </p>
               </div>
               <div>
@@ -3567,6 +3570,7 @@ function SettingsTab({
                 lineOaId: lineOaId,
                 lineChannelAccessToken: lineToken || undefined,
                 lineAdminUserId: lineAdminId,
+                lineAdminGroupId: lineGroupId,
                 lineLiffId: lineLiffId,
                 lineLoginChannelId: lineLoginChannelId,
                 lineLoginChannelSecret: lineLoginSecret || undefined,

@@ -240,12 +240,20 @@ export async function submitNewOrder(
       }
     }
 
-    // 2. Send Admin Notification (only if admin ID is configured and NOT the same as customer)
-    if (cfg.lineAdminUserId && cfg.lineAdminUserId !== created.lineUserId) {
+    // 2. Send Admin / Team Notification:
+    // Support LINE Admin Group (preferred) and LINE Admin User ID
+    const adminTargets = [cfg.lineAdminGroupId, cfg.lineAdminUserId].filter(
+      (id): id is string => Boolean(id && id.trim())
+    );
+
+    for (const targetId of adminTargets) {
+      if (targetId === created.lineUserId) continue;
       try {
-        const messages = buildOrderAlertForAdmin(created);
+        const messages = buildOrderAlertForAdmin(created, cfg.publicBaseUrl);
         if (created.slipUrl && cfg.publicBaseUrl) {
-          const fullSlipUrl = `${cfg.publicBaseUrl}${created.slipUrl}`;
+          const fullSlipUrl = created.slipUrl.startsWith("http")
+            ? created.slipUrl
+            : `${cfg.publicBaseUrl}${created.slipUrl}`;
           messages.push({
             type: "image",
             originalContentUrl: fullSlipUrl,
@@ -253,12 +261,12 @@ export async function submitNewOrder(
           });
         }
         await pushLineMessage(
-          cfg.lineAdminUserId,
+          targetId,
           messages,
           cfg.lineChannelAccessToken
         );
       } catch (err) {
-        console.warn("Failed to push admin order alert via LINE:", err);
+        console.warn(`Failed to push admin order alert to ${targetId}:`, err);
       }
     }
   }
@@ -373,16 +381,20 @@ export async function submitNewClaim(
       }
     }
 
-    // 2. Send Admin Alert (only if configured and not customer)
-    if (cfg.lineAdminUserId && cfg.lineAdminUserId !== customerLineId) {
+    // 2. Send Admin / Team Claim Alert
+    const adminTargets = [cfg.lineAdminGroupId, cfg.lineAdminUserId].filter(
+      (id): id is string => Boolean(id && id.trim())
+    );
+    for (const targetId of adminTargets) {
+      if (targetId === customerLineId) continue;
       try {
         await pushLineMessage(
-          cfg.lineAdminUserId,
-          buildClaimAlertForAdmin(created),
+          targetId,
+          buildClaimAlertForAdmin(created, cfg.publicBaseUrl),
           cfg.lineChannelAccessToken
         );
       } catch (err) {
-        console.warn("Failed to push admin claim alert via LINE:", err);
+        console.warn(`Failed to push admin claim alert to ${targetId}:`, err);
       }
     }
   }

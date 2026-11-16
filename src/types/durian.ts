@@ -186,6 +186,7 @@ export interface RuntimeConfig {
   lineOaId?: string;
   lineChannelAccessToken?: string;
   lineAdminUserId?: string;
+  lineAdminGroupId?: string;
   lineLiffId?: string;
   lineLoginChannelId?: string;
   lineLoginChannelSecret?: string;

@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import {
   getAllDatabase,
   getRuntimeConfig,
+  saveRuntimeConfig,
   upsertLineUser,
 } from "../../../../lib/sheets-db";
 import {
@@ -171,6 +172,58 @@ export async function POST(req: NextRequest) {
       // แสดง Animation จุดสามจุด (...) ขยับได้ "กำลังพิมพ์..." ให้ลูกค้าเห็นทันทีทุกครั้งที่กดริชเมนูหรือส่งข้อความ
       if (userId) {
         await showLineLoadingAnimation(userId, token, 15);
+      }
+
+      // 0. Bot Joined a Group Event -> Auto-register Admin Group
+      if (ev.type === "join") {
+        const source = ev.source as any;
+        const groupId = source?.groupId || source?.roomId;
+        if (groupId) {
+          saveRuntimeConfig({ lineAdminGroupId: groupId });
+          await replyLineMessage(
+            replyToken,
+            [
+              {
+                type: "text",
+                text: `🎉 สวัสดีครับทีมงานทุเรียนวิ่นขิ่น!\nบอทได้เข้าร่วมกลุ่มเรียบร้อยแล้วครับ 🍈\n\n📌 Group ID: ${groupId}\n✅ ระบบได้บันทึกกลุ่มนี้เป็น "กลุ่มแจ้งเตือนทีมงาน (Admin Alert Group)" อัตโนมัติแล้วครับ!\n\nเมื่อมีออเดอร์ใหม่ สลิป หรือรายการเคลม บอทจะส่งการ์ดแจ้งเตือนพร้อมปุ่มจัดการเข้ากลุ่มนี้ทันทีครับ 📦🚚`,
+              },
+            ],
+            token
+          );
+        }
+        continue;
+      }
+
+      // Group message special handling (Check Group ID or ignore non-command chatter)
+      const evSource = ev.source as any;
+      if (evSource?.type === "group" || evSource?.type === "room") {
+        const groupId = evSource?.groupId || evSource?.roomId;
+        const msgText = ev.message?.type === "text" ? (ev.message.text || "").trim().toLowerCase() : "";
+        if (
+          msgText.includes("รหัสกลุ่ม") ||
+          msgText.includes("group id") ||
+          msgText.includes("groupid") ||
+          msgText.includes("สถานะกลุ่ม") ||
+          msgText === "/group" ||
+          msgText === "group"
+        ) {
+          if (groupId) {
+            saveRuntimeConfig({ lineAdminGroupId: groupId });
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: `🍈 กลุ่มแจ้งเตือนทีมงานทุเรียนวิ่นขิ่น\n\n📌 Group ID: ${groupId}\n✅ สถานะ: ผูกระบบแจ้งเตือนเรียบร้อยแล้ว\n\nออเดอร์ใหม่ สลิป และแจ้งเคลมจะส่งเข้ามาที่นี่ครับ! 📦🚚`,
+                },
+              ],
+              token
+            );
+          }
+          continue;
+        }
+        // In group, ignore customer ordering flow so team conversation isn't interrupted
+        continue;
       }
 
       // 1. Follow Event -> Welcome Card
@@ -1738,11 +1791,14 @@ export async function POST(req: NextRequest) {
             ? data.orders.find((o) => o.lineUserId === userId)
             : undefined;
 
-          if (cfg.lineAdminUserId) {
+          const adminTargets = [cfg.lineAdminGroupId, cfg.lineAdminUserId].filter(
+            (id): id is string => Boolean(id && id.trim())
+          );
+          if (adminTargets.length > 0) {
             const alertMsgs: unknown[] = [
               {
                 type: "text",
-                text: `🧾 ลูกค้าส่งรูปสลิปทางแชท LINE\nLINE User ID: ${userId}${latestOrder ? `\nออเดอร์ล่าสุด: ${latestOrder.id} (${latestOrder.customerName})` : ""}${savedSlip.ok ? `\nไฟล์: ${savedSlip.filename}` : ""}`,
+                text: `🧾 แจ้งเตือน: ลูกค้าส่งสลิปทางแชท LINE\n👤 ลูกค้า: ${latestOrder ? `${latestOrder.customerName} (ออเดอร์ #${latestOrder.id})` : userId}${savedSlip.ok ? `\nไฟล์: ${savedSlip.filename}` : ""}`,
               },
             ];
             if (savedSlip.ok && publicBaseUrl) {
@@ -1753,7 +1809,9 @@ export async function POST(req: NextRequest) {
                 previewImageUrl: url,
               });
             }
-            await pushLineMessage(cfg.lineAdminUserId, alertMsgs, token);
+            for (const tId of adminTargets) {
+              await pushLineMessage(tId, alertMsgs, token);
+            }
           }
 
           await replyLineMessage(

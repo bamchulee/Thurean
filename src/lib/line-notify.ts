@@ -144,33 +144,35 @@ export async function showLineLoadingAnimation(
   }
 }
 
-export function buildOrderAlertForAdmin(order: Order): unknown[] {
+export function buildOrderAlertForAdmin(order: Order, publicBaseUrl?: string): unknown[] {
   const itemLines = order.items
     .map((it) => `• ${it.productName} x${it.qty}`)
     .join("\n");
   const grandTotal = order.totalPrice + order.shippingCost;
+  const baseUrl = publicBaseUrl || "https://durianwinkin.vercel.app";
 
   return [
     {
       type: "flex",
-      altText: `🍈 มีออเดอร์ใหม่ ${order.id} (฿${grandTotal.toLocaleString()})`,
+      altText: `🍈 แจ้งเตือนออเดอร์ใหม่ #${order.id} (฿${grandTotal.toLocaleString()})`,
       contents: {
         type: "bubble",
         header: {
           type: "box",
           layout: "vertical",
           backgroundColor: "#14532d",
+          paddingAll: "lg",
           contents: [
             {
               type: "text",
-              text: "🍈 ออเดอร์ใหม่! ทุเรียนวินคิน",
+              text: "🍈 แจ้งเตือนออเดอร์ใหม่! (ทีมงาน)",
               color: "#fde047",
               weight: "bold",
               size: "md",
             },
             {
               type: "text",
-              text: `รหัส: ${order.id}`,
+              text: `รหัสคำสั่งซื้อ: #${order.id}`,
               color: "#ffffff",
               size: "xs",
               margin: "xs",
@@ -187,6 +189,7 @@ export function buildOrderAlertForAdmin(order: Order): unknown[] {
               text: `ลูกค้า: ${order.customerName}`,
               weight: "bold",
               size: "sm",
+              color: "#111827",
             },
             {
               type: "text",
@@ -194,6 +197,17 @@ export function buildOrderAlertForAdmin(order: Order): unknown[] {
               size: "xs",
               color: "#4b5563",
             },
+            ...(order.address
+              ? [
+                  {
+                    type: "text",
+                    text: `ที่อยู่: ${order.address}`,
+                    size: "xs",
+                    color: "#6b7280",
+                    wrap: true,
+                  },
+                ]
+              : []),
             {
               type: "text",
               text: `ความสุก: ${order.ripenessPref || "ตามมาตรฐานร้าน"}`,
@@ -225,6 +239,70 @@ export function buildOrderAlertForAdmin(order: Order): unknown[] {
                   align: "end",
                 },
               ],
+            },
+            {
+              type: "text",
+              text: `สถานะชำระ: ${order.paymentStatus === "confirmed" ? "ชำระเงินแล้ว ✅" : "รอตรวจสลิป ⚡"}`,
+              size: "xs",
+              color: order.paymentStatus === "confirmed" ? "#15803d" : "#b45309",
+              weight: "bold",
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#1B4D31",
+              height: "sm",
+              action: {
+                type: "uri",
+                label: "📦 เปิดจัดการบนเว็บ Admin",
+                uri: `${baseUrl}/admin`,
+              },
+            },
+            ...(order.mapsUrl
+              ? [
+                  {
+                    type: "button",
+                    style: "secondary",
+                    height: "sm",
+                    action: {
+                      type: "uri",
+                      label: "🗺️ เปิดหมุดแผนที่จัดส่ง",
+                      uri: order.mapsUrl,
+                    },
+                  },
+                ]
+              : order.address
+              ? [
+                  {
+                    type: "button",
+                    style: "secondary",
+                    height: "sm",
+                    action: {
+                      type: "uri",
+                      label: "🗺️ ค้นหาที่อยู่บน Google Maps",
+                      uri: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        order.address
+                      )}`,
+                    },
+                  },
+                ]
+              : []),
+            {
+              type: "button",
+              style: "link",
+              height: "sm",
+              action: {
+                type: "uri",
+                label: `📞 โทรหาลูกค้า (${order.phone})`,
+                uri: `tel:${order.phone}`,
+              },
             },
           ],
         },
@@ -363,11 +441,112 @@ export function buildCustomerStatusFlex(order: Order): unknown[] {
   ];
 }
 
-export function buildClaimAlertForAdmin(claim: Claim): unknown[] {
+export function buildClaimAlertForAdmin(claim: Claim, publicBaseUrl?: string): unknown[] {
+  const baseUrl = publicBaseUrl || "https://durianwinkin.vercel.app";
   return [
     {
-      type: "text",
-      text: `🛡️ แจ้งเคลมใหม่ ${claim.claimId}\nออเดอร์: ${claim.orderId}\nเบอร์: ${claim.phone}\nสาเหตุ: ${claim.reason}\nรายละเอียด: ${claim.description || "-"}${claim.evidenceName ? `\nหลักฐาน: ${claim.evidenceName}` : ""}`,
+      type: "flex",
+      altText: `🚨 แจ้งเตือนรายการเคลม #${claim.claimId} (ออเดอร์ #${claim.orderId})`,
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#991b1b",
+          paddingAll: "lg",
+          contents: [
+            {
+              type: "text",
+              text: "🚨 แจ้งเตือนรายการเคลมทุเรียน! (ทีมงาน)",
+              color: "#ffffff",
+              weight: "bold",
+              size: "sm",
+            },
+            {
+              type: "text",
+              text: `รหัสเคลม: #${claim.claimId} • ออเดอร์ #${claim.orderId}`,
+              color: "#fecaca",
+              size: "xs",
+              margin: "xs",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "text",
+              text: `ลูกค้า: ${claim.customerName || "ไม่ระบุชื่อ"}`,
+              weight: "bold",
+              size: "sm",
+            },
+            {
+              type: "text",
+              text: `เบอร์โทร: ${claim.phone}`,
+              size: "xs",
+              color: "#4b5563",
+            },
+            {
+              type: "text",
+              text: `สาเหตุที่เคลม: ${claim.reason}`,
+              size: "xs",
+              color: "#b91c1c",
+              weight: "bold",
+            },
+            ...(claim.description
+              ? [
+                  {
+                    type: "text",
+                    text: `รายละเอียด: ${claim.description}`,
+                    size: "xs",
+                    color: "#374151",
+                    wrap: true,
+                  },
+                ]
+              : []),
+            ...(claim.evidenceName
+              ? [
+                  {
+                    type: "text",
+                    text: `หลักฐาน: ${claim.evidenceName}`,
+                    size: "xs",
+                    color: "#6b7280",
+                  },
+                ]
+              : []),
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#991b1b",
+              height: "sm",
+              action: {
+                type: "uri",
+                label: "🛡️ ตรวจสอบในศูนย์เคลมบนเว็บ",
+                uri: `${baseUrl}/admin`,
+              },
+            },
+            {
+              type: "button",
+              style: "link",
+              height: "sm",
+              action: {
+                type: "uri",
+                label: `📞 โทรหาลูกค้า (${claim.phone})`,
+                uri: `tel:${claim.phone}`,
+              },
+            },
+          ],
+        },
+      },
     },
   ];
 }

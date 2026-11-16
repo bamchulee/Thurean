@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
       hasLineToken: Boolean(cfg.lineChannelAccessToken),
       lineTokenMasked: maskSecret(cfg.lineChannelAccessToken),
       lineAdminUserId: cfg.lineAdminUserId || "",
+      lineAdminGroupId: cfg.lineAdminGroupId || "",
       lineLiffId: cfg.lineLiffId || "",
       lineLoginChannelId: cfg.lineLoginChannelId || "",
       hasLineLoginSecret: Boolean(cfg.lineLoginChannelSecret),
@@ -197,6 +198,7 @@ export async function POST(req: NextRequest) {
           ? body.lineChannelAccessToken
           : undefined,
       lineAdminUserId: body.lineAdminUserId,
+      lineAdminGroupId: (body as any).lineAdminGroupId,
       lineLiffId: body.lineLiffId,
       lineLoginChannelId: (body as any).lineLoginChannelId,
       lineLoginChannelSecret:
