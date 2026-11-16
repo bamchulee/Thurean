@@ -55,43 +55,45 @@ export function OrderSuccessModal({
         </p>
 
         {/* Status Alert: Weighing vs PromptPay QR */}
-        {order.orderStatus === "รอชั่งน้ำหนัก/สรุปยอด" ? (
+        {order.orderStatus === "สั่งจอง" || order.orderStatus === "รอชั่งน้ำหนัก/สรุปยอด" ? (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 my-3 text-left space-y-1.5">
             <span className="font-extrabold text-amber-950 text-xs flex items-center gap-1.5">
-              <span>⚖️ รอแอดมินชั่งน้ำหนักจริงต่อลูก</span>
+              <span>⚖️ บันทึกการสั่งจองสำเร็จ (รอแอดมินชั่งน้ำหนักจริง)</span>
             </span>
             <p className="text-xs text-amber-900 leading-relaxed">
-              ทุเรียนตัดสดแต่ละผลมีน้ำหนักต่างกัน (~3.5 - 4.5 กก.) ขณะนี้ทีมงานกำลังคัดผลและนำขึ้นชั่งน้ำหนักจริงให้ท่าน เมื่อชั่งเสร็จแล้ว จะส่งสรุปยอดเงินสุทธิและ QR สำหรับชำระเงินให้ทาง LINE ทันทีครับ! 🍈✨
+              ทุเรียนตัดสดแต่ละผลมีน้ำหนักต่างกัน (~3.5 - 4.5 กก.) ขณะนี้ทีมงานกำลังคัดผลแก่จัดและนำขึ้นชั่งน้ำหนักจริงให้ท่าน <strong>ยังไม่ต้องโอนเงินครับ</strong> เมื่อชั่งเสร็จแล้ว ระบบจะส่งสรุปยอดเงินจริงและ QR Code สำหรับชำระเงินให้ทาง LINE ทันทีครับ! 🍈✨
             </p>
           </div>
         ) : (
-          <PromptPayQR
-            target={shopInfo.bankAccount.promptPay}
-            amount={grandTotal}
-            accountName={shopInfo.bankAccount.name}
-          />
-        )}
+          <>
+            <PromptPayQR
+              target={shopInfo.bankAccount.promptPay}
+              amount={grandTotal}
+              accountName={shopInfo.bankAccount.name}
+            />
 
-        <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 text-xs text-stone-700 text-left space-y-1.5 mb-4">
-          <p className="font-bold text-stone-900 flex items-center gap-1.5">
-            <CreditCard className="w-3.5 h-3.5 text-[#1B4D31]" />
-            <span>หรือโอนเข้าบัญชีธนาคาร</span>
-          </p>
-          <p>
-            ธนาคาร: <strong>{shopInfo.bankAccount.bank}</strong>
-          </p>
-          <p>
-            เลขบัญชี:{" "}
-            <strong className="font-mono text-stone-900 text-sm">
-              {shopInfo.bankAccount.number}
-            </strong>{" "}
-            ({shopInfo.bankAccount.name})
-          </p>
-          <p className="text-[11px] text-stone-500 pt-1.5 border-t border-stone-200">
-            สแกน QR ชำระยอดตรงอัตโนมัติ จากนั้นกดคัดลอกสรุปออเดอร์แล้วส่งสลิปทาง LINE{" "}
-            <strong className="text-stone-800">{shopInfo.lineOA}</strong>
-          </p>
-        </div>
+            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 text-xs text-stone-700 text-left space-y-1.5 mb-4">
+              <p className="font-bold text-stone-900 flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-[#1B4D31]" />
+                <span>หรือโอนเข้าบัญชีธนาคาร</span>
+              </p>
+              <p>
+                ธนาคาร: <strong>{shopInfo.bankAccount.bank}</strong>
+              </p>
+              <p>
+                เลขบัญชี:{" "}
+                <strong className="font-mono text-stone-900 text-sm">
+                  {shopInfo.bankAccount.number}
+                </strong>{" "}
+                ({shopInfo.bankAccount.name})
+              </p>
+              <p className="text-[11px] text-stone-500 pt-1.5 border-t border-stone-200">
+                สแกน QR ชำระยอดตรงอัตโนมัติ จากนั้นกดคัดลอกสรุปออเดอร์แล้วส่งสลิปทาง LINE{" "}
+                <strong className="text-stone-800">{shopInfo.lineOA}</strong>
+              </p>
+            </div>
+          </>
+        )}
 
         <div className="flex flex-col gap-2">
           <button

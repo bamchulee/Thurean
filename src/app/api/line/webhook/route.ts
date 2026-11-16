@@ -5,10 +5,12 @@ import {
   getRuntimeConfig,
   saveRuntimeConfig,
   updateOrderRecord,
+  updateProductRecord,
   upsertLineUser,
 } from "../../../../lib/sheets-db";
 import {
   buildAddressFormFlex,
+  buildBookingReceiptFlex,
   buildClaimReceiptForCustomerFlex,
   buildCustomerStatusFlex,
   buildLiveStreamFlex,
@@ -16,9 +18,14 @@ import {
   buildMoreMenuFlex,
   buildOrderSummaryForCustomerFlex,
   buildOrderCatalogMessages,
+  buildPaymentConfirmedFlex,
+  buildPaymentQrForCustomerFlex,
   buildUserOrdersFlex,
   buildPromotionsCarouselFlex,
   buildPromptPayQrPaymentFlex,
+  buildShippedNoticeFlex,
+  buildSlipAlertForAdmin,
+  buildSlipSubmittedReceiptFlex,
   buildStockOverviewMessages,
   buildTicketAlertForAdmin,
   buildWelcomeFlex,
@@ -40,6 +47,7 @@ import {
 import { formatProductStock } from "../../../../lib/stock";
 import { isValidLineSignature } from "../../../../lib/line-verify";
 import { extractOrderId, findOrderById } from "../../../../lib/ids";
+import { canTransitionOrderStatus, normalizeOrderStatus } from "../../../../lib/order-status";
 import { shopInfo } from "../../../../data/mock";
 import type { Order } from "../../../../types/durian";
 
@@ -178,58 +186,50 @@ export async function POST(req: NextRequest) {
         await showLineLoadingAnimation(userId, token, 15);
       }
 
-      // 0. Bot Joined a Group Event -> Auto-register Admin Group
+      // 0. Bot Joined a Group Event (Greeting only - never auto-bind admin group!)
       if (ev.type === "join") {
-        const source = ev.source as any;
-        const groupId = source?.groupId || source?.roomId;
-        if (groupId) {
-          saveRuntimeConfig({ lineAdminGroupId: groupId });
-          await replyLineMessage(
-            replyToken,
-            [
-              {
-                type: "text",
-                text: `🎉 สวัสดีครับทีมงานทุเรียนวิ่นขิ่น!\nบอทได้เข้าร่วมกลุ่มเรียบร้อยแล้วครับ 🍈\n\n📌 Group ID: ${groupId}\n✅ ระบบได้บันทึกกลุ่มนี้เป็น "กลุ่มแจ้งเตือนทีมงาน (Admin Alert Group)" อัตโนมัติแล้วครับ!\n\nเมื่อมีออเดอร์ใหม่ สลิป หรือรายการเคลม บอทจะส่งการ์ดแจ้งเตือนพร้อมปุ่มจัดการเข้ากลุ่มนี้ทันทีครับ 📦🚚`,
-              },
-            ],
-            token
-          );
-        }
+        await replyLineMessage(
+          replyToken,
+          [
+            {
+              type: "text",
+              text: `🎉 สวัสดีครับ! บอทร้านทุเรียนวินคินพร้อมให้บริการครับ 🍈✨`,
+            },
+          ],
+          token
+        );
         continue;
       }
 
-      // Group message special handling (Check Group ID or ignore non-command chatter)
+      // Group message handling
       const evSource = ev.source as any;
       if (evSource?.type === "group" || evSource?.type === "room") {
-        const groupId = evSource?.groupId || evSource?.roomId;
-        if (groupId) {
-          const curCfg = getRuntimeConfig();
-          if (curCfg.lineAdminGroupId !== groupId) {
-            saveRuntimeConfig({ lineAdminGroupId: groupId });
-          }
-        }
-        const msgText = ev.message?.type === "text" ? (ev.message.text || "").trim().toLowerCase() : "";
-        if (
-          msgText.includes("รหัสกลุ่ม") ||
-          msgText.includes("group id") ||
-          msgText.includes("groupid") ||
-          msgText.includes("สถานะกลุ่ม") ||
-          msgText === "/group" ||
-          msgText === "group" ||
-          msgText === "/test" ||
-          msgText === "ทดสอบ" ||
-          msgText === "เทส"
-        ) {
-          if (groupId) {
+        const groupId = evSource?.groupId || evSource?.roomId || "";
+        const adminGroupId = cfg.lineAdminGroupId || process.env.LINE_ADMIN_GROUP_ID || "";
+        const isAdminGroup = Boolean(adminGroupId && groupId === adminGroupId);
+        const rawMsg = ev.message?.type === "text" ? (ev.message.text || "").trim() : "";
+        const msgText = rawMsg.toLowerCase();
+
+        // Safe explicit bind command with PIN (e.g. /bind-admin 1234)
+        if (msgText.startsWith("/bind-admin")) {
+          const pin = rawMsg.replace(/^\/bind-admin/i, "").trim();
+          if (cfg.adminPin && pin === cfg.adminPin) {
             saveRuntimeConfig({ lineAdminGroupId: groupId });
             await replyLineMessage(
               replyToken,
               [
                 {
                   type: "text",
-                  text: `🍈 กลุ่มแจ้งเตือนทีมงานทุเรียนวิ่นขิ่น\n\n📌 Group ID: ${groupId}\n✅ สถานะ: บันทึกกลุ่มแจ้งเตือนเรียบร้อยแล้ว\n\nออเดอร์ใหม่ สลิป และแจ้งเคลมจะส่งเข้ามาที่นี่ครับ! 📦🚚`,
+                  text: `🍈 ยืนยันรหัส PIN ถูกต้อง!\n\n📌 ผูก Group ID: ${groupId} เป็นกลุ่มแจ้งเตือนแอดมินเรียบร้อยแล้วครับ ✅`,
                 },
               ],
+              token,
+              userId
+            );
+          } else {
+            await replyLineMessage(
+              replyToken,
+              [{ type: "text", text: "❌ รหัส PIN ไม่ถูกต้องครับ" }],
               token,
               userId
             );
@@ -237,10 +237,35 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Admin quick weigh command in group: ชั่ง <OrderID> <WeightKg>
-        const weighMatchGroup = (ev.message?.type === "text" ? (ev.message.text || "").trim() : "").match(/^(?:ชั่ง|นน|weight)\s+([a-zA-Z0-9_-]+)\s+([0-9.]+)/i);
+        if (
+          msgText === "รหัสกลุ่ม" ||
+          msgText === "/group" ||
+          msgText === "group id" ||
+          msgText === "groupid"
+        ) {
+          await replyLineMessage(
+            replyToken,
+            [
+              {
+                type: "text",
+                text: `📌 Group ID: ${groupId}\nสถานะกลุ่มแอดมิน: ${isAdminGroup ? "✅ เป็นกลุ่มแอดมินรับแจ้งเตือน" : "❌ ยังไม่ได้เป็นกลุ่มแอดมิน"}`,
+              },
+            ],
+            token,
+            userId
+          );
+          continue;
+        }
+
+        // If this is NOT the authorized admin group, ignore admin commands completely
+        if (!isAdminGroup) {
+          continue;
+        }
+
+        // Admin quick weigh command in admin group: ชั่ง <OrderID> <WeightKg>
+        const weighMatchGroup = rawMsg.match(/^(?:ชั่ง|นน|weight)\s+([a-zA-Z0-9_-]+)\s+([0-9.]+)/i);
         if (weighMatchGroup) {
-          const orderTargetId = weighMatchGroup[1].trim().toUpperCase();
+          const orderTargetId = weighMatchGroup[1].trim();
           const weightNum = parseFloat(weighMatchGroup[2]);
           const { data } = await getAllDatabase();
           const foundOrder = findOrderById(data.orders, orderTargetId);
@@ -248,22 +273,38 @@ export async function POST(req: NextRequest) {
             await replyLineMessage(
               replyToken,
               [{ type: "text", text: `❌ ไม่พบคำสั่งซื้อ "${orderTargetId}" ในระบบครับ` }],
-              token
+              token,
+              userId
             );
             continue;
           }
 
-          const prod = data.products.find((p) => p.id === foundOrder.productId || p.name === foundOrder.productName) || data.products[0];
-          const pricePerKg = prod?.pricePerKg || prod?.price || foundOrder.pricePerItem || 220;
-          const qty = foundOrder.quantity || 1;
+          const currentStatus = normalizeOrderStatus(foundOrder.orderStatus);
+          if (currentStatus !== "สั่งจอง" && currentStatus !== "รอชำระเงิน") {
+            await replyLineMessage(
+              replyToken,
+              [{ type: "text", text: `⚠️ ออเดอร์ #${foundOrder.id} อยู่ในสถานะ "${foundOrder.orderStatus}" ไม่สามารถบันทึกชั่งน้ำหนักได้ (ชั่งได้เฉพาะสถานะ สั่งจอง หรือ รอชำระเงิน)` }],
+              token,
+              userId
+            );
+            continue;
+          }
+
+          const firstItem = foundOrder.items?.[0];
+          const prod = data.products.find((p) => p.id === firstItem?.productId || p.name === firstItem?.productName || p.id === (foundOrder as any).productId) || data.products[0];
+          const pricePerKg = prod?.pricePerKg || prod?.price || 220;
+          const qty = firstItem?.qty || foundOrder.quantity || 1;
           const calculatedTotal = Math.round(weightNum * pricePerKg * qty);
+          const shippingCost = foundOrder.shippingCost || 0;
+          const grandTotal = calculatedTotal + shippingCost;
 
           const updated = await updateOrderRecord(foundOrder.id, {
             weightPerItem: `${weightNum} กก.`,
             totalPrice: calculatedTotal,
-            grandTotal: calculatedTotal + (foundOrder.shippingCost || 0),
+            grandTotal,
             orderStatus: "รอชำระเงิน",
-            updatedBy: "Admin (LINE)",
+            weighedAt: new Date().toISOString(),
+            updatedBy: "Admin (LINE Weigh)",
             updatedAt: new Date().toISOString(),
           });
 
@@ -272,16 +313,17 @@ export async function POST(req: NextRequest) {
             [
               {
                 type: "text",
-                text: `✅ บันทึกน้ำหนักออเดอร์ #${foundOrder.id} สำเร็จ!\n\n📦 สินค้า: ${foundOrder.productName || foundOrder.id}\n⚖️ น้ำหนักจริง: ${weightNum} กก.\n💰 ราคารวม: ฿${calculatedTotal.toLocaleString()} (จาก ฿${pricePerKg}/กก.)\n📌 สถานะ: รอชำระเงิน\n\n📲 ระบบส่งการ์ดยอดชำระเงินและแจ้งลูกค้าทาง LINE เรียบร้อยแล้วครับ! 🍈✨`,
+                text: `✅ บันทึกน้ำหนักออเดอร์ #${foundOrder.id} สำเร็จ!\n\n📦 สินค้า: ${prod?.name || foundOrder.productName || foundOrder.id}\n⚖️ น้ำหนักจริง: ${weightNum} กก.\n💰 ยอดรวมจริง: ฿${grandTotal.toLocaleString()} (จาก ฿${pricePerKg}/กก. รวมส่ง ฿${shippingCost})\n📌 สถานะ: 🟠 รอชำระเงิน\n\n📲 ระบบส่งบิลยอดจริงพร้อม QR PromptPay ให้ลูกค้าทางแชทเรียบร้อยครับ! 🍈✨`,
               },
             ],
-            token
+            token,
+            userId
           );
 
           if (updated && updated.lineUserId) {
             await pushLineMessage(
               updated.lineUserId,
-              buildCustomerStatusFlex(updated),
+              buildPaymentQrForCustomerFlex(updated, publicBaseUrl),
               token
             );
           }
@@ -805,70 +847,80 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          // Step 4: Confirm -> Create Order with ODxxxxxx and Show PromptPay QR immediately!
+          // Step 4: Confirm -> Create Booking with ODxxxxxx and Show Booking Receipt (WITHOUT QR)
           if (step === "confirm") {
             const users = Array.isArray(data?.users) ? data.users : [];
             const userObj = users.find((u) => u.lineUserId === userId);
-            const customerName = userObj ? (`${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.displayName || "ลูกค้า") : "ลูกค้า";
-            const phone = userObj?.phone || "-";
-            const address = userObj?.address || "-";
 
-            const estimatedItemTotal = Math.round(pricePerKg * avgWeight * qty);
-            const shippingCost = 120;
-            const grandTotal = estimatedItemTotal + shippingCost;
+            // If user has no address/phone, ask for them cleanly (do not create dummy order with "-")
+            if (!userObj || !userObj.phone || !userObj.address) {
+              const formUrl = `${publicBaseUrl || "https://durianwinkin.vercel.app"}/address?userId=${encodeURIComponent(userId)}`;
+              await replyLineMessage(
+                replyToken,
+                [
+                  {
+                    type: "text",
+                    text: "กรุณาระบุชื่อ เบอร์โทร และที่อยู่จัดส่งเพื่อบันทึกการจองครับ 📍",
+                  },
+                  ...buildAddressFormFlex(userObj || null, formUrl),
+                ],
+                token,
+                userId
+              );
+              continue;
+            }
 
-            const result = await submitNewOrder({
-              customerName,
-              phone,
-              address,
-              ripenessPref: ripeness,
-              shippingMethod: "รถห้องเย็น (฿120)",
-              shippingCost,
-              lineUserId: userId || undefined,
-              channel: "LINE OA",
-              orderStatus: "สั่งจอง",
-              notes: `สั่งจองผ่านระบบแชท LINE OA (ราคา ฿${pricePerKg}/กก. นน.เฉลี่ย ~${avgWeight} กก./ลูก)`,
-              items: [
-                {
-                  productId: prod.id,
-                  qty,
-                  ripenessPref: ripeness,
-                  weightPerItem: `${avgWeight} กก.`,
-                },
-              ],
-            });
+            const customerName = (`${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.displayName || "ลูกค้า");
+            const phone = userObj.phone;
+            const address = userObj.address;
+
+            const shipMethod = shopInfo.shippingMethods[0];
+            const shippingCost = shipMethod.price;
+
+            const result = await submitNewOrder(
+              {
+                customerName,
+                phone,
+                address,
+                ripenessPref: ripeness,
+                shippingMethod: shipMethod.name,
+                shippingCost,
+                lineUserId: userId || undefined,
+                channel: "LINE OA",
+                orderStatus: "สั่งจอง",
+                notes: `สั่งจองผ่านระบบแชท LINE OA (ราคา ฿${pricePerKg}/กก. นน.เฉลี่ย ~${avgWeight} กก./ลูก)`,
+                items: [
+                  {
+                    productId: prod.id,
+                    qty,
+                    ripenessPref: ripeness,
+                    weightPerItem: `${avgWeight} กก.`,
+                  },
+                ],
+              },
+              { skipCustomerNotify: true }
+            );
 
             clearLineSession(userId);
 
             if (!result.ok) {
               await replyLineMessage(
                 replyToken,
-                [{ type: "text", text: `เกิดข้อผิดพลาดในการสร้างคำสั่งซื้อ: ${result.error}`, quickReply: buildMainQuickReply() }],
-                token
+                [{ type: "text", text: `เกิดข้อผิดพลาดในการสร้างคำสั่งจอง: ${result.error}`, quickReply: buildMainQuickReply() }],
+                token,
+                userId
               );
               continue;
             }
 
             const createdOrder = result.order;
 
+            // Reply to customer with Booking Receipt (WITHOUT QR CODE!)
             await replyLineMessage(
               replyToken,
-              buildPromptPayQrPaymentFlex({
-                orderId: createdOrder.id,
-                productName: prod.name,
-                qty,
-                ripenessPref: ripeness,
-                shippingMethod: "รถห้องเย็น (คุมอุณหภูมิ)",
-                customerName,
-                phone,
-                totalPrice: estimatedItemTotal,
-                shippingCost,
-                grandTotal,
-                publicBaseUrl,
-                pricePerKg,
-                approxWeight: `${avgWeight} กก.`,
-              }),
-              token
+              buildBookingReceiptFlex(createdOrder),
+              token,
+              userId
             );
             continue;
           }
@@ -892,13 +944,14 @@ export async function POST(req: NextRequest) {
           const currentSession = getLineSession(userId);
           if (currentSession?.flow === "order" && currentSession.step === "enter_contact") {
             const qty = currentSession.qty || 1;
-            const totalPrice = (currentSession.price || 0) * qty;
+            const prod = data.products.find((p) => p.id === currentSession.productId) || data.products[0];
+            const pricePerKg = prod?.pricePerKg || prod?.price || currentSession.price || 220;
+            const avgWeight = prod?.avgWeightKg || parseFloat(prod?.weight || "4.0") || 4.0;
             const shipOpt =
               shopInfo.shippingMethods.find(
                 (s) => s.name.toLowerCase() === (currentSession.shippingMethod || "").toLowerCase()
               ) || shopInfo.shippingMethods[0];
             const shippingCost = shipOpt.price;
-            const grandTotal = totalPrice + shippingCost;
             const customerName =
               `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() ||
               userObj.displayName ||
@@ -906,31 +959,49 @@ export async function POST(req: NextRequest) {
               "ลูกค้า";
             const phone = userObj.phone || "";
             const address = userObj.address || "";
+            const ripenessPref = currentSession.ripenessPref || "กรอบนอกนุ่มใน (ไก่ฉีก)";
 
-            setLineSession(userId, {
-              ...currentSession,
-              step: "await_slip",
-              customerName,
-              phone,
-              address,
-              grandTotal,
-              updatedAt: Date.now(),
-            });
+            const orderRes = await submitNewOrder(
+              {
+                customerName,
+                phone,
+                address,
+                ripenessPref,
+                shippingMethod: shipOpt.name,
+                shippingCost,
+                lineUserId: userId || undefined,
+                channel: "LINE OA",
+                orderStatus: "สั่งจอง",
+                notes: `สั่งจองผ่านแชท LINE OA (ยืนยันที่อยู่เดิม)`,
+                items: [
+                  {
+                    productId: prod.id,
+                    qty,
+                    ripenessPref,
+                    weightPerItem: `${avgWeight} กก.`,
+                  },
+                ],
+              },
+              { skipCustomerNotify: true }
+            );
+
+            clearLineSession(userId);
+
+            if (!orderRes.ok) {
+              await replyLineMessage(
+                replyToken,
+                [{ type: "text", text: `ไม่สามารถบันทึกคำสั่งจองได้: ${orderRes.error}` }],
+                token,
+                userId
+              );
+              continue;
+            }
 
             await replyLineMessage(
               replyToken,
-              buildPromptPayQrPaymentFlex({
-                grandTotal,
-                totalPrice,
-                shippingCost,
-                shippingMethod: currentSession.shippingMethod || shipOpt.name,
-                productName: currentSession.productName || "ทุเรียนวินคิน",
-                qty,
-                customerName,
-                phone,
-                ripenessPref: currentSession.ripenessPref || "ปกติ (พร้อมทาน)",
-              }),
-              token
+              buildBookingReceiptFlex(orderRes.order),
+              token,
+              userId
             );
             continue;
           }
@@ -1133,7 +1204,7 @@ export async function POST(req: NextRequest) {
             [
               {
                 type: "text",
-                text: `📸 กรุณาส่ง "รูปภาพสลิปโอนเงิน" เข้ามาในแชทนี้ได้เลยครับ${orderId ? ` สำหรับออเดอร์ #${orderId}` : ""}\n\nเมื่อส่งรูปสลิปแล้ว ระบบจะตรวจยอดเงินและเปลี่ยนสถานะเป็น "ชำระเงินแล้ว/เตรียมจัดส่ง" ให้อัตโนมัติครับ ✨`,
+                text: `📸 กรุณาส่ง "รูปภาพสลิปโอนเงิน" เข้ามาในแชทนี้ได้เลยครับ${orderId ? ` สำหรับออเดอร์ #${orderId}` : ""}\n\nเมื่อส่งรูปสลิปแล้ว แอดมินจะตรวจสอบยอดเงินและยืนยันการจัดส่งให้คุณทันทีครับ ✨`,
                 quickReply: {
                   items: [
                     { type: "action", action: { type: "message", label: "ยกเลิก", text: "ยกเลิก" } },
@@ -1141,25 +1212,170 @@ export async function POST(req: NextRequest) {
                 },
               },
             ],
-            token
+            token,
+            userId
           );
+          continue;
+        }
+
+        if (action === "track_order") {
+          const orderId = params.get("orderId") || "";
+          const { data } = await getAllDatabase();
+          const foundOrder = findOrderById(data.orders, orderId);
+          if (foundOrder) {
+            await replyLineMessage(
+              replyToken,
+              buildCustomerStatusFlex(foundOrder),
+              token,
+              userId
+            );
+          } else {
+            await replyLineMessage(
+              replyToken,
+              [{ type: "text", text: `ไม่พบข้อมูลออเดอร์ #${orderId} ครับ กรุณาตรวจสอบรหัสอีกครั้ง` }],
+              token,
+              userId
+            );
+          }
+          continue;
+        }
+
+        if (action === "admin_confirm_slip") {
+          const adminGroupId = cfg.lineAdminGroupId || process.env.LINE_ADMIN_GROUP_ID || "";
+          const evSource = ev.source as any;
+          if (evSource?.type === "group" && adminGroupId && evSource.groupId !== adminGroupId) {
+            await replyLineMessage(replyToken, [{ type: "text", text: "❌ ปฏิเสธ: เฉพาะกลุ่มแอดมินที่ได้รับอนุญาตเท่านั้นครับ" }], token, userId);
+            continue;
+          }
+          const orderId = params.get("orderId") || "";
+          const { data } = await getAllDatabase();
+          const foundOrder = findOrderById(data.orders, orderId);
+          if (!foundOrder) {
+            await replyLineMessage(replyToken, [{ type: "text", text: `❌ ไม่พบออเดอร์ #${orderId}` }], token, userId);
+            continue;
+          }
+          const updated = await updateOrderRecord(foundOrder.id, {
+            paymentStatus: "confirmed",
+            orderStatus: "ชำระเงินแล้ว/เตรียมจัดส่ง",
+            paidAt: new Date().toISOString(),
+            updatedBy: "Admin (Confirm Slip)",
+            updatedAt: new Date().toISOString(),
+          });
+          await replyLineMessage(
+            replyToken,
+            [{ type: "text", text: `✅ ยืนยันยอดชำระเงินสำหรับออเดอร์ #${foundOrder.id} เรียบร้อยแล้ว!\n📌 สถานะ: 🟢 ชำระเงินแล้ว / เตรียมจัดส่ง` }],
+            token,
+            userId
+          );
+          if (updated && updated.lineUserId) {
+            await pushLineMessage(
+              updated.lineUserId,
+              buildPaymentConfirmedFlex(updated),
+              token
+            );
+          }
+          continue;
+        }
+
+        if (action === "admin_reject_slip") {
+          const adminGroupId = cfg.lineAdminGroupId || process.env.LINE_ADMIN_GROUP_ID || "";
+          const evSource = ev.source as any;
+          if (evSource?.type === "group" && adminGroupId && evSource.groupId !== adminGroupId) {
+            await replyLineMessage(replyToken, [{ type: "text", text: "❌ ปฏิเสธ: เฉพาะกลุ่มแอดมินที่ได้รับอนุญาตเท่านั้นครับ" }], token, userId);
+            continue;
+          }
+          const orderId = params.get("orderId") || "";
+          const { data } = await getAllDatabase();
+          const foundOrder = findOrderById(data.orders, orderId);
+          if (!foundOrder) {
+            await replyLineMessage(replyToken, [{ type: "text", text: `❌ ไม่พบออเดอร์ #${orderId}` }], token, userId);
+            continue;
+          }
+          await updateOrderRecord(foundOrder.id, {
+            paymentStatus: "pending",
+            updatedBy: "Admin (Reject Slip)",
+            updatedAt: new Date().toISOString(),
+          });
+          await replyLineMessage(
+            replyToken,
+            [{ type: "text", text: `⚠️ แจ้งลูกค้าให้ส่งสลิปใหม่สำหรับออเดอร์ #${foundOrder.id} เรียบร้อยแล้ว` }],
+            token,
+            userId
+          );
+          if (foundOrder.lineUserId) {
+            await pushLineMessage(
+              foundOrder.lineUserId,
+              [
+                {
+                  type: "text",
+                  text: `❌ ขออภัยครับ สลิปโอนเงินสำหรับออเดอร์ #${foundOrder.id} ยอดไม่ตรงหรือไม่สามารถตรวจสอบได้\n\nรบกวนตรวจสอบยอดชำระ ฿${(foundOrder.totalPrice + (foundOrder.shippingCost || 0)).toLocaleString()} และกดปุ่ม "แนบสลิป" หรือส่งรูปสลิปใหม่อีกครั้งครับ 🙏`,
+                },
+              ],
+              token
+            );
+          }
+          continue;
+        }
+
+        if (action === "admin_cancel_order") {
+          const adminGroupId = cfg.lineAdminGroupId || process.env.LINE_ADMIN_GROUP_ID || "";
+          const evSource = ev.source as any;
+          if (evSource?.type === "group" && adminGroupId && evSource.groupId !== adminGroupId) {
+            await replyLineMessage(replyToken, [{ type: "text", text: "❌ ปฏิเสธ: เฉพาะกลุ่มแอดมินที่ได้รับอนุญาตเท่านั้นครับ" }], token, userId);
+            continue;
+          }
+          const orderId = params.get("orderId") || "";
+          const { data } = await getAllDatabase();
+          const foundOrder = findOrderById(data.orders, orderId);
+          if (!foundOrder) {
+            await replyLineMessage(replyToken, [{ type: "text", text: `❌ ไม่พบออเดอร์ #${orderId}` }], token, userId);
+            continue;
+          }
+          await updateOrderRecord(foundOrder.id, {
+            orderStatus: "ยกเลิก",
+            cancelledAt: new Date().toISOString(),
+            cancelReason: "แอดมินยกเลิกผ่านกลุ่ม",
+            updatedBy: "Admin (Cancel Group)",
+            updatedAt: new Date().toISOString(),
+          });
+          // Return stock
+          for (const it of foundOrder.items || []) {
+            const prod = data.products.find((p) => p.id === it.productId);
+            if (prod && typeof prod.stockQty === "number") {
+              await updateProductRecord(prod.id, { stockQty: prod.stockQty + it.qty });
+            }
+          }
+          await replyLineMessage(
+            replyToken,
+            [{ type: "text", text: `❌ ยกเลิกออเดอร์ #${foundOrder.id} และคืนสต็อกเรียบร้อยแล้วครับ` }],
+            token,
+            userId
+          );
+          if (foundOrder.lineUserId) {
+            await pushLineMessage(
+              foundOrder.lineUserId,
+              [{ type: "text", text: `คำสั่งซื้อ #${foundOrder.id} ถูกยกเลิกเรียบร้อยแล้วครับ หากมีข้อสงสัยสามารถกดปุ่ม "คุยกับแอดมิน" ได้ตลอดเวลาครับ 🍈` }],
+              token
+            );
+          }
           continue;
         }
 
         if (action === "confirm_without_slip") {
           const session = getLineSession(userId);
           const { data } = await getAllDatabase();
-          // Find user's latest order if session is missing
+          // Find user's latest order if session is missing (sort descending by createDate)
           const users = Array.isArray(data?.users) ? data.users : [];
           const userObj = users.find((u) => u.lineUserId === userId);
           const userOrders = data.orders.filter((o) => o.lineUserId === userId || (userObj && o.userId === userObj.id));
-          const latestOrder = userOrders[0];
+          const latestOrder = userOrders.sort((a, b) => new Date(b.createDate || 0).getTime() - new Date(a.createDate || 0).getTime())[0];
 
           if (latestOrder) {
             await replyLineMessage(
               replyToken,
-              buildOrderSummaryForCustomerFlex(latestOrder),
-              token
+              buildBookingReceiptFlex(latestOrder),
+              token,
+              userId
             );
             continue;
           }
@@ -1171,31 +1387,35 @@ export async function POST(req: NextRequest) {
             session.phone &&
             session.address
           ) {
-            const res = await submitNewOrder({
-              customerName: session.customerName,
-              phone: session.phone,
-              address: session.address,
-              ripenessPref: session.ripenessPref,
-              shippingMethod: session.shippingMethod || "รถห้องเย็น (฿120)",
-              lineUserId: userId || undefined,
-              orderStatus: "สั่งจอง",
-              notes: "สั่งจองผ่านแชท LINE OA (แจ้งโอน/ส่งสลิปภายหลัง)",
-              items: [
-                {
-                  productId: session.productId,
-                  qty: session.qty || 1,
-                  ripenessPref: session.ripenessPref,
-                },
-              ],
-            });
+            const res = await submitNewOrder(
+              {
+                customerName: session.customerName,
+                phone: session.phone,
+                address: session.address,
+                ripenessPref: session.ripenessPref,
+                shippingMethod: session.shippingMethod || "รถห้องเย็น (฿120)",
+                lineUserId: userId || undefined,
+                orderStatus: "สั่งจอง",
+                notes: "สั่งจองผ่านแชท LINE OA (แจ้งโอน/ส่งสลิปภายหลัง)",
+                items: [
+                  {
+                    productId: session.productId,
+                    qty: session.qty || 1,
+                    ripenessPref: session.ripenessPref,
+                  },
+                ],
+              },
+              { skipCustomerNotify: true }
+            );
 
             clearLineSession(userId);
 
             if (res.ok) {
               await replyLineMessage(
                 replyToken,
-                buildOrderSummaryForCustomerFlex(res.order),
-                token
+                buildBookingReceiptFlex(res.order),
+                token,
+                userId
               );
               continue;
             }
@@ -2260,61 +2480,48 @@ export async function POST(req: NextRequest) {
               console.warn("Auto-save user during contact step failed:", userErr);
             }
 
-            // Create Order immediately
-            const orderRes = await submitNewOrder({
-              customerName: parsed.customerName,
-              phone: parsed.phone,
-              address: parsed.address,
-              ripenessPref,
-              shippingMethod: shipOpt.name,
-              shippingCost,
-              lineUserId: userId || undefined,
-              channel: "LINE OA",
-              orderStatus: "สั่งจอง",
-              notes: `สั่งจองผ่านแชท LINE OA (ราคา ฿${pricePerKg}/กก. นน.เฉลี่ย ~${avgWeight} กก./ลูก)`,
-              items: [
-                {
-                  productId: prod?.id || currentSession.productId || "WK-01",
-                  qty,
-                  ripenessPref,
-                  weightPerItem: `${avgWeight} กก.`,
-                },
-              ],
-            });
+            // Create Order immediately with status "สั่งจอง"
+            const orderRes = await submitNewOrder(
+              {
+                customerName: parsed.customerName,
+                phone: parsed.phone,
+                address: parsed.address,
+                ripenessPref,
+                shippingMethod: shipOpt.name,
+                shippingCost,
+                lineUserId: userId || undefined,
+                channel: "LINE OA",
+                orderStatus: "สั่งจอง",
+                notes: `สั่งจองผ่านแชท LINE OA (ราคา ฿${pricePerKg}/กก. นน.เฉลี่ย ~${avgWeight} กก./ลูก)`,
+                items: [
+                  {
+                    productId: prod?.id || currentSession.productId || "WK-01",
+                    qty,
+                    ripenessPref,
+                    weightPerItem: `${avgWeight} กก.`,
+                  },
+                ],
+              },
+              { skipCustomerNotify: true }
+            );
 
-            const createdOrderId = orderRes.ok ? orderRes.order.id : undefined;
+            clearLineSession(userId);
 
-            setLineSession(userId, {
-              ...currentSession,
-              step: "await_slip",
-              shippingMethod: shipOpt.name,
-              shippingCost,
-              totalPrice: estimatedItemTotal,
-              grandTotal,
-              customerName: parsed.customerName,
-              phone: parsed.phone,
-              address: parsed.address,
-              orderId: createdOrderId,
-            });
+            if (!orderRes.ok) {
+              await replyLineMessage(
+                replyToken,
+                [{ type: "text", text: `ไม่สามารถบันทึกคำสั่งจองได้: ${orderRes.error}` }],
+                token,
+                userId
+              );
+              continue;
+            }
 
             await replyLineMessage(
               replyToken,
-              buildPromptPayQrPaymentFlex({
-                orderId: createdOrderId,
-                productName: prod?.name || currentSession.productName || "ทุเรียนวิ่นขิ่น",
-                qty,
-                ripenessPref,
-                shippingMethod: shipOpt.name,
-                customerName: parsed.customerName,
-                phone: parsed.phone,
-                totalPrice: estimatedItemTotal,
-                shippingCost,
-                grandTotal,
-                publicBaseUrl,
-                pricePerKg,
-                approxWeight: `${avgWeight} กก.`,
-              }),
-              token
+              buildBookingReceiptFlex(orderRes.order),
+              token,
+              userId
             );
             continue;
           }
@@ -2333,11 +2540,11 @@ export async function POST(req: NextRequest) {
                   quickReplyMsg(
                     `ไม่สามารถตรวจสอบไฟล์รูปสลิปได้ (${media.reason}) รบกวนส่งเป็นรูปสลิป JPG/PNG อีกครั้งครับ`,
                     [
-                      { label: "ออกเลข Order ก่อน", text: "ขอยังไม่แนบสลิป" },
                       { label: "ยกเลิก", text: "ยกเลิก" },
                     ]
                   ),
-                  token
+                  token,
+                  userId
                 );
                 continue;
               }
@@ -2345,95 +2552,57 @@ export async function POST(req: NextRequest) {
               let targetOrder: Order | undefined;
               if (currentSession.orderId) {
                 const { data } = await getAllDatabase();
-                targetOrder = data.orders.find((o) => o.id === currentSession.orderId);
+                targetOrder = findOrderById(data.orders, currentSession.orderId);
                 if (targetOrder) {
                   await updateOrderRecord(targetOrder.id, {
                     slipUrl: media.apiPath,
-                    paymentStatus: "confirmed",
-                    updatedBy: "line-bot-slip",
+                    paymentStatus: "slip_submitted",
+                    slipSubmittedAt: new Date().toISOString(),
+                    updatedBy: "customer-slip",
                   });
                   targetOrder.slipUrl = media.apiPath;
-                  targetOrder.paymentStatus = "confirmed";
+                  targetOrder.paymentStatus = "slip_submitted";
                 }
               }
 
               if (!targetOrder) {
-                const result = await submitNewOrder({
-                  customerName: currentSession.customerName,
-                  phone: currentSession.phone,
-                  address: currentSession.address,
-                  ripenessPref: currentSession.ripenessPref,
-                  shippingMethod: currentSession.shippingMethod,
-                  lineUserId: userId || undefined,
-                  slipUrl: media.apiPath,
-                  orderStatus: "สั่งจอง",
-                  notes: "สั่งจองพร้อมแนบสลิปผ่านแชท LINE OA",
-                  items: [
-                    {
-                      productId: currentSession.productId,
-                      qty: currentSession.qty || 1,
-                      ripenessPref: currentSession.ripenessPref,
-                    },
-                  ],
-                });
-
-                if (!result.ok) {
-                  await replyLineMessage(
-                    replyToken,
-                    [
-                      {
-                        type: "text",
-                        text: `สร้างออเดอร์ไม่สำเร็จ: ${result.error}`,
-                        quickReply: buildMainQuickReply(),
-                      },
-                    ],
-                    token,
-                    userId
-                  );
-                  continue;
+                const { data } = await getAllDatabase();
+                const userOrders = data.orders.filter((o) => o.lineUserId === userId);
+                targetOrder = userOrders.sort((a, b) => new Date(b.createDate || 0).getTime() - new Date(a.createDate || 0).getTime())[0];
+                if (targetOrder) {
+                  await updateOrderRecord(targetOrder.id, {
+                    slipUrl: media.apiPath,
+                    paymentStatus: "slip_submitted",
+                    slipSubmittedAt: new Date().toISOString(),
+                    updatedBy: "customer-slip",
+                  });
+                  targetOrder.slipUrl = media.apiPath;
+                  targetOrder.paymentStatus = "slip_submitted";
                 }
-                targetOrder = result.order;
               }
 
               clearLineSession(userId);
 
-              // Notify admin group and admin user with slip preview
-              const adminTargets = [cfg.lineAdminGroupId, cfg.lineAdminUserId].filter(
-                (id): id is string => Boolean(id && id.trim())
-              );
-              if (adminTargets.length > 0) {
-                const alertMsgs: unknown[] = [
-                  {
-                    type: "text",
-                    text: `🧾 แจ้งเตือน: ลูกค้าส่งสลิปโอนเงิน!\n📦 ออเดอร์: #${targetOrder.id}\n👤 ลูกค้า: ${targetOrder.customerName} (${targetOrder.phone})\n💰 ยอด: ฿${(targetOrder.totalPrice + (targetOrder.shippingCost || 0)).toLocaleString()}`,
-                  },
-                ];
-                if (media.apiPath && publicBaseUrl) {
-                  const url = `${publicBaseUrl}${media.apiPath}`;
-                  alertMsgs.push({
-                    type: "image",
-                    originalContentUrl: url,
-                    previewImageUrl: url,
-                  });
+              if (targetOrder) {
+                // Notify admin group and admin user with slip preview and confirm/reject buttons
+                const adminTargets = [cfg.lineAdminGroupId, cfg.lineAdminUserId].filter(
+                  (id): id is string => Boolean(id && id.trim())
+                );
+                if (adminTargets.length > 0) {
+                  const alertMsgs = buildSlipAlertForAdmin(targetOrder, media.apiPath, publicBaseUrl);
+                  for (const tId of adminTargets) {
+                    await pushLineMessage(tId, alertMsgs, token);
+                  }
                 }
-                for (const tId of adminTargets) {
-                  await pushLineMessage(tId, alertMsgs, token);
-                }
-              }
 
-              await replyLineMessage(
-                replyToken,
-                [
-                  {
-                    type: "text",
-                    text: `✅ ได้รับสลิปโอนเงินสำหรับออเดอร์ #${targetOrder.id} เรียบร้อยแล้วครับ!\n\nแอดมินกำลังตรวจสอบความถูกต้องและจัดคัดทุเรียนให้คุณครับ 🙏🍈`,
-                  },
-                  ...buildOrderSummaryForCustomerFlex(targetOrder),
-                ],
-                token,
-                userId
-              );
-              continue;
+                await replyLineMessage(
+                  replyToken,
+                  buildSlipSubmittedReceiptFlex(targetOrder),
+                  token,
+                  userId
+                );
+                continue;
+              }
             }
 
             if (
@@ -2446,44 +2615,18 @@ export async function POST(req: NextRequest) {
               let existingOrder: Order | undefined;
               if (currentSession.orderId) {
                 const { data } = await getAllDatabase();
-                existingOrder = data.orders.find((o) => o.id === currentSession.orderId);
-              }
-              if (!existingOrder) {
-                const res = await submitNewOrder({
-                  customerName: currentSession.customerName,
-                  phone: currentSession.phone,
-                  address: currentSession.address,
-                  ripenessPref: currentSession.ripenessPref,
-                  shippingMethod: currentSession.shippingMethod,
-                  lineUserId: userId || undefined,
-                  orderStatus: "สั่งจอง",
-                  notes: "สั่งจองผ่านแชท LINE OA (แจ้งส่งสลิปภายหลัง)",
-                  items: [
-                    {
-                      productId: currentSession.productId,
-                      qty: currentSession.qty || 1,
-                      ripenessPref: currentSession.ripenessPref,
-                    },
-                  ],
-                });
-                if (res.ok) existingOrder = res.order;
+                existingOrder = findOrderById(data.orders, currentSession.orderId);
               }
               clearLineSession(userId);
               if (existingOrder) {
                 await replyLineMessage(
                   replyToken,
-                  [
-                    {
-                      type: "text",
-                      text: `🍈 บันทึกการสั่งจองออเดอร์ #${existingOrder.id} เรียบร้อยแล้วครับ!\n\n📌 สถานะ: 🟡 สั่งจอง (รอชั่งน้ำหนักจริง)\nเมื่อพร้อมโอน สามารถกดปุ่ม "📸 แนบสลิปโอนเงิน" หรือส่งรูปสลิปเข้ามาในแชทนี้ได้ตลอดเวลาครับ`,
-                    },
-                    ...buildOrderSummaryForCustomerFlex(existingOrder),
-                  ],
+                  buildBookingReceiptFlex(existingOrder),
                   token,
                   userId
                 );
+                continue;
               }
-              continue;
             }
 
             await replyLineMessage(
@@ -2827,44 +2970,58 @@ export async function POST(req: NextRequest) {
             "slip"
           );
           const { data } = await getAllDatabase();
-          const latestOrder = userId
-            ? data.orders.find((o) => o.lineUserId === userId)
-            : undefined;
+          const userOrders = data.orders.filter((o) => o.lineUserId === userId);
+          const latestOrder = userOrders.sort((a, b) => new Date(b.createDate || 0).getTime() - new Date(a.createDate || 0).getTime())[0];
+
+          if (latestOrder && savedSlip.ok) {
+            await updateOrderRecord(latestOrder.id, {
+              slipUrl: savedSlip.apiPath,
+              paymentStatus: "slip_submitted",
+              slipSubmittedAt: new Date().toISOString(),
+              updatedBy: "customer-line-slip-photo",
+            });
+            latestOrder.slipUrl = savedSlip.apiPath;
+            latestOrder.paymentStatus = "slip_submitted";
+          }
 
           const adminTargets = [cfg.lineAdminGroupId, cfg.lineAdminUserId].filter(
             (id): id is string => Boolean(id && id.trim())
           );
           if (adminTargets.length > 0) {
-            const alertMsgs: unknown[] = [
-              {
-                type: "text",
-                text: `🧾 แจ้งเตือน: ลูกค้าส่งสลิปทางแชท LINE\n👤 ลูกค้า: ${latestOrder ? `${latestOrder.customerName} (ออเดอร์ #${latestOrder.id})` : userId}${savedSlip.ok ? `\nไฟล์: ${savedSlip.filename}` : ""}`,
-              },
-            ];
-            if (savedSlip.ok && publicBaseUrl) {
-              const url = `${publicBaseUrl}${savedSlip.apiPath}`;
-              alertMsgs.push({
-                type: "image",
-                originalContentUrl: url,
-                previewImageUrl: url,
-              });
-            }
+            const alertMsgs = latestOrder
+              ? buildSlipAlertForAdmin(latestOrder, savedSlip.ok ? savedSlip.apiPath : undefined, publicBaseUrl)
+              : [
+                  {
+                    type: "text",
+                    text: `🧾 แจ้งเตือน: ลูกค้าส่งรูปภาพ/สลิปทางแชท LINE\n👤 บัญชี: ${userId}${savedSlip.ok ? `\nไฟล์: ${savedSlip.filename}` : ""}`,
+                  },
+                ];
             for (const tId of adminTargets) {
               await pushLineMessage(tId, alertMsgs, token);
             }
           }
 
-          await replyLineMessage(
-            replyToken,
-            [
-              {
-                type: "text",
-                text: "ได้รับรูปภาพ / สลิปโอนเงินแล้วครับ แอดมินกำลังตรวจสอบยอดให้ทันที 🙏\n\nหากต้องการสั่งเพิ่มหรือเช็กสถานะ กดเมนูด้านล่างได้เลยครับ",
-                quickReply: buildMainQuickReply(),
-              },
-            ],
-            token
-          );
+          if (latestOrder) {
+            await replyLineMessage(
+              replyToken,
+              buildSlipSubmittedReceiptFlex(latestOrder),
+              token,
+              userId
+            );
+          } else {
+            await replyLineMessage(
+              replyToken,
+              [
+                {
+                  type: "text",
+                  text: "ได้รับรูปภาพ / สลิปโอนเงินแล้วครับ แอดมินกำลังตรวจสอบความถูกต้องให้ทันทีครับ 🙏\n\nหากต้องการสั่งจองหรือเช็กสถานะ สามารถกดเมนูด้านล่างได้เลยครับ",
+                  quickReply: buildMainQuickReply(),
+                },
+              ],
+              token,
+              userId
+            );
+          }
           continue;
         }
 

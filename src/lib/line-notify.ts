@@ -245,23 +245,16 @@ export function buildOrderAlertForAdmin(order: Order, publicBaseUrl?: string): u
               layout: "horizontal",
               margin: "sm",
               contents: [
-                { type: "text", text: "ยอดรวมสุทธิ", size: "sm", weight: "bold" },
+                { type: "text", text: "ราคาประเมินเบื้องต้น", size: "sm", weight: "bold", color: "#4B5563" },
                 {
                   type: "text",
-                  text: `฿${grandTotal.toLocaleString()}`,
+                  text: `~฿${grandTotal.toLocaleString()}`,
                   size: "md",
                   weight: "bold",
-                  color: "#15803d",
+                  color: "#B45309",
                   align: "end",
                 },
               ],
-            },
-            {
-              type: "text",
-              text: `สถานะชำระ: ${order.paymentStatus === "confirmed" ? "ชำระเงินแล้ว ✅" : "รอตรวจสลิป ⚡"}`,
-              size: "xs",
-              color: order.paymentStatus === "confirmed" ? "#15803d" : "#b45309",
-              weight: "bold",
             },
             {
               type: "box",
@@ -295,56 +288,143 @@ export function buildOrderAlertForAdmin(order: Order, publicBaseUrl?: string): u
         footer: {
           type: "box",
           layout: "vertical",
-          spacing: "sm",
+          spacing: "xs",
           contents: [
             {
               type: "button",
-              style: "primary",
-              color: "#1B4D31",
+              style: "secondary",
               height: "sm",
               action: {
-                type: "uri",
-                label: "📦 เปิดจัดการบนเว็บ Admin",
-                uri: `${baseUrl}/admin`,
+                type: "postback",
+                label: "❌ ปฏิเสธ/ยกเลิก",
+                data: `action=admin_cancel_order&orderId=${order.id}`,
+                displayText: `ยกเลิกออเดอร์ #${order.id}`,
               },
             },
-            ...(order.mapsUrl
-              ? [
-                  {
-                    type: "button",
-                    style: "secondary",
-                    height: "sm",
-                    action: {
-                      type: "uri",
-                      label: "🗺️ เปิดหมุดแผนที่จัดส่ง",
-                      uri: order.mapsUrl,
-                    },
-                  },
-                ]
-              : order.address
-              ? [
-                  {
-                    type: "button",
-                    style: "secondary",
-                    height: "sm",
-                    action: {
-                      type: "uri",
-                      label: "🗺️ ค้นหาที่อยู่บน Google Maps",
-                      uri: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                        order.address
-                      )}`,
-                    },
-                  },
-                ]
-              : []),
             {
               type: "button",
               style: "link",
               height: "sm",
               action: {
                 type: "uri",
-                label: `📞 โทรหาลูกค้า (${order.phone})`,
-                uri: `tel:${order.phone}`,
+                label: "📦 เปิดเว็บ Admin",
+                uri: `${baseUrl}/admin`,
+              },
+            },
+          ],
+        },
+      },
+    },
+  ];
+}
+
+export function buildSlipAlertForAdmin(
+  order: Order,
+  slipUrl?: string,
+  publicBaseUrl?: string
+): unknown[] {
+  const baseUrl = publicBaseUrl || "https://durianwinkin.vercel.app";
+  const grandTotal = order.totalPrice + (order.shippingCost || 0);
+  const fullSlipUrl = slipUrl
+    ? (slipUrl.startsWith("http") ? slipUrl : `${baseUrl}${slipUrl}`)
+    : undefined;
+
+  return [
+    {
+      type: "flex",
+      altText: `🧾 แจ้งเตือนสลิปโอนเงิน #${order.id} (฿${grandTotal.toLocaleString()})`,
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#1E3A8A",
+          contents: [
+            {
+              type: "text",
+              text: "🧾 แจ้งเตือนสลิปโอนเงิน! (ทีมงาน)",
+              color: "#FDE047",
+              weight: "bold",
+              size: "sm",
+            },
+            {
+              type: "text",
+              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              color: "#FFFFFF",
+              size: "xs",
+              margin: "xs",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          contents: [
+            {
+              type: "text",
+              text: `ลูกค้า: ${order.customerName} (${order.phone})`,
+              size: "xs",
+              weight: "bold",
+              wrap: true,
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              margin: "xs",
+              contents: [
+                { type: "text", text: "💰 ยอดที่ต้องตรวจ:", size: "xs", color: "#4B5563", flex: 6 },
+                {
+                  type: "text",
+                  text: `฿${grandTotal.toLocaleString()}`,
+                  size: "sm",
+                  weight: "bold",
+                  color: "#15803D",
+                  align: "end",
+                  flex: 4,
+                },
+              ],
+            },
+            ...(fullSlipUrl
+              ? [
+                  {
+                    type: "image",
+                    url: fullSlipUrl,
+                    size: "full",
+                    aspectRatio: "16:9",
+                    aspectMode: "cover",
+                    margin: "sm",
+                  },
+                ]
+              : []),
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#16A34A",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "✅ ยอดถูกต้อง",
+                data: `action=admin_confirm_slip&orderId=${order.id}`,
+                displayText: `ยืนยันสลิป #${order.id}`,
+              },
+            },
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "❌ ยอดไม่ตรง",
+                data: `action=admin_reject_slip&orderId=${order.id}`,
+                displayText: `ยอดไม่ตรง #${order.id}`,
               },
             },
           ],
@@ -453,6 +533,51 @@ export function buildCustomerStatusFlex(order: Order): unknown[] {
     });
   }
 
+  if (order.orderStatus === "รอชำระเงิน") {
+    const qrUrl = `https://durianwinkin.vercel.app/api/promptpay-qr?amount=${encodeURIComponent(String(grandTotal))}`;
+    bodyContents.push(
+      {
+        type: "image",
+        url: qrUrl,
+        size: "md",
+        aspectRatio: "1:1",
+        aspectMode: "cover",
+        margin: "sm",
+        align: "center",
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#FFFBEB",
+        cornerRadius: "md",
+        paddingAll: "sm",
+        margin: "xs",
+        contents: [
+          {
+            type: "text",
+            text: `PromptPay: ${shopInfo.bankAccount.promptPay}`,
+            size: "xs",
+            weight: "bold",
+            color: "#78350F",
+          },
+          {
+            type: "text",
+            text: `${shopInfo.bankAccount.bank}: ${shopInfo.bankAccount.number}`,
+            size: "xs",
+            color: "#78350F",
+          },
+          {
+            type: "text",
+            text: "โอนเสร็จแล้วกดปุ่ม 'แนบสลิปโอนเงิน' ด้านล่างได้เลยครับ",
+            size: "xxs",
+            color: "#92400E",
+            margin: "xs",
+          },
+        ],
+      }
+    );
+  }
+
   const bubble: Record<string, unknown> = {
     type: "bubble",
     header: {
@@ -469,7 +594,7 @@ export function buildCustomerStatusFlex(order: Order): unknown[] {
         },
         {
           type: "text",
-          text: `ออเดอร์ ${order.id} • ทุเรียนวินคิน`,
+          text: `ออเดอร์ #${order.id} • ทุเรียนวินคิน`,
           color: "#ffffff",
           size: "xs",
         },
@@ -483,23 +608,54 @@ export function buildCustomerStatusFlex(order: Order): unknown[] {
     },
   };
 
+  const footerButtons: unknown[] = [];
+  if (order.orderStatus === "รอชำระเงิน") {
+    footerButtons.push({
+      type: "button",
+      style: "primary",
+      color: "#15803D",
+      height: "sm",
+      action: {
+        type: "postback",
+        label: "📸 แนบสลิปโอนเงิน",
+        data: `action=attach_slip&orderId=${order.id}`,
+        displayText: `แนบสลิป #${order.id}`,
+      },
+    });
+  }
   if (courierInfo.trackingUrl && order.trackingNo) {
+    footerButtons.push({
+      type: "button",
+      style: "primary",
+      color: "#1B4D31",
+      height: "sm",
+      action: {
+        type: "uri",
+        label: "📦 เช็กเลขพัสดุ",
+        uri: courierInfo.trackingUrl,
+      },
+    });
+  }
+  if (order.orderStatus === "จัดส่งสำเร็จ") {
+    footerButtons.push({
+      type: "button",
+      style: "secondary",
+      height: "sm",
+      action: {
+        type: "postback",
+        label: "🍈 แจ้งเคลมทุเรียน",
+        data: `action=claim&orderId=${order.id}`,
+        displayText: `แจ้งเคลม #${order.id}`,
+      },
+    });
+  }
+
+  if (footerButtons.length > 0) {
     bubble.footer = {
       type: "box",
       layout: "vertical",
-      contents: [
-        {
-          type: "button",
-          style: "primary",
-          color: "#1B4D31",
-          height: "sm",
-          action: {
-            type: "uri",
-            label: "เช็กเลขพัสดุ",
-            uri: courierInfo.trackingUrl,
-          },
-        },
-      ],
+      spacing: "xs",
+      contents: footerButtons,
     };
   }
 
@@ -2003,7 +2159,7 @@ export function buildUserOrdersFlex(
   ];
 }
 
-export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
+export function buildBookingReceiptFlex(order: Order): unknown[] {
   const grandTotal = order.totalPrice + order.shippingCost;
   const itemText = order.items
     .map((it) => `• ${it.productName} x${it.qty}`)
@@ -2012,7 +2168,7 @@ export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
   return [
     {
       type: "flex",
-      altText: `บันทึกออเดอร์ ${order.id} สำเร็จ (฿${grandTotal.toLocaleString()})`,
+      altText: `🍈 บันทึกการสั่งจอง #${order.id} สำเร็จ (รอชั่งน้ำหนักจริง)`,
       quickReply: buildMainQuickReply(),
       contents: {
         type: "bubble",
@@ -2023,21 +2179,21 @@ export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
           contents: [
             {
               type: "text",
-              text: "🍈 บันทึกคำสั่งจองสำเร็จ (Pre-order)",
+              text: "🍈 สั่งจองทุเรียนสำเร็จ (Pre-order)",
               color: "#FDE047",
               weight: "bold",
               size: "md",
             },
             {
               type: "text",
-              text: `รหัสออเดอร์: #${order.id}`,
+              text: `รหัสคำสั่งจอง: #${order.id}`,
               color: "#FFFFFF",
               size: "xs",
               margin: "xs",
             },
             {
               type: "text",
-              text: `สถานะ: 🟡 ${order.orderStatus || "สั่งจอง (รอชั่งน้ำหนัก)"}`,
+              text: `สถานะ: 🟡 ${order.orderStatus || "สั่งจอง"}`,
               color: "#FEF08A",
               size: "xs",
               weight: "bold",
@@ -2059,11 +2215,167 @@ export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
               type: "box",
               layout: "horizontal",
               contents: [
-                { type: "text", text: "ยอดโอนสุทธิ", size: "sm", weight: "bold" },
+                { type: "text", text: "ราคาประเมินเบื้องต้น", size: "xs", color: "#4B5563" },
+                {
+                  type: "text",
+                  text: `~฿${grandTotal.toLocaleString()}`,
+                  size: "sm",
+                  weight: "bold",
+                  color: "#B45309",
+                  align: "end",
+                },
+              ],
+            },
+            {
+              type: "text",
+              text: "*ราคาประเมินเบื้องต้น (ยังไม่ใช่ยอดจริง)",
+              size: "xxs",
+              color: "#9CA3AF",
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              backgroundColor: "#FFFBEB",
+              borderColor: "#FDE68A",
+              borderWidth: "1px",
+              cornerRadius: "md",
+              paddingAll: "sm",
+              margin: "sm",
+              contents: [
+                {
+                  type: "text",
+                  text: "📌 ขั้นตอนถัดไป: ยังไม่ต้องโอนเงินครับ",
+                  size: "xs",
+                  weight: "bold",
+                  color: "#92400E",
+                },
+                {
+                  type: "text",
+                  text: "แอดมินจะคัดผลแก่จัดและชั่งน้ำหนักจริง จากนั้นจะส่งสรุปยอดเงินสุทธิพร้อม QR PromptPay ให้คุณทางแชทนี้ครับ 🍈✨",
+                  size: "xxs",
+                  color: "#B45309",
+                  wrap: true,
+                  margin: "xs",
+                },
+              ],
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#15803D",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "📦 เช็กสถานะการจอง",
+                data: `action=track_order&orderId=${order.id}`,
+                displayText: `เช็กสถานะ #${order.id}`,
+              },
+            },
+            {
+              type: "button",
+              style: "link",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "💬 คุยกับแอดมิน",
+                data: `action=open_ticket&orderId=${order.id}`,
+                displayText: "คุยกับแอดมิน",
+              },
+            },
+          ],
+        },
+      },
+    },
+  ];
+}
+
+export const buildOrderSummaryForCustomerFlex = buildBookingReceiptFlex;
+
+export function buildPaymentQrForCustomerFlex(order: Order, publicBaseUrl?: string): unknown[] {
+  const grandTotal = order.totalPrice + (order.shippingCost || 0);
+  const baseUrl =
+    publicBaseUrl && publicBaseUrl.startsWith("https://")
+      ? publicBaseUrl.replace(/\/+$/, "")
+      : "https://durianwinkin.vercel.app";
+  const qrUrl = `${baseUrl}/api/promptpay-qr?amount=${encodeURIComponent(String(grandTotal))}`;
+  const itemText = order.items
+    .map((it) => `• ${it.productName} x${it.qty}`)
+    .join("\n");
+
+  return [
+    {
+      type: "flex",
+      altText: `🍈 สรุปยอดชำระจริง #${order.id} (฿${grandTotal.toLocaleString()})`,
+      quickReply: buildMainQuickReply(),
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#1B4D31",
+          contents: [
+            {
+              type: "text",
+              text: "🍈 สรุปยอดชำระจริง (พร้อมโอน)",
+              color: "#FDE047",
+              weight: "bold",
+              size: "md",
+            },
+            {
+              type: "text",
+              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              color: "#FFFFFF",
+              size: "xs",
+              margin: "xs",
+            },
+            {
+              type: "text",
+              text: "สถานะ: 🟠 รอชำระเงิน",
+              color: "#FCD34D",
+              size: "xs",
+              weight: "bold",
+              margin: "xs",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          contents: [
+            { type: "text", text: `ผู้รับ: ${order.customerName} (${order.phone})`, size: "xs", color: "#374151", wrap: true },
+            { type: "text", text: itemText, size: "xs", weight: "bold", wrap: true },
+            ...(order.weightPerItem
+              ? [
+                  {
+                    type: "box",
+                    layout: "horizontal",
+                    margin: "xs",
+                    contents: [
+                      { type: "text", text: "⚖️ น้ำหนักจริงที่ชั่งได้:", size: "xs", color: "#166534", weight: "bold", flex: 6 },
+                      { type: "text", text: String(order.weightPerItem), size: "xs", weight: "bold", color: "#15803D", align: "end", flex: 4 },
+                    ],
+                  },
+                ]
+              : []),
+            { type: "separator", margin: "xs" },
+            {
+              type: "box",
+              layout: "horizontal",
+              margin: "xs",
+              contents: [
+                { type: "text", text: "ยอดชำระจริงสุทธิ", size: "sm", weight: "bold" },
                 {
                   type: "text",
                   text: `฿${grandTotal.toLocaleString()}`,
-                  size: "md",
+                  size: "lg",
                   weight: "bold",
                   color: "#15803D",
                   align: "end",
@@ -2071,12 +2383,21 @@ export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
               ],
             },
             {
+              type: "image",
+              url: qrUrl,
+              size: "md",
+              aspectRatio: "1:1",
+              aspectMode: "cover",
+              margin: "sm",
+              align: "center",
+            },
+            {
               type: "box",
               layout: "vertical",
               backgroundColor: "#FFFBEB",
               cornerRadius: "md",
-              paddingAll: "md",
-              margin: "sm",
+              paddingAll: "sm",
+              margin: "xs",
               contents: [
                 {
                   type: "text",
@@ -2090,11 +2411,10 @@ export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
                   text: `${shopInfo.bankAccount.bank}: ${shopInfo.bankAccount.number}`,
                   size: "xs",
                   color: "#78350F",
-                  wrap: true,
                 },
                 {
                   type: "text",
-                  text: "โอนแล้วส่งรูปสลิปในแชทนี้ได้เลยครับ",
+                  text: "โอนเสร็จแล้วกดปุ่ม 'แนบสลิปโอนเงิน' ด้านล่างได้เลยครับ",
                   size: "xxs",
                   color: "#92400E",
                   margin: "xs",
@@ -2115,11 +2435,92 @@ export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
               height: "sm",
               action: {
                 type: "postback",
-                label: "📸 แนบสลิปโอนเงิน (แจ้งชำระ)",
+                label: "📸 แนบสลิปโอนเงิน",
                 data: `action=attach_slip&orderId=${order.id}`,
-                displayText: `แนบสลิปออเดอร์ #${order.id}`,
+                displayText: `แนบสลิป #${order.id}`,
               },
             },
+            {
+              type: "button",
+              style: "link",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "💬 คุยกับแอดมิน",
+                data: `action=open_ticket&orderId=${order.id}`,
+                displayText: "คุยกับแอดมิน",
+              },
+            },
+          ],
+        },
+      },
+    },
+  ];
+}
+
+export function buildSlipSubmittedReceiptFlex(order: Order): unknown[] {
+  return [
+    {
+      type: "flex",
+      altText: `🧾 ได้รับสลิปออเดอร์ #${order.id} แล้ว`,
+      quickReply: buildMainQuickReply(),
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#1B4D31",
+          contents: [
+            {
+              type: "text",
+              text: "🧾 ได้รับสลิปโอนเงินแล้ว",
+              color: "#FDE047",
+              weight: "bold",
+              size: "md",
+            },
+            {
+              type: "text",
+              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              color: "#FFFFFF",
+              size: "xs",
+              margin: "xs",
+            },
+            {
+              type: "text",
+              text: "สถานะ: 🟡 รอแอดมินตรวจสลิป",
+              color: "#FEF08A",
+              size: "xs",
+              weight: "bold",
+              margin: "xs",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "text",
+              text: `ได้รับสลิปโอนเงินสำหรับออเดอร์ #${order.id} เรียบร้อยแล้วครับ 🙏`,
+              size: "xs",
+              weight: "bold",
+              wrap: true,
+            },
+            {
+              type: "text",
+              text: "แอดมินกำลังตรวจสอบความถูกต้องของยอดเงิน และจะแจ้งยืนยันการจัดส่งให้ทราบทางแชทนี้ครับ",
+              size: "xs",
+              color: "#4B5563",
+              wrap: true,
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          contents: [
             {
               type: "button",
               style: "secondary",
@@ -2137,7 +2538,270 @@ export function buildOrderSummaryForCustomerFlex(order: Order): unknown[] {
               height: "sm",
               action: {
                 type: "postback",
-                label: "💬 สอบถาม / คุยกับแอดมิน",
+                label: "💬 คุยกับแอดมิน",
+                data: `action=open_ticket&orderId=${order.id}`,
+                displayText: "คุยกับแอดมิน",
+              },
+            },
+          ],
+        },
+      },
+    },
+  ];
+}
+
+export function buildPaymentConfirmedFlex(order: Order): unknown[] {
+  return [
+    {
+      type: "flex",
+      altText: `✅ ยืนยันยอดชำระออเดอร์ #${order.id} แล้ว`,
+      quickReply: buildMainQuickReply(),
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#15803D",
+          contents: [
+            {
+              type: "text",
+              text: "✅ ยืนยันการชำระเงินสำเร็จ",
+              color: "#FFFFFF",
+              weight: "bold",
+              size: "md",
+            },
+            {
+              type: "text",
+              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              color: "#DCFCE7",
+              size: "xs",
+              margin: "xs",
+            },
+            {
+              type: "text",
+              text: "สถานะ: 🟢 ชำระเงินแล้ว / เตรียมจัดส่ง",
+              color: "#FEF08A",
+              size: "xs",
+              weight: "bold",
+              margin: "xs",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "text",
+              text: `แอดมินตรวจสอบยอดเงินเรียบร้อยแล้วครับ 🍈✨`,
+              size: "xs",
+              weight: "bold",
+              wrap: true,
+            },
+            {
+              type: "text",
+              text: "ทีมงานกำลังเตรียมคัดและบรรจุทุเรียนคุณภาพพิเศษเพื่อส่งมอบให้คุณ เมื่อพัสดุออกเดินทางจะแจ้งเลขพัสดุให้ทราบทันทีครับ",
+              size: "xs",
+              color: "#4B5563",
+              wrap: true,
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "📦 เช็กสถานะออเดอร์",
+                data: `action=track_order&orderId=${order.id}`,
+                displayText: `เช็กสถานะ #${order.id}`,
+              },
+            },
+          ],
+        },
+      },
+    },
+  ];
+}
+
+export function buildShippedNoticeFlex(order: Order): unknown[] {
+  return [
+    {
+      type: "flex",
+      altText: `🚚 สินค้าออเดอร์ #${order.id} กำลังจัดส่ง`,
+      quickReply: buildMainQuickReply(),
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#1D4ED8",
+          contents: [
+            {
+              type: "text",
+              text: "🚚 สินค้ากำลังจัดส่ง",
+              color: "#FFFFFF",
+              weight: "bold",
+              size: "md",
+            },
+            {
+              type: "text",
+              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              color: "#DBEAFE",
+              size: "xs",
+              margin: "xs",
+            },
+            {
+              type: "text",
+              text: "สถานะ: 🔵 กำลังจัดส่ง",
+              color: "#FEF08A",
+              size: "xs",
+              weight: "bold",
+              margin: "xs",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "text",
+              text: `ทุเรียนของคุณกำลังเดินทางไปหาคุณแล้วครับ 🍈📦`,
+              size: "xs",
+              weight: "bold",
+              wrap: true,
+            },
+            {
+              type: "text",
+              text: `ขนส่ง: ${order.courier || order.shippingMethod || "รถควบคุมอุณหภูมิ"}`,
+              size: "xs",
+              color: "#374151",
+            },
+            ...(order.trackingNo
+              ? [
+                  {
+                    type: "text",
+                    text: `เลขพัสดุ: ${order.trackingNo}`,
+                    size: "sm",
+                    weight: "bold",
+                    color: "#1D4ED8",
+                  },
+                ]
+              : []),
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#1D4ED8",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "📦 เช็กสถานะพัสดุ",
+                data: `action=track_order&orderId=${order.id}`,
+                displayText: `เช็กสถานะ #${order.id}`,
+              },
+            },
+          ],
+        },
+      },
+    },
+  ];
+}
+
+export function buildDeliveredNoticeFlex(order: Order): unknown[] {
+  return [
+    {
+      type: "flex",
+      altText: `🎉 พัสดุออเดอร์ #${order.id} จัดส่งสำเร็จแล้ว`,
+      quickReply: buildMainQuickReply(),
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#15803D",
+          contents: [
+            {
+              type: "text",
+              text: "🎉 พัสดุจัดส่งสำเร็จแล้ว",
+              color: "#FFFFFF",
+              weight: "bold",
+              size: "md",
+            },
+            {
+              type: "text",
+              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              color: "#DCFCE7",
+              size: "xs",
+              margin: "xs",
+            },
+            {
+              type: "text",
+              text: "สถานะ: 🟢 จัดส่งสำเร็จ",
+              color: "#FEF08A",
+              size: "xs",
+              weight: "bold",
+              margin: "xs",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "text",
+              text: `ทุเรียนวิ่นขิ่นจัดส่งถึงมือคุณเรียบร้อยแล้วครับ 🍈🙏`,
+              size: "xs",
+              weight: "bold",
+              wrap: true,
+            },
+            {
+              type: "text",
+              text: "กรุณาเปิดกล่องและตรวจสอบเนื้อทุเรียน หากพบปัญหา สามารถกดปุ่มแจ้งเคลมได้ภายใน 24 ชม. ครับ",
+              size: "xs",
+              color: "#4B5563",
+              wrap: true,
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          contents: [
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "🍈 แจ้งเคลมทุเรียน",
+                data: `action=claim&orderId=${order.id}`,
+                displayText: `แจ้งเคลม #${order.id}`,
+              },
+            },
+            {
+              type: "button",
+              style: "link",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "💬 คุยกับแอดมิน",
                 data: `action=open_ticket&orderId=${order.id}`,
                 displayText: "คุยกับแอดมิน",
               },

@@ -53,7 +53,8 @@ export type SubmitOrderResult =
   | { ok: false; error: string; status: number };
 
 export async function submitNewOrder(
-  body: SubmitOrderInput
+  body: SubmitOrderInput,
+  options?: { skipCustomerNotify?: boolean }
 ): Promise<SubmitOrderResult> {
   if (!body.customerName?.trim() || !body.phone?.trim() || !body.address?.trim()) {
     return {
@@ -246,7 +247,7 @@ export async function submitNewOrder(
   const cfg = getRuntimeConfig();
   if (cfg.lineChannelAccessToken) {
     // 1. Send Order Confirmation directly to Customer (if ordered via LINE or logged in with LINE)
-    if (created.lineUserId) {
+    if (created.lineUserId && !options?.skipCustomerNotify) {
       try {
         const customerMessages = buildOrderSummaryForCustomerFlex(created);
         await pushLineMessage(

@@ -80,7 +80,7 @@ export function getRuntimeConfig(): RuntimeConfig {
     lineAdminUserId:
       process.env.LINE_ADMIN_USER_ID || fileConfig.lineAdminUserId || "",
     lineAdminGroupId:
-      process.env.LINE_ADMIN_GROUP_ID || fileConfig.lineAdminGroupId || "C705a5ed794e8713fcbe4a0ef4ed63e53",
+      process.env.LINE_ADMIN_GROUP_ID || fileConfig.lineAdminGroupId || "",
     lineLiffId:
       process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "2012605985-l0IfXrhJ",
     lineLoginChannelId:
