@@ -2106,14 +2106,54 @@ function ProductsTab({
   onProductUpdated: (p: Product) => void;
   onProductCreated: (p: Product) => void;
 }) {
-  const [showAdd, setShowAdd] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Form states matching user's exact specification
+  const [productType, setProductType] = useState<"รับคัดลูก" | "รับมาเป็นโลแล้วขายเลย">("รับคัดลูก");
+  const [idInput, setIdInput] = useState("");
   const [name, setName] = useState("");
-  const [variety, setVariety] = useState("หมอนทอง");
-  const [type, setType] = useState<"whole" | "flesh">("whole");
+  const [maturity, setMaturity] = useState("แก่จัด 85%+");
+  const [texture, setTexture] = useState("กรอบนอกนุ่มใน");
+  const [stockQty, setStockQty] = useState(10);
+  const [grade, setGrade] = useState("เกรด A+ พรีเมียม");
   const [weight, setWeight] = useState("3.0 - 3.5 กก.");
-  const [price, setPrice] = useState("890");
-  const [origin, setOrigin] = useState("สวนระยองแท้");
+  const [image, setImage] = useState("https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80");
+  const [description, setDescription] = useState("หมอนทองคัดผลแก่จัด 85%+ หวานมันกลมกล่อม เม็ดลีบ ไม่ป้ายยาเร่งสุก");
+  const [pricePerKg, setPricePerKg] = useState("220");
   const [saving, setSaving] = useState(false);
+
+  const openAddModal = () => {
+    setEditingProduct(null);
+    setIdInput("");
+    setProductType("รับคัดลูก");
+    setName("");
+    setMaturity("แก่จัด 85%+");
+    setTexture("กรอบนอกนุ่มใน");
+    setStockQty(10);
+    setGrade("เกรด A+ พรีเมียม");
+    setWeight("3.0 - 3.5 กก.");
+    setImage("https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80");
+    setDescription("หมอนทองคัดผลแก่จัด 85%+ หวานมันกลมกล่อม เม็ดลีบ ไม่ป้ายยาเร่งสุก");
+    setPricePerKg("220");
+    setShowModal(true);
+  };
+
+  const openEditModal = (p: Product) => {
+    setEditingProduct(p);
+    setIdInput(p.id);
+    setProductType((p.productType as any) || (p.type === "flesh" ? "รับมาเป็นโลแล้วขายเลย" : "รับคัดลูก"));
+    setName(p.name);
+    setMaturity(p.maturity || (p.specs?.maturity as any) || "แก่จัด 85%+");
+    setTexture(p.texture || (p.specs?.texture as any) || "กรอบนอกนุ่มใน");
+    setStockQty(p.stockQty ?? 0);
+    setGrade(p.grade || "เกรด A+ พรีเมียม");
+    setWeight(p.weight || "3.0 - 3.5 กก.");
+    setImage(p.image || "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80");
+    setDescription(p.description || "");
+    setPricePerKg(String(p.pricePerKg || p.price || 220));
+    setShowModal(true);
+  };
 
   const toggleAvailability = async (p: Product) => {
     const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
@@ -2128,7 +2168,10 @@ function ProductsTab({
   };
 
   const toggleProductActive = async (p: Product) => {
-    const currentActive = (p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false) ? 0 : 1;
+    const currentActive =
+      p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false
+        ? 0
+        : 1;
     const nextVal = currentActive === 1 ? 0 : 1;
     const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
       method: "PATCH",
@@ -2141,10 +2184,10 @@ function ProductsTab({
     }
   };
 
-  const handleEditPrice = async (p: Product) => {
+  const handleQuickEditPrice = async (p: Product) => {
     const input = window.prompt(
-      `แก้ไขราคาของ "${p.name}" (บาท):`,
-      String(p.price)
+      `แก้ไขราคาต่อโลของ "${p.name}" (บาท/กก.):`,
+      String(p.pricePerKg || p.price)
     );
     if (!input) return;
     const nextPrice = Number(input);
@@ -2153,7 +2196,7 @@ function ProductsTab({
     const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ price: nextPrice }),
+      body: JSON.stringify({ pricePerKg: nextPrice, price: nextPrice }),
     });
     const json = (await res.json()) as { ok: boolean; product?: Product };
     if (res.ok && json.ok && json.product) {
@@ -2161,26 +2204,20 @@ function ProductsTab({
     }
   };
 
-  const handleEditStock = async (p: Product) => {
-    const isQty = p.stockUnit === "qty" || p.type === "flesh";
-    const currentVal = isQty ? p.stockQty ?? p.stockKg ?? 0 : p.stockKg ?? 0;
-    const label = isQty ? `จำนวนกล่อง/แพ็กคงเหลือ (${p.unit})` : "น้ำหนักคงเหลือรวม (กิโลกรัม)";
+  const handleQuickEditStock = async (p: Product) => {
+    const currentVal = p.stockQty ?? 0;
     const input = window.prompt(
-      `อัปเดตสต็อกของ "${p.name}"\n${label}:`,
+      `อัปเดตจำนวนลูกคงเหลือของ "${p.name}" (ลูก):`,
       String(currentVal)
     );
     if (input === null) return;
     const val = Number(input);
     if (Number.isNaN(val) || val < 0) return;
 
-    const payload: Record<string, unknown> = isQty
-      ? { stockUnit: "qty", stockQty: val, stockKg: val, isAvailable: val > 0 }
-      : { stockUnit: "kg", stockKg: val, isAvailable: val > 0 };
-
     const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ stockQty: val, isAvailable: val > 0 }),
     });
     const json = (await res.json()) as { ok: boolean; product?: Product };
     if (res.ok && json.ok && json.product) {
@@ -2188,28 +2225,48 @@ function ProductsTab({
     }
   };
 
-  const handleAddProduct = async (e: React.FormEvent) => {
+  const handleSubmitModal = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          variety,
-          type,
-          weight,
-          price: Number(price),
-          unit: type === "flesh" ? "กล่อง" : "ลูก",
-          origin,
-        }),
-      });
-      const json = (await res.json()) as { ok: boolean; product?: Product };
-      if (res.ok && json.ok && json.product) {
-        onProductCreated(json.product);
-        setShowAdd(false);
-        setName("");
+      const payload = {
+        id: idInput.trim() || undefined,
+        productType,
+        name: name.trim(),
+        maturity,
+        texture,
+        stockQty: Number(stockQty || 0),
+        grade,
+        weight: weight.trim(),
+        image: image.trim(),
+        description: description.trim(),
+        pricePerKg: Number(pricePerKg || 0),
+        price: Number(pricePerKg || 0),
+      };
+
+      if (editingProduct) {
+        const res = await fetch(`/api/products/${encodeURIComponent(editingProduct.id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (res.ok && json.ok && json.product) {
+          onProductUpdated(json.product);
+          setShowModal(false);
+        }
+      } else {
+        const res = await fetch("/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (res.ok && json.ok && json.product) {
+          onProductCreated(json.product);
+          setShowModal(false);
+        }
       }
     } finally {
       setSaving(false);
@@ -2218,16 +2275,21 @@ function ProductsTab({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-extrabold text-stone-900">
-          จัดการเมนูทุเรียน ({products.length})
-        </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-extrabold text-stone-900">
+            คลังสินค้าและสต็อกทุเรียน ({products.length} รายการ)
+          </h2>
+          <p className="text-xs text-stone-500 mt-0.5">
+            โครงสร้างฐานข้อมูลใหม่: แยกประเภทคัดลูก/ชั่งโล, ระดับความสุก, Texture, ไซส์เกรด, จำนวนลูก, และราคาต่อโล
+          </p>
+        </div>
         <button
-          onClick={() => setShowAdd(true)}
-          className="bg-[#1B4D31] hover:bg-[#143B25] text-white px-4 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5"
+          onClick={openAddModal}
+          className="bg-[#1B4D31] hover:bg-[#143B25] text-white px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-xs inline-flex items-center justify-center gap-1.5"
         >
-          <Plus className="w-4 h-4" />
-          <span>เพิ่มสินค้าใหม่</span>
+          <Plus className="w-4 h-4 text-amber-300" />
+          <span>เพิ่มทุเรียนรายการใหม่</span>
         </button>
       </div>
 
@@ -2235,197 +2297,343 @@ function ProductsTab({
         {products.map((p) => (
           <div
             key={p.id}
-            className="bg-white rounded-2xl shadow-xs border border-stone-200 p-4 flex flex-col sm:flex-row sm:items-center gap-4"
+            className="bg-white rounded-2xl shadow-xs border border-stone-200 p-4 sm:p-5 flex flex-col md:flex-row md:items-center gap-4 hover:border-stone-300 transition"
           >
             <img
               src={p.image}
               alt={p.name}
-              className="w-16 h-16 rounded-xl object-cover shrink-0 bg-stone-100 border border-stone-200"
+              className="w-20 h-20 rounded-2xl object-cover shrink-0 bg-stone-100 border border-stone-200 shadow-xs"
             />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-[10px] font-mono bg-stone-100 px-1.5 py-0.5 rounded font-bold text-stone-600">
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-mono bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-md font-bold text-stone-700">
                   {p.id}
                 </span>
-                <h3 className="font-bold text-sm text-stone-900 truncate">
-                  {p.name}
-                </h3>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    p.productType === "รับมาเป็นโลแล้วขายเลย"
+                      ? "bg-purple-50 text-purple-800 border-purple-200"
+                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  }`}
+                >
+                  {p.productType || "รับคัดลูก"}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                  {p.grade || "เกรด A+ พรีเมียม"}
+                </span>
               </div>
-              <p className="text-xs text-stone-500">
-                {p.variety} • {p.weight} • {p.origin}
-              </p>
-              <p className="text-xs font-semibold text-amber-800 mt-0.5">
-                สต็อก: {formatProductStock(p).summary}
-              </p>
-              <div className="flex items-center gap-2 text-[10px] text-stone-400 mt-1 font-mono">
-                <span>สร้าง: {p.createDate ? new Date(p.createDate).toLocaleDateString("th-TH") : "-"}</span>
-                <span>• ผู้สร้าง: {p.createdBy || "admin"}</span>
+
+              <h3 className="font-extrabold text-base text-stone-900">
+                {p.name}
+              </h3>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-stone-600 pt-1">
+                <div>
+                  <span className="text-stone-400 block text-[10px]">ระดับความสุก:</span>
+                  <span className="font-bold text-amber-800">
+                    {p.maturity || p.specs?.maturity || "แก่จัด 85%+"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-400 block text-[10px]">Texture:</span>
+                  <span className="font-bold text-teal-800">
+                    {p.texture || p.specs?.texture || "กรอบนอกนุ่มใน"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-400 block text-[10px]">น้ำหนักต่อลูก:</span>
+                  <span className="font-bold text-stone-800">{p.weight}</span>
+                </div>
+                <div>
+                  <span className="text-stone-400 block text-[10px]">จำนวนคงเหลือ:</span>
+                  <span className="font-bold text-emerald-800 font-mono">
+                    {p.stockQty ?? 0} ลูก
+                  </span>
+                </div>
+              </div>
+
+              {p.description && (
+                <p className="text-xs text-stone-500 pt-1 line-clamp-2">
+                  📝 {p.description}
+                </p>
+              )}
+
+              <div className="flex items-center gap-2 text-[10px] text-stone-400 pt-1 font-mono">
+                <span>สร้างเมื่อ: {p.createDate ? new Date(p.createDate).toLocaleDateString("th-TH") : "-"}</span>
+                <span>• ผู้บันทึก: {p.createdBy || "admin"}</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 flex-wrap">
-              <button
-                onClick={() => toggleProductActive(p)}
-                title="คลิกเพื่อสลับสถานะ Is Active (1 = ข้อมูลใช้งาน, 0 = ปิดใช้งาน/ไม่แสดงหน้าร้าน)"
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 border ${
-                  (p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false)
-                    ? "bg-stone-100 text-stone-500 border-stone-300 hover:bg-stone-200"
-                    : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
-                }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    (p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false)
-                      ? "bg-stone-400"
-                      : "bg-emerald-500"
+            <div className="flex items-center justify-between md:justify-end gap-2.5 shrink-0 flex-wrap pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
+              <div className="text-right pr-2">
+                <span className="text-[10px] text-stone-400 block">ราคาต่อโล</span>
+                <p className="font-black text-[#1B4D31] text-lg font-mono">
+                  ฿{(p.pricePerKg || p.price).toLocaleString()}
+                  <span className="text-xs font-normal text-stone-500"> /กก.</span>
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => openEditModal(p)}
+                  className="bg-stone-100 hover:bg-stone-200 text-stone-800 px-3 py-1.5 rounded-xl text-xs font-bold transition"
+                  title="แก้ไขข้อมูลสินค้าครบทุกช่อง"
+                >
+                  แก้ไข
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickEditStock(p)}
+                  className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 px-2.5 py-1.5 rounded-xl text-xs font-bold transition font-mono"
+                  title="แก้จำนวนลูกคงเหลือด่วน"
+                >
+                  แก้สต็อก ({p.stockQty ?? 0})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickEditPrice(p)}
+                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 px-2.5 py-1.5 rounded-xl text-xs font-bold transition font-mono"
+                  title="แก้ราคาต่อโลด่วน"
+                >
+                  แก้ราคา
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => toggleAvailability(p)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                    p.isAvailable
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                      : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
                   }`}
-                />
-                <span>
-                  {(p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false)
-                    ? "Is Active: 0 (ปิด)"
-                    : "Is Active: 1 (ใช้)"}
-                </span>
-              </button>
-              <button
-                onClick={() => handleEditStock(p)}
-                className="text-right hover:bg-amber-50 px-2.5 py-1 rounded-xl transition border border-amber-200/70"
-                title="คลิกเพื่ออัปเดตน้ำหนัก กก. หรือจำนวนคงเหลือ"
-              >
-                <p className="font-bold text-amber-900 text-xs font-mono">
-                  {p.stockUnit === "qty" || p.type === "flesh"
-                    ? `${p.stockQty ?? p.stockKg ?? 0} ${p.unit}`
-                    : `${p.stockKg ?? 0} กก.`}
-                </p>
-                <p className="text-[10px] text-amber-700 underline">แก้สต็อก</p>
-              </button>
+                >
+                  {p.isAvailable ? "เปิดขาย" : "ปิดขาย"}
+                </button>
 
-              <button
-                onClick={() => handleEditPrice(p)}
-                className="text-right hover:bg-stone-50 px-2.5 py-1 rounded-xl transition"
-                title="คลิกเพื่อแก้ราคา"
-              >
-                <p className="font-extrabold text-[#1B4D31] text-base">
-                  ฿{p.price.toLocaleString()}
-                </p>
-                <p className="text-[10px] text-stone-400 underline">แก้ราคา</p>
-              </button>
-
-              <button
-                onClick={() => toggleAvailability(p)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold transition inline-flex items-center gap-1.5 border ${
-                  p.isAvailable
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                    : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
-                }`}
-              >
-                {p.isAvailable ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>เปิดขายอยู่</span>
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-3.5 h-3.5" />
-                    <span>ปิดขาย (หมด)</span>
-                  </>
-                )}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => toggleProductActive(p)}
+                  title="สลับสถานะ Is Active (1 = ใช้งาน, 0 = ปิดใช้งาน/ซ่อน)"
+                  className={`px-2 py-1.5 rounded-xl text-xs font-bold transition border ${
+                    p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false
+                      ? "bg-stone-100 text-stone-500 border-stone-300"
+                      : "bg-emerald-100/60 text-emerald-900 border-emerald-300"
+                  }`}
+                >
+                  {p.isActive === 0 || (p.isActive as any) === "0" || p.isActive === false
+                    ? "Active: 0"
+                    : "Active: 1"}
+                </button>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      {showAdd && (
+      {/* MODAL: ADD / EDIT PRODUCT */}
+      {showModal && (
         <div
-          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowAdd(false)}
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={() => setShowModal(false)}
         >
           <form
-            onSubmit={handleAddProduct}
+            onSubmit={handleSubmitModal}
             onClick={(e) => e.stopPropagation()}
-            className="bg-white w-full max-w-md rounded-2xl p-6 space-y-3 shadow-2xl border border-stone-200"
+            className="bg-white w-full max-w-xl rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl border border-stone-200 my-8 max-h-[90vh] overflow-y-auto"
           >
-            <h3 className="font-extrabold text-lg text-stone-900">
-              เพิ่มรายการทุเรียนใหม่
-            </h3>
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <h3 className="font-extrabold text-lg text-stone-900">
+                {editingProduct ? `แก้ไขข้อมูลทุเรียน (${editingProduct.id})` : "เพิ่มสินค้าทุเรียนใหม่"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="text-stone-400 hover:text-stone-600 text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  ประเภทสินค้า (ดรอปดาวน์) *
+                </label>
+                <select
+                  value={productType}
+                  onChange={(e) => setProductType(e.target.value as any)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
+                >
+                  <option value="รับคัดลูก">รับคัดลูก (คัดพิเศษเฉพาะลูก)</option>
+                  <option value="รับมาเป็นโลแล้วขายเลย">รับมาเป็นโลแล้วขายเลย (ชั่งกิโลขาย)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  รหัสสินค้า (Product ID)
+                </label>
+                <input
+                  value={idInput}
+                  onChange={(e) => setIdInput(e.target.value)}
+                  placeholder="เว้นว่างเพื่อสร้างรหัส WK-XX อัตโนมัติ"
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono"
+                />
+              </div>
+            </div>
 
             <div>
-              <label className="block text-xs font-bold mb-1">ชื่อสินค้า *</label>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                ชื่อสินค้า (Product Name) *
+              </label>
               <input
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="เช่น หมอนทองจันทบุรี เกรดคัดพิเศษ"
-                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs"
+                placeholder="เช่น หมอนทองระยอง คัดเกรดพรีเมียม A+"
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold mb-1">สายพันธุ์ *</label>
-                <input
-                  required
-                  value={variety}
-                  onChange={(e) => setVariety(e.target.value)}
-                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold mb-1">รูปแบบ</label>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  ระดับความสุก maturity (ดรอปดาวน์) *
+                </label>
                 <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value as "whole" | "flesh")}
-                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs"
+                  value={maturity}
+                  onChange={(e) => setMaturity(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
                 >
-                  <option value="whole">ชั่งทั้งลูก</option>
-                  <option value="flesh">แกะเนื้อพร้อมทาน</option>
+                  <option value="แก่จัด 85%+">แก่จัด 85%+</option>
+                  <option value="สุกพอดีกิน">สุกพอดีกิน</option>
+                  <option value="สุกพร้อมทาน 100%">สุกพร้อมทาน 100%</option>
+                  <option value="ห่าม/ตัดสดบ่มเอง 80%">ห่าม/ตัดสดบ่มเอง 80%</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  Texture สัมผัสเนื้อ (ดรอปดาวน์) *
+                </label>
+                <select
+                  value={texture}
+                  onChange={(e) => setTexture(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
+                >
+                  <option value="กรอบนอกนุ่มใน">กรอบนอกนุ่มใน</option>
+                  <option value="เนื้อไก่ฉีก">เนื้อไก่ฉีก</option>
+                  <option value="นุ่มละมุน/ครีมมี่">นุ่มละมุน/ครีมมี่</option>
+                  <option value="สุกนิ่มหวานฉ่ำ">สุกนิ่มหวานฉ่ำ</option>
                 </select>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-bold mb-1">น้ำหนัก *</label>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  ไซส์ / เกรด (ดรอปดาวน์) *
+                </label>
+                <select
+                  value={grade}
+                  onChange={(e) => setGrade(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs bg-white font-bold"
+                >
+                  <option value="เกรด A+ พรีเมียม">เกรด A+ พรีเมียม</option>
+                  <option value="เกรด A ทรงสวย">เกรด A ทรงสวย</option>
+                  <option value="เกรด B ผลไม่สมมาตร">เกรด B ผลไม่สมมาตร</option>
+                  <option value="เกรดจัมโบ้">เกรดจัมโบ้</option>
+                  <option value="เกรดมินิ">เกรดมินิ</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  น้ำหนักต่อลูก *
+                </label>
                 <input
                   required
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
-                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs"
+                  placeholder="เช่น 3.0 - 3.5 กก."
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-bold mb-1">ราคาขาย (บาท) *</label>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  จำนวนลูก (สต็อก) *
+                </label>
                 <input
                   type="number"
                   required
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs"
+                  min={0}
+                  value={stockQty}
+                  onChange={(e) => setStockQty(Number(e.target.value))}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-center"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  ราคาต่อโล (บาท/กก.) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={pricePerKg}
+                  onChange={(e) => setPricePerKg(e.target.value)}
+                  placeholder="เช่น 220"
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold font-mono text-emerald-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  ลิงก์รูปภาพ (Image URL)
+                </label>
+                <input
+                  type="url"
+                  value={image}
+                  onChange={(e) => setImage(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono text-[11px]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold mb-1">แหล่งที่มา / สวน</label>
-              <input
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs"
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                รายละเอียดสินค้า (รสชาติ หวานน้อย หวานมัน กลิ่นหอม) *
+              </label>
+              <textarea
+                rows={3}
+                required
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="อธิบายระดับความหวาน ความมัน เม็ดลีบ หรือความพิเศษของทุเรียนล็อตนี้..."
+                className="w-full border border-stone-300 rounded-xl p-3 text-xs leading-relaxed"
               />
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-2 border-t border-stone-100">
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 bg-[#1B4D31] text-white font-bold py-2.5 rounded-xl text-xs"
+                className="flex-1 bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold py-2.5 rounded-xl text-xs transition disabled:opacity-50"
               >
-                {saving ? "กำลังบันทึก..." : "เพิ่มสินค้า"}
+                {saving ? "กำลังบันทึกข้อมูล..." : editingProduct ? "บันทึกการแก้ไข" : "เพิ่มสินค้าใหม่"}
               </button>
               <button
                 type="button"
-                onClick={() => setShowAdd(false)}
-                className="px-4 py-2.5 bg-stone-100 rounded-xl text-xs font-bold text-stone-600"
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-xs transition"
               >
                 ยกเลิก
               </button>

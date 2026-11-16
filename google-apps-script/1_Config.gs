@@ -77,9 +77,10 @@ const SHEET_DEFS = {
     color: "#15803d",
     idCol: "id",
     headers: [
-      "id", "name", "variety", "type", "price", "marketPrice", "unit", "isAvailable",
-      "stockQty", "stockKg", "stockUnit", "avgWeightKg", "ripeness", "weight", "origin",
-      "brix", "image", "badge", "description", "maturity", "texture", "flavor",
+      "id", "productType", "name", "maturity", "texture", "stockQty", "grade",
+      "weight", "image", "description", "pricePerKg", "price",
+      "variety", "type", "unit", "isAvailable", "stockKg", "stockUnit", "avgWeightKg",
+      "origin", "brix", "badge",
     ].concat(AUDIT_HEADERS),
   },
   Rounds: {

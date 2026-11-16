@@ -24,21 +24,28 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as Partial<Product>;
     const { data } = await getAllDatabase();
-    if (!body.name?.trim() || !body.variety?.trim() || !body.price) {
+    const targetPrice = Number(body.pricePerKg || body.price || 0);
+    if (!body.name?.trim() || !targetPrice) {
       return NextResponse.json(
-        { ok: false, error: "กรุณาระบุชื่อสินค้า สายพันธุ์ และราคา" },
+        { ok: false, error: "กรุณาระบุชื่อสินค้า และราคาต่อโล" },
         { status: 400 }
       );
     }
 
     const newProduct: Product = {
       id: body.id?.trim() || localNextId("products", data.products.map((p) => p.id)),
+      productType: body.productType?.trim() || "รับคัดลูก",
       name: body.name.trim(),
-      variety: body.variety.trim(),
+      variety: body.variety?.trim() || "หมอนทอง",
       type: body.type === "flesh" ? "flesh" : "whole",
-      ripeness: body.ripeness?.trim() || "กรอบนอกนุ่มใน (ไก่ฉีก)",
+      maturity: body.maturity?.trim() || body.specs?.maturity || "แก่จัด 85%+",
+      texture: body.texture?.trim() || body.specs?.texture || "กรอบนอกนุ่มใน",
+      grade: body.grade?.trim() || "เกรด A+ พรีเมียม",
+      stockQty: typeof body.stockQty === "number" ? body.stockQty : 10,
+      stockKg: typeof body.stockKg === "number" ? body.stockKg : 30,
       weight: body.weight?.trim() || "3.0 - 3.5 กก.",
-      price: Number(body.price),
+      pricePerKg: targetPrice,
+      price: targetPrice,
       marketPrice: body.marketPrice ? Number(body.marketPrice) : undefined,
       unit: body.unit?.trim() || "ลูก",
       origin: body.origin?.trim() || "สวนระยองแท้",
@@ -50,8 +57,8 @@ export async function POST(req: NextRequest) {
       isAvailable: body.isAvailable !== false,
       description: body.description?.trim() || "ทุเรียนคัดคุณภาพจากสวนโดยทุเรียนวินคิน",
       specs: {
-        maturity: body.specs?.maturity || "แก่จัด 85%+",
-        texture: body.specs?.texture || "เนียนแน่น ไม่เละ",
+        maturity: body.maturity?.trim() || body.specs?.maturity || "แก่จัด 85%+",
+        texture: body.texture?.trim() || body.specs?.texture || "กรอบนอกนุ่มใน",
         flavor: body.specs?.flavor || "หวานมันกลมกล่อม",
       },
     };

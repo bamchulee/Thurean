@@ -10,27 +10,37 @@ export interface BaseAuditLog {
   updatedBy?: string;
 }
 
+export type ProductSaleType = "รับคัดลูก" | "รับมาเป็นโลแล้วขายเลย";
+export type ProductMaturity = "แก่จัด 85%+" | "สุกพอดีกิน" | "สุกพร้อมทาน 100%" | "ห่าม/ตัดสดบ่มเอง 80%";
+export type ProductTexture = "กรอบนอกนุ่มใน" | "เนื้อไก่ฉีก" | "นุ่มละมุน/ครีมมี่" | "สุกนิ่มหวานฉ่ำ";
+export type ProductGrade = "เกรด A+ พรีเมียม" | "เกรด A ทรงสวย" | "เกรด B ผลไม่สมมาตร" | "เกรดจัมโบ้" | "เกรดมินิ";
+
 export interface Product extends BaseAuditLog {
-  id: string;
-  name: string;
-  variety: string;
-  type: "whole" | "flesh";
-  ripeness: string;
-  weight: string;
-  price: number;
+  id: string; // รหัสโปรดักID
+  productType?: ProductSaleType | string; // ประเภท: รับคัดลูก / รับมาเป็นโลแล้วขายเลย (ดรอปดาวน์)
+  name: string; // ชื่อสินค้า Name
+  maturity?: ProductMaturity | string; // ระดับความสุก maturity (ดรอปดาวน์)
+  texture?: ProductTexture | string; // texture (ดรอปดาวน์)
+  stockQty?: number; // จำนวนลูก
+  grade?: ProductGrade | string; // ไซส์/เกรด (ดรอปดาวน์)
+  weight: string; // น้ำหนักต่อลูก
+  image: string; // รูป
+  description: string; // รายละเอียด
+  pricePerKg?: number; // ราคาต่อโล
+  price: number; // ราคา
+  variety?: string;
+  type?: "whole" | "flesh";
+  ripeness?: string;
   marketPrice?: number;
-  unit: string;
-  origin: string;
-  brix: string;
-  image: string;
+  unit?: string;
+  origin?: string;
+  brix?: string;
   badge?: string;
-  isAvailable: boolean;
-  description: string;
+  isAvailable?: boolean;
   stockUnit?: "kg" | "qty";
   stockKg?: number;
   avgWeightKg?: number;
-  stockQty?: number;
-  specs: {
+  specs?: {
     maturity: string;
     texture: string;
     flavor: string;

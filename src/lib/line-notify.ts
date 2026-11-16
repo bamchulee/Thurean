@@ -974,31 +974,7 @@ export function buildStockOverviewMessages(
         spacing: "sm",
         paddingAll: "lg",
         contents: [
-          // Header tag row
-          {
-            type: "box",
-            layout: "horizontal",
-            contents: [
-              {
-                type: "text",
-                text: `${p.variety}`,
-                size: "xs",
-                weight: "bold",
-                color: "#15803D",
-                flex: 1,
-              },
-              {
-                type: "text",
-                text: p.badge || (p.type === "flesh" ? "เนื้อล้วน" : "ทั้งลูก"),
-                size: "xs",
-                weight: "bold",
-                color: "#B45309",
-                align: "end",
-                flex: 1,
-              },
-            ],
-          },
-          // Product name
+          // 1. ชื่อ
           {
             type: "text",
             text: p.name,
@@ -1006,52 +982,80 @@ export function buildStockOverviewMessages(
             size: "md",
             wrap: true,
             maxLines: 2,
-            color: "#1C1917",
+            color: "#111827",
           },
-          // Price
-          {
-            type: "text",
-            text: `฿${p.price.toLocaleString()} / ${p.unit}`,
-            weight: "bold",
-            size: "lg",
-            color: "#B45309",
-          },
-          // Stock badge pill
+          // 2. ราคาต่อโล
           {
             type: "box",
             layout: "horizontal",
-            backgroundColor: isOut ? "#F3F4F6" : isLow ? "#FEF3C7" : "#DCFCE7",
-            cornerRadius: "md",
-            paddingStart: "md",
-            paddingEnd: "md",
-            paddingTop: "sm",
-            paddingBottom: "sm",
-            alignItems: "center",
+            alignItems: "baseline",
             contents: [
               {
                 type: "text",
-                text: isOut ? "⚪ หมดชั่วคราวรอบนี้" : isLow ? `🟠 ด่วน! ${stockInfo.summary}` : `🟢 สต็อกพร้อมส่ง: ${stockInfo.summary}`,
+                text: "ราคาต่อโล:",
                 size: "xs",
+                color: "#6B7280",
+                flex: 4,
+              },
+              {
+                type: "text",
+                text: `฿${(p.pricePerKg || p.price).toLocaleString()} / กก.`,
                 weight: "bold",
-                color: isOut ? "#6B7280" : isLow ? "#92400E" : "#166534",
+                size: "lg",
+                color: "#B45309",
+                align: "end",
+                flex: 6,
               },
             ],
           },
-          // Spec line
+          { type: "separator", margin: "xs" },
+          // 3. น้ำหนัก
           {
-            type: "text",
-            text: `⚖️ ${p.weight} • 🍯 ${p.brix || "32°+ Brix"}`,
-            size: "xs",
-            color: "#57534E",
-            wrap: true,
+            type: "box",
+            layout: "horizontal",
             margin: "xs",
+            contents: [
+              { type: "text", text: "⚖️ น้ำหนัก:", size: "xs", color: "#4B5563", flex: 4 },
+              { type: "text", text: p.weight || "-", size: "xs", weight: "bold", color: "#1F2937", flex: 6 },
+            ],
           },
+          // 4. เกรด
           {
-            type: "text",
-            text: `🥑 ${p.specs?.texture || p.ripeness || "กรอบนอกนุ่มใน"}`,
-            size: "xs",
-            color: "#059669",
-            wrap: true,
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              { type: "text", text: "🏷️ เกรด:", size: "xs", color: "#4B5563", flex: 4 },
+              { type: "text", text: p.grade || "เกรด A+ พรีเมียม", size: "xs", weight: "bold", color: "#15803D", flex: 6 },
+            ],
+          },
+          // 5. Texture
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              { type: "text", text: "✨ Texture:", size: "xs", color: "#4B5563", flex: 4 },
+              { type: "text", text: p.texture || p.specs?.texture || "กรอบนอกนุ่มใน", size: "xs", weight: "bold", color: "#0D9488", flex: 6 },
+            ],
+          },
+          // 6. รายละเอียด
+          {
+            type: "box",
+            layout: "vertical",
+            margin: "sm",
+            backgroundColor: "#F9FAFB",
+            cornerRadius: "md",
+            paddingAll: "sm",
+            contents: [
+              { type: "text", text: "📝 รายละเอียด:", size: "xxs", color: "#6B7280", weight: "bold" },
+              {
+                type: "text",
+                text: p.description || "ทุเรียนคัดคุณภาพพิเศษ หวานมันกลมกล่อม",
+                size: "xs",
+                color: "#374151",
+                wrap: true,
+                margin: "xxs",
+              },
+            ],
           },
         ],
       },
@@ -1126,29 +1130,7 @@ export function buildOrderCatalogMessages(
         spacing: "sm",
         paddingAll: "lg",
         contents: [
-          {
-            type: "box",
-            layout: "horizontal",
-            contents: [
-              {
-                type: "text",
-                text: `${p.variety}`,
-                size: "xs",
-                weight: "bold",
-                color: "#15803D",
-                flex: 1,
-              },
-              {
-                type: "text",
-                text: p.badge || (p.type === "flesh" ? "เนื้อล้วน" : "ทั้งลูก"),
-                size: "xs",
-                weight: "bold",
-                color: "#B45309",
-                align: "end",
-                flex: 1,
-              },
-            ],
-          },
+          // 1. ชื่อ
           {
             type: "text",
             text: p.name,
@@ -1156,21 +1138,80 @@ export function buildOrderCatalogMessages(
             size: "md",
             wrap: true,
             maxLines: 2,
-            color: "#1C1917",
+            color: "#111827",
           },
+          // 2. ราคาต่อโล
           {
-            type: "text",
-            text: `฿${p.price.toLocaleString()} / ${p.unit}`,
-            weight: "bold",
-            size: "lg",
-            color: "#B45309",
+            type: "box",
+            layout: "horizontal",
+            alignItems: "baseline",
+            contents: [
+              {
+                type: "text",
+                text: "ราคาต่อโล:",
+                size: "xs",
+                color: "#6B7280",
+                flex: 4,
+              },
+              {
+                type: "text",
+                text: `฿${(p.pricePerKg || p.price).toLocaleString()} / กก.`,
+                weight: "bold",
+                size: "lg",
+                color: "#B45309",
+                align: "end",
+                flex: 6,
+              },
+            ],
           },
+          { type: "separator", margin: "xs" },
+          // 3. น้ำหนัก
           {
-            type: "text",
-            text: `🥑 ${p.specs?.texture || p.ripeness || "กรอบนอกนุ่มใน"} • 🍯 ${p.brix || "32°+ Brix"}`,
-            size: "xs",
-            color: "#57534E",
-            wrap: true,
+            type: "box",
+            layout: "horizontal",
+            margin: "xs",
+            contents: [
+              { type: "text", text: "⚖️ น้ำหนัก:", size: "xs", color: "#4B5563", flex: 4 },
+              { type: "text", text: p.weight || "-", size: "xs", weight: "bold", color: "#1F2937", flex: 6 },
+            ],
+          },
+          // 4. เกรด
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              { type: "text", text: "🏷️ เกรด:", size: "xs", color: "#4B5563", flex: 4 },
+              { type: "text", text: p.grade || "เกรด A+ พรีเมียม", size: "xs", weight: "bold", color: "#15803D", flex: 6 },
+            ],
+          },
+          // 5. Texture
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              { type: "text", text: "✨ Texture:", size: "xs", color: "#4B5563", flex: 4 },
+              { type: "text", text: p.texture || p.specs?.texture || "กรอบนอกนุ่มใน", size: "xs", weight: "bold", color: "#0D9488", flex: 6 },
+            ],
+          },
+          // 6. รายละเอียด
+          {
+            type: "box",
+            layout: "vertical",
+            margin: "sm",
+            backgroundColor: "#F9FAFB",
+            cornerRadius: "md",
+            paddingAll: "sm",
+            contents: [
+              { type: "text", text: "📝 รายละเอียด:", size: "xxs", color: "#6B7280", weight: "bold" },
+              {
+                type: "text",
+                text: p.description || "ทุเรียนคัดคุณภาพพิเศษ หวานมันกลมกล่อม",
+                size: "xs",
+                color: "#374151",
+                wrap: true,
+                margin: "xxs",
+              },
+            ],
           },
         ],
       },

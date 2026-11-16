@@ -819,7 +819,9 @@ function ProductCard({
                 <DurianIcon className="w-3 h-3" />
                 <span>เนื้อสัมผัส</span>
               </span>
-              <span className="font-semibold text-[#1B4D31]">{product.specs.texture}</span>
+              <span className="font-semibold text-[#1B4D31]">
+                {product.texture || product.specs?.texture || "กรอบนอกนุ่มใน"}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-stone-400 inline-flex items-center gap-1">
@@ -915,7 +917,7 @@ function ProductMenu({
   preferredRipeness?: string;
 }) {
   const [filter, setFilter] = useState("all");
-  const varieties = ["all", ...new Set(products.map((p) => p.variety))];
+  const varieties = ["all", ...new Set(products.map((p) => p.variety).filter((v): v is string => Boolean(v)))];
 
   const filtered =
     filter === "all" ? products : products.filter((p) => p.variety === filter);

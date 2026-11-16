@@ -18,8 +18,21 @@ export async function PATCH(
     const body = (await req.json()) as Partial<Product>;
 
     const updates: Partial<Product> = {};
+    if (body.productType !== undefined) updates.productType = body.productType;
     if (body.name !== undefined) updates.name = body.name.trim();
-    if (body.price !== undefined) updates.price = Number(body.price);
+    if (body.pricePerKg !== undefined) {
+      updates.pricePerKg = Number(body.pricePerKg);
+      updates.price = Number(body.pricePerKg);
+    }
+    if (body.price !== undefined) {
+      updates.price = Number(body.price);
+      if (body.pricePerKg === undefined) updates.pricePerKg = Number(body.price);
+    }
+    if (body.maturity !== undefined) updates.maturity = body.maturity;
+    if (body.texture !== undefined) updates.texture = body.texture;
+    if (body.grade !== undefined) updates.grade = body.grade;
+    if (body.image !== undefined) updates.image = body.image.trim();
+    if (body.description !== undefined) updates.description = body.description.trim();
     if (body.isAvailable !== undefined) updates.isAvailable = Boolean(body.isAvailable);
     if (body.weight !== undefined) updates.weight = body.weight;
     if (body.badge !== undefined) updates.badge = body.badge;
