@@ -392,7 +392,7 @@ export function buildClaimAlertForAdmin(claim: Claim, publicBaseUrl?: string): u
               height: "sm",
               action: {
                 type: "uri",
-                label: `📞 โทรหาลูกค้า (${claim.phone})`,
+                label: "📞 โทรหาลูกค้า",
                 uri: `tel:${claim.phone}`,
               },
             },
@@ -528,7 +528,7 @@ export function buildTicketAlertForAdmin(
               height: "sm",
               action: {
                 type: "uri",
-                label: "💬 เปิดแชทตอบลูกค้าทันที (LINE Chat)",
+                label: "💬 แชทตอบลูกค้า",
                 uri: "https://chat.line.biz/",
               },
             },
@@ -554,7 +554,7 @@ export function buildTicketAlertForAdmin(
                     height: "sm",
                     action: {
                       type: "uri",
-                      label: `📞 โทรหาลูกค้า (${ticket.phone})`,
+                      label: "📞 โทรหาลูกค้า",
                       uri: `tel:${ticket.phone}`,
                     },
                   },

@@ -61,6 +61,7 @@ import { checkSlip, readSlipQr } from "../../../../lib/slip-qr";
 import { readSlipText } from "../../../../lib/slip-text";
 import { extractOrderId, findOrderById } from "../../../../lib/ids";
 import { shopInfo } from "../../../../data/shop";
+import { readChatIntent } from "../../../../lib/line/order-intent";
 import type { DatabaseState, Order, RuntimeConfig, User } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
@@ -769,7 +770,7 @@ async function startTicket(ctx: Ctx, orderId?: string) {
   ]);
 }
 
-async function sendTicket(ctx: Ctx, message: string, orderId?: string) {
+async function sendTicket(ctx: Ctx, message: string, orderId?: string, customerReply?: string) {
   const ticketId = `TCK-${Math.floor(100000 + Math.random() * 900000)}`;
   const { data } = await getAllDatabase();
   const user = findLineUser(data, ctx.userId);
@@ -788,7 +789,74 @@ async function sendTicket(ctx: Ctx, message: string, orderId?: string) {
     )
   );
   clearLineSession(ctx.userId);
-  await ctx.reply([text(replies.ticketSent(ticketId))]);
+  await ctx.reply([text(customerReply || replies.ticketSent(ticketId))]);
+}
+
+// ------------------------------------------------------------
+// ข้อความที่ลูกค้าพิมพ์เอง (ไม่ได้กดเมนู): คัดว่าเป็นการสั่ง / คำถาม / ทักทาย แล้วส่งต่อให้ถูกที่
+//   สั่งชัดเจน     → ไปขั้นถัดไปของการจองทันที (ถามเฉพาะส่วนที่ขาด)
+//   สั่งหลายอย่าง  → ส่งให้แอดมินสรุป (บอทไม่เดา)
+//   คำถามอื่น      → ส่งเข้ากลุ่มแอดมิน (ไม่เกินครั้งละ 10 นาที/คน กันกลุ่มรก)
+// ------------------------------------------------------------
+const FORWARD_WINDOW_MS = 10 * 60 * 1000;
+const lastForward = new Map<string, number>();
+
+async function handleFreeText(ctx: Ctx, raw: string) {
+  const { data } = await getAllDatabase();
+  const products = data.products.filter((p) => p.isActive !== 0 && (p.isActive as unknown) !== "0" && p.isActive !== false);
+  const intent = readChatIntent(raw, products);
+
+  if (intent.kind === "order") {
+    const { product, qty } = intent.line;
+    const loaded = await loadOrderableProduct(ctx, product.id);
+    if (!loaded) return;
+    if (!qty) {
+      setLineSession(ctx.userId, { flow: "order", step: "pick_qty", productId: product.id, updatedAt: Date.now() });
+      await ctx.reply([
+        ...(intent.byWeight ? [text(replies.soldPerFruit(product.name, product.weight), false)] : []),
+        ...buildQtyPickerMessage(loaded.product, loaded.stock?.summary),
+      ]);
+      return;
+    }
+    const n = clampQty(qty);
+    if (!intent.ripeness) return replyRipenessPicker(ctx, product.id, n);
+    return replyBookingReview(ctx, { productId: product.id, qty: n, ripeness: intent.ripeness, ship: 0, key: newBookingKey() });
+  }
+
+  if (intent.kind === "order_vague") {
+    clearLineSession(ctx.userId);
+    await ctx.reply([
+      text(replies.whichProduct(intent.candidates.map((p) => p.name)), false),
+      ...buildOrderCatalogMessages(data.products, activeRoundOf(data), ctx.baseUrl),
+    ].slice(0, 5));
+    return;
+  }
+
+  if (intent.kind === "order_multi") {
+    const items = intent.lines.map((l) => `${l.product.name}${l.qty ? ` × ${l.qty}` : " (ไม่ระบุจำนวน)"}`);
+    const ripe = intent.ripeness ? `\nความสุก: ${ripenessLabel(intent.ripeness)}` : "";
+    return sendTicket(ctx, `🛒 สั่งหลายรายการทางแชท\n${items.map((i) => "• " + i).join("\n")}${ripe}\n\nข้อความเดิม: ${raw}`, undefined, replies.multiOrderForwarded(items));
+  }
+
+  if (intent.kind === "thanks") {
+    await ctx.reply([text(replies.thanks())]);
+    return;
+  }
+
+  if (intent.kind === "question") {
+    const last = lastForward.get(ctx.userId) || 0;
+    if (Date.now() - last > FORWARD_WINDOW_MS) {
+      lastForward.set(ctx.userId, Date.now());
+      return sendTicket(ctx, raw.slice(0, 1000), undefined, replies.questionForwarded());
+    }
+    // ส่งต่อไปแล้วเมื่อกี้: แจ้งกลุ่มเฉพาะข้อความใหม่ ไม่ตอบซ้ำให้ลูกค้ารำคาญ
+    const user = findLineUser(data, ctx.userId);
+    await notifyAdmins([text(`💬 ${contactOf(user)?.name || user?.displayName || "ลูกค้า LINE"} พิมพ์เพิ่ม:\n${raw.slice(0, 1000)}`, false)]);
+    return;
+  }
+
+  // ทักทาย / อื่น ๆ → เมนูต้อนรับ
+  await ctx.reply(buildWelcomeFlex(activeRoundOf(data)));
 }
 
 // ------------------------------------------------------------
@@ -1045,7 +1113,6 @@ async function handleCustomerMessage(ctx: Ctx) {
   const orderCode = extractOrderId(raw);
   if (orderCode) return replyOwnOrderStatus(ctx, orderCode);
 
-  const { data } = await getAllDatabase();
-  await ctx.reply(buildWelcomeFlex(activeRoundOf(data)));
+  return handleFreeText(ctx, raw);
 }
 
