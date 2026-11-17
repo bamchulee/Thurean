@@ -36,6 +36,8 @@
 
 const USER_SPREADSHEET_ID = "16Np4KAWCGv9RGIrj3hAqUCeNK1EXjiHLXmBfg849yHQ";
 const THUREAN_SPREADSHEET_ID = "1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8";
+// โฟลเดอร์ Google Drive เก็บรูปสลิป — แยกโฟลเดอร์ตามเดือน/วัน ชื่อไฟล์ขึ้นต้นด้วยเลขออเดอร์
+const SLIP_ROOT_FOLDER_ID = "1TfV3HA_ez8WvUCnEacitbECyh1WDmxz8";
 
 const SHEET_NAMES = {
   PRODUCTS: "Products",

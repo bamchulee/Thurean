@@ -98,13 +98,14 @@ export async function saveAppSettings(partial: Record<string, unknown>): Promise
 }
 
 /** เก็บรูปสลิปลง Google Drive ของร้าน + อ่านตัวหนังสือ (OCR ฟรีของ Google) — ใช้ไม่ได้ในโหมด local */
-export async function ocrSlipImage(image: Buffer, mime: string, name: string): Promise<{ text: string; fileUrl?: string; error?: string } | null> {
+export async function ocrSlipImage(image: Buffer, mime: string, orderId: string, ext: string): Promise<{ text: string; fileUrl?: string; error?: string } | null> {
   const url = getRuntimeConfig().googleSheetsWebAppUrl;
   if (!url) return null;
   return await callGoogleAppsScriptPost<{ text: string; fileUrl?: string; error?: string }>(url, "ocrSlip", {
     base64: image.toString("base64"),
     mime,
-    name,
+    orderId,
+    ext,
   });
 }
 

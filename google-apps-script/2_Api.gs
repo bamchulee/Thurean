@@ -265,35 +265,55 @@ function writeSettingsSheet(rows) {
 // ครั้งแรกต้องรันฟังก์ชัน authorizeSlipOcr ใน editor แล้วกดอนุญาตสิทธิ์ Drive/Docs หนึ่งครั้ง
 // ============================================================
 
-function getSlipFolder() {
-  const props = PropertiesService.getScriptProperties();
-  const id = props.getProperty("SLIP_FOLDER_ID");
-  if (id) {
-    try {
-      return DriveApp.getFolderById(id);
-    } catch (e) {
-      // โฟลเดอร์ถูกลบ — สร้างใหม่
-    }
-  }
-  const folder = DriveApp.createFolder("ทุเรียนวินคิน - สลิปโอนเงิน");
-  props.setProperty("SLIP_FOLDER_ID", folder.getId());
-  return folder;
+/** โฟลเดอร์หลักเก็บสลิป: SLIP_ROOT_FOLDER_ID ใน 1_Config.gs */
+function getSlipRootFolder() {
+  return DriveApp.getFolderById(SLIP_ROOT_FOLDER_ID);
+}
+
+function childFolder(parent, name) {
+  const it = parent.getFoldersByName(name);
+  return it.hasNext() ? it.next() : parent.createFolder(name);
+}
+
+/** โฟลเดอร์ของวันนั้น: <หลัก>/2026-11/2026-11-17 (สร้างให้ถ้ายังไม่มี) */
+function getSlipDayFolder(date) {
+  const tz = "Asia/Bangkok";
+  const month = childFolder(getSlipRootFolder(), Utilities.formatDate(date, tz, "yyyy-MM"));
+  return childFolder(month, Utilities.formatDate(date, tz, "yyyy-MM-dd"));
 }
 
 /** รันครั้งเดียวจาก editor เพื่อให้ Google ขอสิทธิ์ (Drive, Docs, เรียก API) */
 function authorizeSlipOcr() {
-  const folder = getSlipFolder();
+  // โค้ดรุ่นแรกสร้างโฟลเดอร์ "ทุเรียนวินคิน - สลิปโอนเงิน" ไว้ที่หน้าแรกของ Drive — ย้ายลงถังขยะถ้ายังว่าง (กู้คืนได้)
+  const props = PropertiesService.getScriptProperties();
+  const oldId = props.getProperty("SLIP_FOLDER_ID");
+  if (oldId) {
+    try {
+      const old = DriveApp.getFolderById(oldId);
+      if (old.getName() === "ทุเรียนวินคิน - สลิปโอนเงิน" && !old.getFiles().hasNext() && !old.getFolders().hasNext()) {
+        old.setTrashed(true);
+        Logger.log("ย้ายโฟลเดอร์ว่างที่สร้างผิดที่ลงถังขยะแล้ว");
+      }
+    } catch (e) {
+      // ไม่มีแล้ว
+    }
+    props.deleteProperty("SLIP_FOLDER_ID");
+  }
+  const folder = getSlipDayFolder(new Date());
   DocumentApp.getActiveDocument;
   UrlFetchApp.getRequest;
   Logger.log("พร้อมใช้งาน — โฟลเดอร์เก็บสลิป: " + folder.getUrl());
   return folder.getUrl();
 }
 
-/** payload: { base64, mime, name } → { text, fileId, fileUrl } */
+/** payload: { base64, mime, orderId, ext } → { text, fileId, fileUrl } — ไฟล์ชื่อ OD000123_20261117-143512.jpg */
 function ocrSlip(payload) {
   if (!payload || !payload.base64) throw new Error("MISSING_DATA: ไม่มีรูปสลิป");
-  const folder = getSlipFolder();
-  const name = String(payload.name || "slip.jpg").replace(/[^\w.\-]/g, "_");
+  const now = new Date();
+  const folder = getSlipDayFolder(now);
+  const orderId = String(payload.orderId || "NO-ORDER").replace(/[^A-Za-z0-9_-]/g, "");
+  const ext = String(payload.ext || "jpg").replace(/[^a-z0-9]/gi, "").slice(0, 4) || "jpg";
+  const name = orderId + "_" + Utilities.formatDate(now, "Asia/Bangkok", "yyyyMMdd-HHmmss") + "." + ext;
   const blob = Utilities.newBlob(Utilities.base64Decode(payload.base64), payload.mime || "image/jpeg", name);
   const file = folder.createFile(blob);
 

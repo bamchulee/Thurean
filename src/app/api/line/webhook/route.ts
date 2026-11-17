@@ -652,7 +652,7 @@ async function handleImage(ctx: Ctx, messageId: string) {
     const target = awaiting[0];
     const expected = (target.totalPrice || 0) + (target.shippingCost || 0);
     const ocr = media.buffer
-      ? await ocrSlipImage(media.buffer, media.contentType || "image/jpeg", `${target.id}-${messageId}.${media.filename?.split(".").pop() || "jpg"}`).catch((err) => {
+      ? await ocrSlipImage(media.buffer, media.contentType || "image/jpeg", target.id, media.filename?.split(".").pop() || "jpg").catch((err) => {
           console.warn("[LINE Webhook] slip OCR failed", String(err));
           return null;
         })
