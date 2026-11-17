@@ -20,6 +20,7 @@ import { getWritableDataDir } from "./storage-dir";
 import { getSigningSecret } from "./secrets";
 import { nextRunningId, type IdKind } from "./ids";
 import { shopInfo } from "../data/shop";
+import { keepAlive } from "./background";
 
 const shopInfoBank = () => shopInfo.bankAccount;
 
@@ -355,7 +356,8 @@ function writeLocalDb(db: DatabaseState) {
   const tmp = `${target}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2), "utf-8");
   fs.renameSync(tmp, target);
-  invalidateDatabaseCache();
+  // โหมดชีต: แคชเก็บข้อมูลจากชีต (แก้ผ่าน patchCache แล้ว) — ไฟล์นี้เป็นแค่สำรอง ไม่ต้องล้างแคช
+  if (!getRuntimeConfig().googleSheetsWebAppUrl) invalidateDatabaseCache();
 }
 
 // ============================================================
@@ -401,6 +403,8 @@ async function callGoogleAppsScriptPost<T>(
   payload: unknown
 ): Promise<T> {
   const key = getRuntimeConfig().googleSheetsApiKey || "";
+  const isWrite = !READ_ACTIONS.has(action);
+  let result: T;
   try {
     const res = await fetch(webAppUrl, {
       method: "POST",
@@ -410,11 +414,16 @@ async function callGoogleAppsScriptPost<T>(
       redirect: "follow",
       signal: AbortSignal.timeout(SHEETS_TIMEOUT_MS),
     });
-    return await parseSheetsResponse<T>(res, `POST ${action}`);
-  } finally {
-    if (action !== "getAll" && action !== "ping" && action !== "getSettings" && action !== "ocrSlip") invalidateDatabaseCache();
+    result = await parseSheetsResponse<T>(res, `POST ${action}`);
+  } catch (err) {
+    if (isWrite) invalidateDatabaseCache();
+    throw err;
   }
+  if (isWrite) patchCache(action, payload, result);
+  return result;
 }
+
+const READ_ACTIONS = new Set(["getAll", "ping", "getSettings", "ocrSlip"]);
 
 async function fetchAllFromSheets(webAppUrl: string): Promise<DatabaseState> {
   try {
@@ -621,12 +630,86 @@ function writeDiskCache(cached: { data: DatabaseState; source: "google-sheets" |
   } catch {}
 }
 
+/** เพิ่มทุกครั้งที่มีการเขียน — ผลดึงชีตที่เริ่มก่อนการเขียนจะไม่ไปทับข้อมูลที่ patch แล้ว */
+let cacheVersion = 0;
+let refreshing: Promise<void> | null = null;
+
+/** เวลาที่ทำให้แคช "เก่าแต่ยังใช้ได้": อ่านครั้งถัดไปได้ทันที แล้วดึงชีตใหม่เบื้องหลัง */
+const staleStamp = () => Date.now() - CACHE_FRESH_TTL_MS - 1;
+
+/**
+ * มีการเขียนข้อมูล: โหมดชีตเก็บข้อมูลเดิมไว้แต่ถือว่าเก่า (ไม่ล้างทิ้ง — ล้างแล้วคำขอถัดไปต้องรอชีต 3-8 วินาที)
+ * โหมดเครื่อง (ไม่มีชีต) ล้างทิ้งเหมือนเดิม
+ */
 export function invalidateDatabaseCache() {
+  cacheVersion++;
+  if (memoryCache && getRuntimeConfig().googleSheetsWebAppUrl) {
+    memoryCache = { ...memoryCache, timestamp: Math.min(memoryCache.timestamp, staleStamp()) };
+    return;
+  }
   memoryCache = null;
   try {
     const p = getDiskCachePath();
     if (fs.existsSync(p)) fs.unlinkSync(p);
   } catch {}
+}
+
+const WRITE_TABLES: Record<string, keyof DatabaseState> = {
+  Order: "orders",
+  Product: "products",
+  Round: "rounds",
+  Lot: "lots",
+  Claim: "claims",
+  Promotion: "promotions",
+  User: "users",
+};
+
+type Row = Record<string, unknown>;
+const rowIds = (r: Row) => [r.id, r.userId, r.claimId, r.lotId].filter((v): v is string => typeof v === "string" && v !== "");
+
+/** ใส่ผลการเขียน (create/update) ลงแคชทันที ให้หน้าเว็บ/แอดมินเห็นค่าใหม่โดยไม่ต้องรอชีต */
+function patchCache(action: string, payload: unknown, result: unknown) {
+  invalidateDatabaseCache();
+  const m = /^(create|update)([A-Z]\w*)$/.exec(action);
+  const table = m ? WRITE_TABLES[m[2]] : undefined;
+  if (!memoryCache || !m || !table || !payload || typeof payload !== "object") return;
+  const rec: Row = { ...(payload as Row) };
+  delete rec._autoId;
+  // ชีตออกเลขจริงให้ → ใช้เลขนั้น
+  if (result && typeof result === "object") {
+    for (const k of ["id", "userId", "claimId", "lotId"]) {
+      const v = (result as Row)[k];
+      if (typeof v === "string" && v) rec[k] = v;
+    }
+  }
+  const ids = rowIds(rec);
+  if (!ids.length) return;
+  const rows = ((memoryCache.data[table] as unknown as Row[]) || []).slice();
+  const idx = rows.findIndex((r) => rowIds(r).some((id) => ids.includes(id)));
+  if (idx >= 0) rows[idx] = { ...rows[idx], ...rec };
+  else if (m[1] === "create") {
+    if (table === "orders") rows.unshift(rec);
+    else rows.push(rec);
+  } else return;
+  memoryCache = { ...memoryCache, data: { ...memoryCache.data, [table]: rows } };
+}
+
+/** ดึงชีตใหม่เบื้องหลัง (ครั้งละงานเดียว) — บน Vercel ใช้ after() ให้ทำต่อจนเสร็จหลังตอบผู้ใช้แล้ว */
+function refreshInBackground(webAppUrl: string) {
+  if (refreshing) return;
+  const startVersion = cacheVersion;
+  refreshing = fetchAllFromSheets(webAppUrl)
+    .then((sheetData) => {
+      // ระหว่างดึงมีการเขียนใหม่ → ข้อมูลชุดนี้อาจไม่มีค่านั้น อย่าทับ (รอบหน้าค่อยดึงใหม่)
+      if (startVersion !== cacheVersion) return;
+      memoryCache = { data: applyDatabaseJoins(sheetData), source: "google-sheets", timestamp: Date.now() };
+      writeDiskCache(memoryCache);
+    })
+    .catch((e) => console.warn("[Sheets Background Refresh Error]", e))
+    .finally(() => {
+      refreshing = null;
+    });
+  keepAlive(refreshing);
 }
 
 export async function getAllDatabase(forceRefresh = false): Promise<{
@@ -648,19 +731,7 @@ export async function getAllDatabase(forceRefresh = false): Promise<{
   // 2. แคชเริ่มเก่า (< 5 นาที): คืนค่าแคชให้ผู้ใช้ทันที (< 5ms) แล้ว refresh ข้อมูลชีตใน background
   if (!forceRefresh && memoryCache && (now - memoryCache.timestamp) < CACHE_STALE_TTL_MS) {
     const cfg = getRuntimeConfig();
-    if (cfg.googleSheetsWebAppUrl) {
-      fetchAllFromSheets(cfg.googleSheetsWebAppUrl)
-        .then((sheetData) => {
-          const joined = applyDatabaseJoins(sheetData);
-          memoryCache = {
-            data: joined,
-            source: "google-sheets",
-            timestamp: Date.now(),
-          };
-          writeDiskCache(memoryCache);
-        })
-        .catch((e) => console.warn("[Sheets Background Refresh Error]", e));
-    }
+    if (cfg.googleSheetsWebAppUrl) refreshInBackground(cfg.googleSheetsWebAppUrl);
     return { data: memoryCache.data, source: memoryCache.source };
   }
 
@@ -668,8 +739,14 @@ export async function getAllDatabase(forceRefresh = false): Promise<{
   const cfg = getRuntimeConfig();
   if (cfg.googleSheetsWebAppUrl) {
     try {
+      const startVersion = cacheVersion;
       const sheetData = await fetchAllFromSheets(cfg.googleSheetsWebAppUrl);
       const joined = applyDatabaseJoins(sheetData);
+      // มีการเขียนระหว่างดึง: ส่งข้อมูลชุดนี้ให้ผู้เรียก แต่ให้แคชถือว่าเก่า
+      if (startVersion !== cacheVersion) {
+        memoryCache = { data: joined, source: "google-sheets", timestamp: staleStamp() };
+        return { data: joined, source: "google-sheets" };
+      }
       memoryCache = {
         data: joined,
         source: "google-sheets",

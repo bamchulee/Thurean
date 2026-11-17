@@ -1,17 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Check,
-  CheckCircle2,
-  Minus,
-  Plus,
-  ShoppingBasket,
-  Sparkles,
-  Trash2,
-  User as UserIcon,
-  X,
-} from "lucide-react";
+import { CheckCircle2, Minus, Plus, ShoppingBasket, Trash2 } from "lucide-react";
 import { shopInfo } from "../data/shop";
 import { CheckoutAccountGate, canCheckout } from "./CheckoutAccountGate";
 import { useCart } from "../context/CartContext";
@@ -21,6 +11,10 @@ import { OrderSuccessModal } from "./OrderSuccessModal";
 import { LineIcon } from "./Icons";
 import { MapLocationPicker } from "./MapLocationPicker";
 import { pricePerKgOf } from "../lib/stock";
+import { Sheet } from "./store/Sheet";
+
+const field =
+  "w-full border border-stone-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:border-[#1B4D31] focus:ring-2 focus:ring-[#1B4D31]/15 focus:outline-none";
 
 export function CartDrawerModal({
   roundId,
@@ -120,203 +114,123 @@ export function CartDrawerModal({
     }
   };
 
+  const count = items.reduce((s, i) => s + i.qty, 0);
+
   return (
-    <div
-      className="fixed inset-0 bg-black/70 z-50 flex justify-end backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl flex flex-col justify-between"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div>
-          {/* Header */}
-          <div className="bg-[#1B4D31] text-white px-5 py-4 flex items-center justify-between border-b border-emerald-900 sticky top-0 z-10">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
-                <ShoppingBasket className="w-5 h-5 text-amber-300" />
-              </div>
-              <div>
-                <h4 className="font-bold text-base text-white">
-                  ตะกร้าสินค้า ({items.reduce((s, i) => s + i.qty, 0)})
-                </h4>
-                <p className="text-[11px] text-emerald-200">
-                  รวมหลายสายพันธุ์ ประหยัดค่าจัดส่งในรอบเดียว
-                </p>
-              </div>
-            </div>
+    <Sheet
+      onClose={onClose}
+      title={`ตะกร้าสินค้า (${count})`}
+      footer={
+        items.length > 0 ? (
+          <div className="space-y-2">
+            {errorMsg && <p className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{errorMsg}</p>}
             <button
-              onClick={onClose}
-              className="text-white/70 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition"
-              aria-label="Close Cart"
+              type="submit"
+              form="cart-checkout"
+              disabled={submitting || !canCheckout(user)}
+              className="w-full h-11 rounded-lg bg-[#1B4D31] hover:bg-[#143B25] disabled:opacity-50 text-white text-sm font-bold inline-flex items-center justify-center gap-2"
             >
-              <X className="w-5 h-5" />
+              {submitting ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> กำลังส่งออเดอร์…
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-[#FFD84D]" /> ยืนยันจอง ({count} ชิ้น)
+                </>
+              )}
             </button>
           </div>
-
-          {/* Cart Items */}
-          <div className="p-5 space-y-3">
-            {items.length === 0 ? (
-              <div className="text-center py-14 space-y-2">
-                <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto mb-2">
-                  <ShoppingBasket className="w-7 h-7" />
-                </div>
-                <p className="font-bold text-stone-700 text-sm">
-                  ยังไม่มีสินค้าในตะกร้า
-                </p>
-                <p className="text-xs text-stone-400">
-                  เลือกทุเรียนที่ชอบแล้วกด &quot;ใส่ตะกร้า&quot; ได้เลยครับ
-                </p>
-              </div>
-            ) : (
-              items.map((it) => (
-                <div
-                  key={it.key}
-                  className="bg-stone-50 border border-stone-200 rounded-2xl p-3 flex gap-3 items-center"
-                >
-                  <img
-                    src={it.product.image}
-                    alt={it.product.name}
-                    className="w-14 h-14 rounded-xl object-cover shrink-0 border border-stone-200"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h5 className="font-bold text-xs text-stone-900 truncate">
-                      {it.product.name}
-                    </h5>
-                    <p className="text-[11px] text-amber-700 font-medium flex items-center gap-1 mt-0.5">
-                      <Sparkles className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{it.ripenessPref}</span>
-                    </p>
-                    <p className="text-xs font-bold text-[#1B4D31] mt-0.5">
-                      ฿{pricePerKgOf(it.product).toLocaleString()}/กก. • {it.qty} {it.product.unit || "ลูก"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => updateQty(it.key, it.qty - 1)}
-                      className="w-7 h-7 bg-white border border-stone-300 rounded-lg flex items-center justify-center text-stone-700 hover:bg-stone-100"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="text-xs font-bold w-5 text-center">
-                      {it.qty}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateQty(it.key, it.qty + 1)}
-                      className="w-7 h-7 bg-[#1B4D31] text-white rounded-lg flex items-center justify-center hover:bg-[#143B25]"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeItem(it.key)}
-                      className="text-stone-400 hover:text-rose-600 p-1 ml-0.5 transition"
-                      title="ลบออก"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        ) : undefined
+      }
+    >
+      {items.length === 0 ? (
+        <div className="text-center py-12 px-4">
+          <ShoppingBasket className="w-10 h-10 text-stone-300 mx-auto" />
+          <p className="mt-2 text-sm font-semibold text-stone-700">ยังไม่มีสินค้าในตะกร้า</p>
+          <p className="text-xs text-stone-400">กดปุ่ม + ที่สินค้าเพื่อใส่ตะกร้า</p>
         </div>
+      ) : (
+        <div className="p-3 space-y-3">
+          <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
+            {items.map((it) => (
+              <li key={it.key} className="flex gap-2.5 p-2.5">
+                {it.product.image ? (
+                  <img src={it.product.image} alt="" className="w-16 h-16 rounded-md object-cover shrink-0 bg-stone-100" />
+                ) : (
+                  <span className="w-16 h-16 rounded-md bg-stone-100 shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] leading-snug text-stone-900 line-clamp-2">{it.product.name}</p>
+                  <p className="text-[11px] text-stone-500 truncate">{it.ripenessPref}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-[#D9480F]">
+                      ฿{pricePerKgOf(it.product).toLocaleString()}
+                      <span className="text-[10px] font-normal text-stone-500">/กก.</span>
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => removeItem(it.key)}
+                        aria-label="ลบออก"
+                        className="p-1.5 text-stone-400 hover:text-rose-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <div className="inline-flex items-center border border-stone-300 rounded-md overflow-hidden">
+                        <button type="button" aria-label="ลดจำนวน" onClick={() => updateQty(it.key, it.qty - 1)} className="w-7 h-7 flex items-center justify-center text-stone-600 hover:bg-stone-100">
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-8 text-center text-xs font-bold border-x border-stone-300 leading-7">{it.qty}</span>
+                        <button type="button" aria-label="เพิ่มจำนวน" onClick={() => updateQty(it.key, it.qty + 1)} className="w-7 h-7 flex items-center justify-center text-stone-600 hover:bg-stone-100">
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
 
-        {/* Checkout Form */}
-        {items.length > 0 && (
-          <form
-            onSubmit={handleCheckout}
-            className="p-5 border-t border-stone-200 bg-stone-50/80 space-y-3"
-          >
+          <form id="cart-checkout" onSubmit={handleCheckout} className="space-y-2.5">
             {lineProfile && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-800 font-semibold flex items-center gap-2">
-                <LineIcon className="w-4 h-4 text-[#06C755] shrink-0" />
-                <span>เชื่อมต่อบัญชีคุณ {lineProfile.displayName} แล้ว</span>
-              </div>
+              <p className="flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
+                <LineIcon className="w-4 h-4 text-[#06C755] shrink-0" /> เชื่อมต่อบัญชีคุณ {lineProfile.displayName} แล้ว
+              </p>
             )}
-
             <CheckoutAccountGate />
 
-            <input
-              required
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="ชื่อ-นามสกุล ผู้รับ *"
-              className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs bg-white focus:border-[#1B4D31] focus:outline-none"
-            />
-            <input
-              required
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="เบอร์โทรศัพท์ * (08X-XXX-XXXX)"
-              className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs bg-white focus:border-[#1B4D31] focus:outline-none"
-            />
-            <div className="pt-0.5">
-              <MapLocationPicker
-                address={address}
-                onAddressChange={(newAddr) => setAddress(newAddr)}
-              />
+            <p className="text-xs font-bold text-stone-700 pt-1">ที่อยู่จัดส่ง</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <input required className={field} value={name} onChange={(e) => setName(e.target.value)} placeholder="ชื่อผู้รับ *" autoComplete="name" />
+              <input required type="tel" inputMode="tel" className={field} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="เบอร์โทร * 08X-XXX-XXXX" autoComplete="tel" />
             </div>
+            <MapLocationPicker address={address} onAddressChange={(a) => setAddress(a)} />
             <textarea
               required
               rows={2}
+              className={`${field} resize-none`}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="ที่อยู่จัดส่งละเอียด * (หรือกดปุ่มปักหมุดด้านบน)"
-              className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs bg-white focus:border-[#1B4D31] focus:outline-none resize-none"
+              placeholder="ที่อยู่ละเอียด * (หรือกดปักหมุดด้านบน)"
+              autoComplete="street-address"
             />
-
-            <select
-              value={shipping}
-              onChange={(e) => setShipping(e.target.value)}
-              className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-xs font-semibold bg-white focus:border-[#1B4D31] focus:outline-none"
-            >
+            <select value={shipping} onChange={(e) => setShipping(e.target.value)} className={`${field} truncate`}>
               {shopInfo.shippingMethods.map((s) => (
                 <option key={s.name} value={s.name}>
-                  {s.name} ({s.price === 0 ? "ฟรี" : `+฿${s.price}`})
+                  {s.price === 0 ? "ฟรี" : `฿${s.price}`} • {s.name}
                 </option>
               ))}
             </select>
 
-            <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 space-y-1.5">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-semibold text-amber-950">
-                  ยอดเงิน = น้ำหนักจริง × ราคาต่อกิโล
-                </span>
-                <span className="text-sm font-black text-[#1B4D31]">
-                  + ค่าส่ง ฿{shippingCost}
-                </span>
-              </div>
-              <p className="text-[11px] text-amber-800 leading-relaxed">
-                ⚖️ <strong>ทุเรียนแต่ละผลมีน้ำหนักต่างกัน:</strong> จองไว้ก่อน ยังไม่ต้องโอน — แอดมินชั่งน้ำหนักจริงแล้วจะส่งยอดเงินพร้อม QR ให้ทาง LINE ครับ
-              </p>
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 space-y-1">
+              <p className="font-semibold">ยอดจริง = น้ำหนักที่ชั่ง × ราคาต่อกิโล + ค่าส่ง ฿{shippingCost}</p>
+              <p className="text-[11px] leading-relaxed">จองไว้ก่อน ยังไม่ต้องโอน — แอดมินชั่งแล้วส่งยอดพร้อม QR ให้ทาง LINE</p>
             </div>
-
-            {errorMsg && (
-              <div className="bg-rose-50 text-rose-700 text-xs font-semibold p-2.5 rounded-xl border border-rose-200">
-                {errorMsg}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting || !canCheckout(user)}
-              className="w-full bg-[#1B4D31] hover:bg-[#143B25] text-white py-3.5 rounded-xl font-bold text-sm shadow-md transition disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              <CheckCircle2 className="w-4 h-4 text-amber-300" />
-              <span>
-                {submitting
-                  ? "กำลังส่งคำสั่งซื้อเข้าระบบ..."
-                  : `ยืนยันสั่งซื้อ (ส่งออเดอร์ให้แอดมินชั่งจริง)`}
-              </span>
-            </button>
           </form>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </Sheet>
   );
 }

@@ -91,6 +91,34 @@ h4 {
     linear-gradient(225deg, var(--thorn-color) 25%, transparent 25%) -11px 0 / 22px 22px;
 }
 
+/* แถบเลื่อนแนวนอน (ชิปหมวดสินค้า) ไม่โชว์สกรอลบาร์ */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* แผ่นเลื่อนขึ้นจากล่าง (มือถือ) / กล่องกลางจอ */
+@keyframes sheet-in {
+  from {
+    transform: translateY(32px);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.sheet-in {
+  animation: sheet-in 0.18s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in {
+    animation: none;
+  }
+}
+
 @media print {
   body {
     background: #ffffff;

@@ -22,6 +22,7 @@ import {
 } from "./line-notify";
 import { adminAlertLinks, notifyAdmins } from "./order-workflow";
 import { shopInfo } from "../data/shop";
+import { runInBackground } from "./background";
 import { resolveCourierInfo } from "./courier";
 import { checkClaimEligibility } from "./claim-policy";
 import { findOrderById } from "./ids";
@@ -280,16 +281,16 @@ export async function submitNewOrder(
     return { ok: true, order: created, duplicate: true };
   }
 
+  // แจ้ง LINE ลูกค้า + กลุ่มแอดมินเบื้องหลัง — ลูกค้าเห็นว่าสั่งสำเร็จทันที ไม่ต้องรอส่งข้อความ
   const cfg = getRuntimeConfig();
-  if (created.lineUserId && !options?.skipCustomerNotify) {
-    const res = await pushLineMessage(
-      created.lineUserId,
-      buildBookingReceiptFlex(created),
-      cfg.lineChannelAccessToken
-    );
-    if (!res.sent) console.warn("Failed to push booking receipt via LINE:", res.reason);
-  }
-  await notifyAdmins(buildOrderAlertForAdmin(created, await adminAlertLinks(created)));
+  const order = created;
+  runInBackground(`order ${order.id} notifications`, async () => {
+    if (order.lineUserId && !options?.skipCustomerNotify) {
+      const res = await pushLineMessage(order.lineUserId, buildBookingReceiptFlex(order), cfg.lineChannelAccessToken);
+      if (!res.sent) console.warn("Failed to push booking receipt via LINE:", res.reason);
+    }
+    await notifyAdmins(buildOrderAlertForAdmin(order, await adminAlertLinks(order)));
+  });
 
   return { ok: true, order: created };
 }
@@ -384,7 +385,8 @@ export async function submitNewClaim(
   }
 
   const cfg = getRuntimeConfig();
-  if (cfg.lineChannelAccessToken) {
+  // แจ้ง LINE เบื้องหลัง — ลูกค้าเห็นผลแจ้งเคลมทันที
+  if (cfg.lineChannelAccessToken) runInBackground(`claim ${created.claimId} notifications`, async () => {
     // 1. Send Claim Confirmation to Customer (if original order had lineUserId)
     const customerLineId = matchedOrder?.lineUserId;
     if (customerLineId) {
@@ -414,7 +416,7 @@ export async function submitNewClaim(
         console.warn(`Failed to push admin claim alert to ${targetId}:`, err);
       }
     }
-  }
+  });
 
   return { ok: true, claim: created, matchedOrder };
 }

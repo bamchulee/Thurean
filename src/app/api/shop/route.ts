@@ -22,7 +22,7 @@ export async function GET() {
       (pr) => pr.isActive !== false && (pr.isActive as any) !== 0 && (pr.isActive as any) !== "0"
     );
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       bankAccount: getBankAccount(),
       ok: true,
       source,
@@ -43,6 +43,12 @@ export async function GET() {
         note: cfg.liveStreamNote || "",
       },
     });
+    // ข้อมูลหน้าร้านเป็นข้อมูลสาธารณะ: ให้ CDN ของ Vercel เก็บไว้ 15 วิ แล้วตอบของเดิมระหว่างดึงใหม่
+    // (ลูกค้าไม่ต้องรอฟังก์ชันตื่น/รอชีต — ปัญหาเปิดหน้าแรกช้า 8 วินาที)
+    if (source === "google-sheets") {
+      res.headers.set("Cache-Control", "public, s-maxage=15, stale-while-revalidate=600");
+    }
+    return res;
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: String(err) },
