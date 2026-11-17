@@ -51,10 +51,8 @@ async function prepareImage(input?: string | Buffer): Promise<{ buf: Buffer; typ
     rawBuf = Buffer.from(m[1], "base64");
   } else {
     const jpg = path.join(process.cwd(), "public", "line-richmenu.jpg");
-    const png = path.join(process.cwd(), "public", "line-richmenu.png");
-    if (fs.existsSync(jpg)) rawBuf = fs.readFileSync(jpg);
-    else if (fs.existsSync(png)) rawBuf = fs.readFileSync(png);
-    else throw new Error("ไม่พบไฟล์รูปภาพ Rich Menu ใน public/");
+    if (!fs.existsSync(jpg)) throw new Error("ไม่พบไฟล์รูปภาพ Rich Menu ใน public/line-richmenu.jpg");
+    rawBuf = fs.readFileSync(jpg);
   }
 
   // ปรับขนาดเป็น 2500 x 1686 เสมอตามข้อกำหนดของ LINE และบีบอัดเป็น JPEG ขนาด < 1MB
