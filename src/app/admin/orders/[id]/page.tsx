@@ -21,7 +21,15 @@ import {
 } from "lucide-react";
 import { LineIcon } from "../../../../components/Icons";
 import { COURIER_OPTIONS } from "../../../../lib/courier";
-import { slipCheckText } from "../../../../lib/slip-check";
+import { slipAccountText, slipAmountText, slipCheckText } from "../../../../lib/slip-check";
+
+/** สีกรอบผลตรวจสลิป: แดงถ้ามีข้อใดไม่ผ่าน, เขียวถ้าผ่านครบ */
+function slipTone(o: { slipCheck?: string; slipAmountCheck?: string; slipAccountCheck?: string }): "ok" | "warn" | "bad" {
+  const qr = slipCheckText(o.slipCheck).tone;
+  if (qr === "bad" || o.slipAmountCheck === "mismatch" || o.slipAccountCheck === "mismatch") return "bad";
+  if (qr === "ok" && o.slipAmountCheck === "match" && o.slipAccountCheck === "match") return "ok";
+  return "warn";
+}
 import {
   ORDER_STATUS_META,
   PAYMENT_STATUS_LABEL,
@@ -408,21 +416,28 @@ export default function AdminOrderPage() {
           {order.slipUrl && (
             <div
               className={`mt-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
-                slipCheckText(order.slipCheck).tone === "ok"
+                slipTone(order) === "ok"
                   ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                  : slipCheckText(order.slipCheck).tone === "bad"
+                  : slipTone(order) === "bad"
                   ? "bg-rose-50 border-rose-200 text-rose-800"
                   : "bg-amber-50 border-amber-200 text-amber-900"
               }`}
             >
               <p>{slipCheckText(order.slipCheck).label}</p>
+              {slipAmountText(order) && <p className="mt-0.5">{slipAmountText(order)}</p>}
+              {slipAccountText(order.slipAccountCheck) && <p className="mt-0.5">{slipAccountText(order.slipAccountCheck)}</p>}
               {order.slipBank && (
                 <p className="font-normal mt-0.5">
                   โอนจาก {order.slipBank}
                   {order.slipRef ? <> · เลขรายการ <span className="font-mono">{order.slipRef}</span></> : null}
                 </p>
               )}
-              <p className="font-normal text-stone-500 mt-0.5">ยอดเงินและบัญชีผู้รับ ต้องเช็กกับแอปธนาคารก่อนกดยืนยัน</p>
+              {order.slipFileUrl && (
+                <a href={order.slipFileUrl} target="_blank" rel="noreferrer" className="inline-block mt-1 underline font-normal">
+                  เปิดสลิปที่เก็บใน Google Drive
+                </a>
+              )}
+              <p className="font-normal text-stone-500 mt-0.5">ผลนี้อ่านจากรูป — สลิปปลอมที่ทำมาเนียนยังหลุดได้ เช็กเงินเข้าในแอปธนาคารก่อนกดยืนยัน</p>
             </div>
           )}
           <p className="text-sm mt-3">

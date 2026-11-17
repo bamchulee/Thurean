@@ -205,7 +205,15 @@ export async function submitSlip(
   orderRef: string,
   slipPath: string,
   actor: string,
-  qr?: { slipRef?: string; slipBank?: string; slipCheck?: string }
+  qr?: {
+    slipRef?: string;
+    slipBank?: string;
+    slipCheck?: string;
+    slipFileUrl?: string;
+    slipAmount?: number;
+    slipAmountCheck?: string;
+    slipAccountCheck?: string;
+  }
 ): Promise<WorkflowResult> {
   const { order } = await loadFresh(orderRef);
   if (!order) return fail(`ไม่พบออเดอร์ "${orderRef}"`, 404);
@@ -218,7 +226,17 @@ export async function submitSlip(
       slipUrl: slipPath,
       paymentStatus: "slip_submitted",
       slipSubmittedAt: new Date().toISOString(),
-      ...(qr ? { slipRef: qr.slipRef || "", slipBank: qr.slipBank || "", slipCheck: qr.slipCheck || "" } : {}),
+      ...(qr
+        ? {
+            slipRef: qr.slipRef || "",
+            slipBank: qr.slipBank || "",
+            slipCheck: qr.slipCheck || "",
+            slipFileUrl: qr.slipFileUrl || "",
+            slipAmount: qr.slipAmount,
+            slipAmountCheck: qr.slipAmountCheck || "",
+            slipAccountCheck: qr.slipAccountCheck || "",
+          }
+        : {}),
     },
     actor
   );

@@ -133,6 +133,14 @@ export interface Order extends BaseAuditLog {
   slipBank?: string;
   /** ผลตรวจ QR: ok / no_qr / not_slip / duplicate:ODxxxxxx */
   slipCheck?: string;
+  /** รูปสลิปที่เก็บถาวรใน Google Drive */
+  slipFileUrl?: string;
+  /** ยอดที่อ่านได้จากสลิป (OCR) */
+  slipAmount?: number;
+  /** match / mismatch / unknown */
+  slipAmountCheck?: string;
+  /** match / mismatch / unknown */
+  slipAccountCheck?: string;
   lotId?: string;
   mapsUrl?: string;
   latitude?: number;

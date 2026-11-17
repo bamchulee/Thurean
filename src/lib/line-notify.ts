@@ -11,7 +11,7 @@ import type {
 } from "../types/durian";
 import { shopInfo } from "../data/shop";
 import { getBankAccount } from "./sheets-db";
-import { slipCheckText } from "./slip-check";
+import { slipAccountText, slipAmountText, slipCheckText } from "./slip-check";
 import { resolveCourierInfo } from "./courier";
 import { formatProductStock, pricePerKgOf } from "./stock";
 import { checkClaimEligibility } from "./claim-policy";
@@ -299,7 +299,14 @@ export function buildSlipAlertForAdmin(order: Order, links: AdminAlertLinks, sli
             { type: "text", text: `👤 ${order.customerName} (${order.phone})`, size: "xs", weight: "bold", wrap: true },
             {
               type: "text",
-              text: slipCheckText(order.slipCheck).label + (order.slipBank ? `\nโอนจาก: ${order.slipBank}${order.slipRef ? " · เลขรายการ " + order.slipRef : ""}` : ""),
+              text: [
+                slipCheckText(order.slipCheck).label,
+                slipAmountText(order),
+                slipAccountText(order.slipAccountCheck),
+                order.slipBank ? `โอนจาก: ${order.slipBank}${order.slipRef ? " · เลขรายการ " + order.slipRef : ""}` : "",
+              ]
+                .filter(Boolean)
+                .join("\n"),
               size: "xs",
               wrap: true,
               color: slipCheckText(order.slipCheck).tone === "ok" ? "#15803D" : slipCheckText(order.slipCheck).tone === "bad" ? "#B91C1C" : "#B45309",

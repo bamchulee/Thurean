@@ -9,8 +9,10 @@ import { after, NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import {
   getAllDatabase,
+  getBankAccount,
   getRuntimeConfig,
   loadAppSettings,
+  ocrSlipImage,
   setLineAdminTarget,
   upsertLineUser,
 } from "../../../../lib/sheets-db";
@@ -32,6 +34,7 @@ import {
   buildTicketAlertForAdmin,
   buildUserOrdersFlex,
   buildWelcomeFlex,
+  pushLineMessage,
   replyLineMessage,
   showLineLoadingAnimation,
 } from "../../../../lib/line-notify";
@@ -54,6 +57,7 @@ import { addressFormUrlFor, bookingReviewMessages } from "../../../../lib/line-b
 import { formatProductStock } from "../../../../lib/stock";
 import { isValidLineSignature } from "../../../../lib/line-verify";
 import { checkSlip, readSlipQr } from "../../../../lib/slip-qr";
+import { readSlipText } from "../../../../lib/slip-text";
 import { extractOrderId, findOrderById } from "../../../../lib/ids";
 import { shopInfo } from "../../../../data/shop";
 import type { DatabaseState, Order, RuntimeConfig, User } from "../../../../types/durian";
@@ -644,13 +648,33 @@ async function handleImage(ctx: Ctx, messageId: string) {
     // อ่าน QR บนสลิป: ธนาคารผู้โอน + เลขรายการ → กันรูปที่ไม่ใช่สลิปและสลิปที่เคยใช้กับออเดอร์อื่น
     const qr = media.buffer ? await readSlipQr(media.buffer) : { found: false };
     const slipCheck = checkSlip(qr, data.orders, awaiting[0].id);
-    console.log("[LINE Webhook] slip QR", slipCheck, qr.bankCode || "-");
+    // อ่านยอด + บัญชีผู้รับจากตัวหนังสือบนสลิป (OCR ฟรีผ่าน Google Drive ของร้าน) และเก็บรูปถาวร
+    const target = awaiting[0];
+    const expected = (target.totalPrice || 0) + (target.shippingCost || 0);
+    const ocr = media.buffer
+      ? await ocrSlipImage(media.buffer, media.contentType || "image/jpeg", `${target.id}-${messageId}.${media.filename?.split(".").pop() || "jpg"}`).catch((err) => {
+          console.warn("[LINE Webhook] slip OCR failed", String(err));
+          return null;
+        })
+      : null;
+    const textCheck = ocr ? readSlipText(ocr.text, expected, getBankAccount()) : null;
+    console.log("[LINE Webhook] slip QR", slipCheck, qr.bankCode || "-", "amount", textCheck?.amountCheck || "-", "account", textCheck?.accountCheck || "-");
     // submitSlip ส่งใบรับสลิปให้ลูกค้า + แจ้งกลุ่มแอดมิน (พร้อมผลตรวจ QR) ให้กดยืนยันเอง
     const res = await submitSlip(awaiting[0].id, media.apiPath, "customer-line", {
       slipRef: qr.transRef,
       slipBank: qr.bankName,
       slipCheck,
+      slipFileUrl: ocr?.fileUrl,
+      slipAmount: textCheck?.amount,
+      slipAmountCheck: textCheck?.amountCheck,
+      slipAccountCheck: textCheck?.accountCheck,
     });
+    // ยอดขาด/ผิดบัญชี: บอกลูกค้าทันที (แอดมินเห็นผลเดียวกันในการ์ดแจ้งเตือน)
+    if (res.ok && textCheck && (textCheck.amountCheck === "mismatch" || textCheck.accountCheck === "mismatch")) {
+      await ctx.reply([
+        text(`⚠️ ตรวจสลิปของออเดอร์ ${target.id} แล้วพบว่า\n${textCheck.notes.filter((n) => /ขาด|เกิน|ไม่ใช่บัญชีร้าน/.test(n)).join("\n")}\n\nยอดที่ต้องโอน: ฿${expected.toLocaleString()}\nโอนเข้า: ${getBankAccount().bank} ${getBankAccount().number} (${getBankAccount().name})\nแอดมินจะตรวจอีกครั้งครับ ถ้าโอนเพิ่มส่งสลิปใหม่เข้ามาได้เลย`),
+      ]);
+    }
     if (!res.ok) await ctx.reply([text(res.error)]);
     else if (awaiting.length > 1) {
       await ctx.reply([

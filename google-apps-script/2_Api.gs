@@ -59,6 +59,8 @@ function doPost(e) {
     ensureCustomColumns();
     if (action === "ping") return jsonResponse({ ok: true, data: { secured: true } });
     if (action === "getSettings") return jsonResponse({ ok: true, data: readSettingsBundle() });
+    // อ่านสลิป: ช้าไม่กี่วินาที ไม่ต้องล็อกชีต
+    if (action === "ocrSlip") return jsonResponse({ ok: true, data: ocrSlip(payload) });
     if (action === "getAll") return jsonResponse({ ok: true, data: readAllDatabase() });
 
     const lock = LockService.getScriptLock();
@@ -256,4 +258,65 @@ function writeSettingsSheet(rows) {
   const existing = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
   if (existing.length === 0) sheet.protect().setDescription("แก้ที่หน้าแอดมินเท่านั้น").setWarningOnly(true);
   return { rows: body.length };
+}
+
+// ============================================================
+// สลิปโอนเงิน: เก็บรูปถาวรใน Google Drive ของร้าน + อ่านตัวหนังสือด้วย OCR ของ Google (ฟรี)
+// ครั้งแรกต้องรันฟังก์ชัน authorizeSlipOcr ใน editor แล้วกดอนุญาตสิทธิ์ Drive/Docs หนึ่งครั้ง
+// ============================================================
+
+function getSlipFolder() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty("SLIP_FOLDER_ID");
+  if (id) {
+    try {
+      return DriveApp.getFolderById(id);
+    } catch (e) {
+      // โฟลเดอร์ถูกลบ — สร้างใหม่
+    }
+  }
+  const folder = DriveApp.createFolder("ทุเรียนวินคิน - สลิปโอนเงิน");
+  props.setProperty("SLIP_FOLDER_ID", folder.getId());
+  return folder;
+}
+
+/** รันครั้งเดียวจาก editor เพื่อให้ Google ขอสิทธิ์ (Drive, Docs, เรียก API) */
+function authorizeSlipOcr() {
+  const folder = getSlipFolder();
+  DocumentApp.getActiveDocument;
+  UrlFetchApp.getRequest;
+  Logger.log("พร้อมใช้งาน — โฟลเดอร์เก็บสลิป: " + folder.getUrl());
+  return folder.getUrl();
+}
+
+/** payload: { base64, mime, name } → { text, fileId, fileUrl } */
+function ocrSlip(payload) {
+  if (!payload || !payload.base64) throw new Error("MISSING_DATA: ไม่มีรูปสลิป");
+  const folder = getSlipFolder();
+  const name = String(payload.name || "slip.jpg").replace(/[^\w.\-]/g, "_");
+  const blob = Utilities.newBlob(Utilities.base64Decode(payload.base64), payload.mime || "image/jpeg", name);
+  const file = folder.createFile(blob);
+
+  // แปลงรูปเป็น Google Doc พร้อม OCR ภาษาไทย แล้วอ่านข้อความ (ลบเอกสารชั่วคราวทิ้ง)
+  const res = UrlFetchApp.fetch(
+    "https://www.googleapis.com/drive/v3/files/" + file.getId() + "/copy?ocrLanguage=th&fields=id",
+    {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify({ name: "ocr-" + name, mimeType: "application/vnd.google-apps.document", parents: [folder.getId()] }),
+      headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true,
+    }
+  );
+  if (res.getResponseCode() >= 300) {
+    return { text: "", fileId: file.getId(), fileUrl: file.getUrl(), error: "OCR " + res.getResponseCode() };
+  }
+  const docId = JSON.parse(res.getContentText()).id;
+  let text = "";
+  try {
+    text = DocumentApp.openById(docId).getBody().getText();
+  } finally {
+    DriveApp.getFileById(docId).setTrashed(true);
+  }
+  return { text: text, fileId: file.getId(), fileUrl: file.getUrl() };
 }

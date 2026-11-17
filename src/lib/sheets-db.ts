@@ -97,6 +97,17 @@ export async function saveAppSettings(partial: Record<string, unknown>): Promise
   await loadAppSettings(true);
 }
 
+/** เก็บรูปสลิปลง Google Drive ของร้าน + อ่านตัวหนังสือ (OCR ฟรีของ Google) — ใช้ไม่ได้ในโหมด local */
+export async function ocrSlipImage(image: Buffer, mime: string, name: string): Promise<{ text: string; fileUrl?: string; error?: string } | null> {
+  const url = getRuntimeConfig().googleSheetsWebAppUrl;
+  if (!url) return null;
+  return await callGoogleAppsScriptPost<{ text: string; fileUrl?: string; error?: string }>(url, "ocrSlip", {
+    base64: image.toString("base64"),
+    mime,
+    name,
+  });
+}
+
 /** เขียนแท็บ Settings (สรุปค่าแบบปิดบังค่าลับ) ในไฟล์ USER */
 export async function writeSettingsSheet(rows: { group: string; label: string; value: string; source: string; key: string }[]): Promise<void> {
   const url = getRuntimeConfig().googleSheetsWebAppUrl;
@@ -400,7 +411,7 @@ async function callGoogleAppsScriptPost<T>(
     });
     return await parseSheetsResponse<T>(res, `POST ${action}`);
   } finally {
-    if (action !== "getAll" && action !== "ping" && action !== "getSettings") invalidateDatabaseCache();
+    if (action !== "getAll" && action !== "ping" && action !== "getSettings" && action !== "ocrSlip") invalidateDatabaseCache();
   }
 }
 
