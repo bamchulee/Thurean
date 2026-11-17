@@ -45,6 +45,8 @@ const SHEET_NAMES = {
   CLAIMS: "Claims",
   PROMOTIONS: "Promotions",
   USERS: "Users",
+  // แท็บสรุปการตั้งค่า (ไฟล์ USER) — ค่าลับแสดงแบบปิดบังเท่านั้น ค่าจริงอยู่ใน Script Properties
+  SETTINGS: "Settings",
 };
 
 // คอลัมน์ท้ายตารางทุกตาราง (ใครสร้าง/แก้ล่าสุด เมื่อไร)

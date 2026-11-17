@@ -109,9 +109,7 @@ export async function submitNewOrder(
       };
     }
     const qty = Math.min(50, Math.max(1, Math.floor(Number(reqItem.qty) || 1)));
-    const itemLabel = reqItem.ripenessPref
-      ? `${prod.name} (${reqItem.ripenessPref})`
-      : prod.name;
+    const itemLabel = prod.name;
     if (reqItem.ripenessPref) {
       ripenessSummarySet.push(`${prod.variety || prod.name}: ${reqItem.ripenessPref} x${qty}`);
     }

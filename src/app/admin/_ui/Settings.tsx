@@ -265,7 +265,25 @@ export function Settings() {
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" /> {label}
             </a>
           ))}
+          <button
+            type="button"
+            disabled={busy === "sheet"}
+            onClick={async () => {
+              setBusy("sheet");
+              try {
+                const res = await fetch("/api/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "syncSheet" }) });
+                const j = await res.json();
+                setToast({ msg: j.message || j.error || "อัปเดตไม่สำเร็จ", ok: Boolean(j.ok) });
+              } finally {
+                setBusy("");
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-300 text-xs font-bold text-stone-700 hover:bg-stone-50 disabled:opacity-40"
+          >
+            {busy === "sheet" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5 text-amber-700" />} อัปเดตแท็บ Settings
+          </button>
         </div>
+        <p className="text-[11px] text-stone-400 mt-2">แท็บ Settings ในไฟล์ USER สรุปค่าทั้งหมดในหน้านี้ — ค่าลับ (token/secret) แสดงแบบปิดบังเท่านั้น ค่าจริงเก็บใน Apps Script Script Properties ซึ่งดูจากชีตไม่ได้</p>
       </Section>
 
       {GROUPS.map((g) => (

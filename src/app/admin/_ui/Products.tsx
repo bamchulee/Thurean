@@ -4,7 +4,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 import type { Product } from "../../../types/durian";
-import { Badge, DataTable, Drawer, Field, inputCls, Toast, usePageActions, type Column } from "./kit";
+import { Badge, DataTable, Drawer, Toast, usePageActions, type Column } from "./kit";
+import { ProductForm } from "./ProductForm";
 
 type Patch = Partial<Product>;
 
@@ -177,7 +178,7 @@ export function Products({
       key: "edit",
       header: "",
       className: "text-right",
-      render: (p) => (
+      render: () => (
         <button type="button" className="p-1.5 rounded-lg hover:bg-stone-100" aria-label="แก้ไขรายละเอียด">
           <Pencil className="w-4 h-4 text-stone-500" />
         </button>
@@ -187,17 +188,6 @@ export function Products({
 
   const f = editing?.form || {};
   const setF = (patch: Patch) => setEditing((e) => (e ? { ...e, form: { ...e.form, ...patch } } : e));
-  const text = (k: keyof Product, label: string, hint?: string) => (
-    <Field label={label} hint={hint}>
-      <input className={inputCls} value={(f[k] as string) ?? ""} onChange={(e) => setF({ [k]: e.target.value } as Patch)} />
-    </Field>
-  );
-  const number = (k: keyof Product, label: string, hint?: string) => (
-    <Field label={label} hint={hint}>
-      <input type="number" inputMode="decimal" className={inputCls} value={(f[k] as number) ?? ""} onChange={(e) => setF({ [k]: num(e.target.value) } as Patch)} />
-    </Field>
-  );
-
   return (
     <>
       <DataTable
@@ -239,61 +229,7 @@ export function Products({
             </>
           }
         >
-          {text("name", "ชื่อสินค้า *")}
-          <div className="grid grid-cols-2 gap-3">
-            {number("pricePerKg", "ราคาต่อกิโล (บาท) *")}
-            {number("marketPrice", "ราคาตลาด/กก.", "โชว์ขีดฆ่า ว่างได้")}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="ประเภทการขาย">
-              <select className={inputCls} value={f.productType || ""} onChange={(e) => setF({ productType: e.target.value })}>
-                <option value="รับคัดลูก">รับคัดลูก</option>
-                <option value="รับมาเป็นโลแล้วขายเลย">รับมาเป็นโลแล้วขายเลย</option>
-              </select>
-            </Field>
-            <Field label="ลักษณะ">
-              <select className={inputCls} value={f.type || "whole"} onChange={(e) => setF({ type: e.target.value === "flesh" ? "flesh" : "whole" })}>
-                <option value="whole">ทั้งลูก</option>
-                <option value="flesh">แกะเนื้อ</option>
-              </select>
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {text("variety", "สายพันธุ์")}
-            {text("grade", "เกรด/ไซส์")}
-            {text("maturity", "ความสุก")}
-            {text("texture", "เนื้อสัมผัส")}
-            {text("weight", "น้ำหนักต่อลูก", "เช่น 3-4 กก.")}
-            {number("avgWeightKg", "น้ำหนักเฉลี่ย (กก.)")}
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {number("stockQty", "สต็อก (ลูก)", "ว่าง = ไม่นับ")}
-            {number("stockKg", "สต็อก (กก.)")}
-            {text("unit", "หน่วย")}
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {text("badge", "ป้าย")}
-            {text("origin", "แหล่งปลูก")}
-            {text("brix", "ความหวาน")}
-          </div>
-          {text("image", "ลิงก์รูปสินค้า")}
-          <Field label="รายละเอียด">
-            <textarea className={`${inputCls} min-h-20`} value={f.description || ""} onChange={(e) => setF({ description: e.target.value })} />
-          </Field>
-          {customCols.length > 0 && (
-            <div className="border-t border-stone-100 pt-3 space-y-3">
-              <p className="text-xs font-bold text-stone-500">คอลัมน์ที่เพิ่มเอง</p>
-              {customCols.map((c) => (
-                <Field key={c} label={c}>
-                  <input className={inputCls} value={f.custom?.[c] ?? ""} onChange={(e) => setF({ custom: { ...(f.custom || {}), [c]: e.target.value } })} />
-                </Field>
-              ))}
-            </div>
-          )}
-          <label className="flex items-center gap-2 text-sm font-semibold">
-            <input type="checkbox" checked={f.isAvailable !== false} onChange={(e) => setF({ isAvailable: e.target.checked })} />
-            เปิดขาย
-          </label>
+          <ProductForm key={editing.id || "new"} form={f} setF={setF} customCols={customCols} products={products} />
         </Drawer>
       )}
       {toast && <Toast msg={toast.msg} ok={toast.ok} onDone={() => setToast(null)} />}

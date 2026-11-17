@@ -94,6 +94,13 @@ export async function saveAppSettings(partial: Record<string, unknown>): Promise
   await loadAppSettings(true);
 }
 
+/** เขียนแท็บ Settings (สรุปค่าแบบปิดบังค่าลับ) ในไฟล์ USER */
+export async function writeSettingsSheet(rows: { group: string; label: string; value: string; source: string; key: string }[]): Promise<void> {
+  const url = getRuntimeConfig().googleSheetsWebAppUrl;
+  if (!url) return;
+  await callGoogleAppsScriptPost(url, "writeSettingsSheet", { rows });
+}
+
 export async function saveCustomColumns(table: string, columns: string[]): Promise<{ message?: string }> {
   const url = getRuntimeConfig().googleSheetsWebAppUrl;
   if (!url) throw new Error("ยังไม่ได้เชื่อม Google Sheets");

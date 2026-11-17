@@ -64,7 +64,7 @@ export default function ClaimPage() {
         }
       } else {
         setVerifiedOrder(null);
-        setOrderCheckError("ไม่พบรหัสคำสั่งซื้อนี้ในระบบ กรุณาตรวจสอบรหัสอีกครั้ง");
+        setOrderCheckError("ไม่พบเลขออเดอร์นี้ในระบบ กรุณาตรวจสอบอีกครั้ง");
       }
     } catch {
       setVerifiedOrder(null);
@@ -283,14 +283,14 @@ export default function ClaimPage() {
                 แบบฟอร์มแจ้งปัญหา / ขอเคลมทุเรียน
               </h3>
               <p className="text-xs text-stone-500 mt-0.5">
-                กรุณากรอกรหัสคำสั่งซื้อ OD... และตรวจสอบสิทธิ์รับประกัน 24 ชม.
+                กรอกเลขออเดอร์ OD... เพื่อตรวจสิทธิ์รับประกัน 24 ชม.
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                  รหัสคำสั่งซื้อ (Order ID) *
+                  เลขออเดอร์ *
                 </label>
                 <input
                   type="text"

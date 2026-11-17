@@ -429,7 +429,7 @@ export default function TrackingPage() {
 
           <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-stone-500 pt-3 border-t border-stone-100">
             <span>
-              💡 ค้นหาได้ด้วย <strong>รหัสคำสั่งซื้อ OD...</strong> หรือ <strong>เบอร์โทรศัพท์ผู้รับ</strong>
+              💡 ค้นหาได้ด้วย <strong>เลขออเดอร์ OD...</strong> หรือ <strong>เบอร์โทรศัพท์ผู้รับ</strong>
             </span>
             {currentUser && (
               <span className="text-[#1B4D31] font-semibold flex items-center gap-1">
@@ -542,7 +542,7 @@ export default function TrackingPage() {
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-100 pb-4 mb-4">
                 <div>
                   <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">
-                    รหัสคำสั่งซื้อ
+                    เลขออเดอร์
                   </span>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-2xl sm:text-3xl font-black text-[#1B4D31] font-mono tracking-tight">

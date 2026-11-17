@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
-import { getRuntimeConfig, getSettingsBundle, loadAppSettings, saveAppSettings, saveCustomColumns } from "../../../../lib/sheets-db";
+import { getRuntimeConfig, getSettingsBundle, loadAppSettings, saveAppSettings, saveCustomColumns, writeSettingsSheet } from "../../../../lib/sheets-db";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +28,39 @@ const EDITABLE = new Set<string>([...SETTING_FIELDS.map((f) => f.key), "isLiveNo
 function mask(v: string) {
   if (!v) return "";
   return v.length <= 8 ? "••••••••" : `${v.slice(0, 4)}••••••••${v.slice(-4)}`;
+}
+
+const GROUP_LABEL: Record<string, string> = { line: "LINE OA", login: "เข้าสู่ระบบ", web: "เว็บ & ไลฟ์" };
+const SOURCE_LABEL: Record<string, string> = { admin: "ตั้งจากหน้าแอดมิน", env: "Vercel", default: "ค่าเริ่มต้น", none: "ยังไม่ตั้ง" };
+
+function sourceOf(key: string, env: string): string {
+  const saved = getSettingsBundle().settings[key];
+  const value = effective(key);
+  return saved ? "admin" : process.env[env] ? "env" : value ? "default" : "none";
+}
+
+/** แถวสำหรับแท็บ Settings ในชีต — ค่าลับปิดบังเสมอ */
+function settingsSheetRows() {
+  type Row = { group: string; label: string; value: string; source: string; key: string };
+  const rows: Row[] = SETTING_FIELDS.map((f) => {
+    const value = effective(f.key);
+    return {
+      group: GROUP_LABEL[f.group] || f.group,
+      label: f.label,
+      value: f.secret ? mask(value) : value,
+      source: SOURCE_LABEL[sourceOf(f.key, f.env)],
+      key: f.key,
+    };
+  });
+  rows.push({ group: GROUP_LABEL.web, label: "กำลังไลฟ์อยู่", value: getRuntimeConfig().isLiveNow ? "ใช่" : "ไม่", source: "", key: "isLiveNow" });
+  const menu = getSettingsBundle().settings.richMenu as { chatBarText?: string; buttons?: { type: string; value: string }[] } | undefined;
+  if (menu?.buttons) {
+    rows.push({ group: "Rich menu", label: "ข้อความแถบเมนู", value: menu.chatBarText || "", source: SOURCE_LABEL.admin, key: "richMenu.chatBarText" });
+    menu.buttons.forEach((b, i) =>
+      rows.push({ group: "Rich menu", label: `ปุ่ม ${i + 1}`, value: `${b.type === "uri" ? "ลิงก์" : "ข้อความ"}: ${b.value}`, source: SOURCE_LABEL.admin, key: `richMenu.${i + 1}` })
+    );
+  }
+  return rows;
 }
 
 function effective(key: string): string {
@@ -74,11 +107,16 @@ export async function POST(req: NextRequest) {
   if (!(await requireAdmin(req))) return unauthorizedResponse();
   try {
     const body = (await req.json()) as {
-      action: "save" | "columns";
+      action: "save" | "columns" | "syncSheet";
       values?: Record<string, unknown>;
       table?: string;
       columns?: string[];
     };
+    if (body.action === "syncSheet") {
+      await loadAppSettings(true);
+      await writeSettingsSheet(settingsSheetRows());
+      return NextResponse.json({ ok: true, message: "อัปเดตแท็บ Settings ในไฟล์ USER แล้ว" });
+    }
     if (body.action === "columns") {
       if (!body.table) return NextResponse.json({ ok: false, error: "ไม่ระบุตาราง" }, { status: 400 });
       const res = await saveCustomColumns(body.table, body.columns || []);
@@ -93,6 +131,8 @@ export async function POST(req: NextRequest) {
     }
     if (Object.keys(values).length === 0) return NextResponse.json({ ok: false, error: "ไม่มีค่าที่เปลี่ยน" }, { status: 400 });
     await saveAppSettings(values);
+    // สรุปลงแท็บ Settings (ไม่ทำให้การบันทึกล้มถ้าเขียนชีตไม่สำเร็จ)
+    await writeSettingsSheet(settingsSheetRows()).catch((err) => console.warn("[settings] sheet mirror failed", String(err)));
     return NextResponse.json({ ok: true, saved: Object.keys(values) });
   } catch (err) {
     return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 500 });

@@ -54,7 +54,7 @@ function setupDurianWinkinSheets() {
  */
 function cleanupExtraSheets() {
   ensureCustomColumns();
-  const keepUser = [SHEET_NAMES.USERS];
+  const keepUser = [SHEET_NAMES.USERS, SHEET_NAMES.SETTINGS];
   const keepThurean = Object.keys(SHEET_DEFS).filter((n) => n !== SHEET_NAMES.USERS);
   const log = [];
   [
@@ -62,7 +62,7 @@ function cleanupExtraSheets() {
     { label: "THUREAN", ss: getThureanSpreadsheet(), keep: keepThurean },
   ].forEach((file) => {
     // สร้างตารางที่ต้องมีให้ครบก่อน (ไฟล์ต้องเหลืออย่างน้อย 1 แท็บเสมอ)
-    file.keep.forEach((name) => ensureSheet(name));
+    file.keep.forEach((name) => (SHEET_DEFS[name] ? ensureSheet(name) : file.ss.getSheetByName(name) || file.ss.insertSheet(name)));
     file.ss.getSheets().forEach((sheet) => {
       const name = sheet.getName();
       if (file.keep.indexOf(name) !== -1) return;

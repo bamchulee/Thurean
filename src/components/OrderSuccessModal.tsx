@@ -52,7 +52,7 @@ export function OrderSuccessModal({
           บันทึกคำสั่งจองสำเร็จ
         </h4>
         <p className="text-xs text-stone-500">
-          รหัสคำสั่งซื้อ:{" "}
+          เลขออเดอร์:{" "}
           <strong className="font-mono text-[#1B4D31] text-sm">{order.id}</strong>
         </p>
 

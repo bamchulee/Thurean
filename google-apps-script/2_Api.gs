@@ -114,6 +114,8 @@ function handleWrite(action, payload) {
       return updateById(SHEET_NAMES.USERS, payload.userId || payload.id, normalizeUser(payload));
     case "saveSettings":
       return saveAppSettings(payload.settings || {});
+    case "writeSettingsSheet":
+      return writeSettingsSheet(payload.rows || []);
     case "saveCustomColumns":
       return saveCustomColumns(payload.table, payload.columns || []);
     case "setConfig": {
@@ -221,4 +223,37 @@ function saveCustomColumns(table, columns) {
   const message = arrangeColumns(ensureSheet(table), table) || table + ": คอลัมน์ตรงแล้ว";
   _tables = {};
   return { table: table, columns: clean, message: message };
+}
+
+/**
+ * แท็บ Settings ในไฟล์ USER: สรุปค่าที่ร้านใช้อยู่ (เว็บส่งมาแบบปิดบังค่าลับแล้ว)
+ * แก้ค่าที่หน้าแอดมิน → การเชื่อมต่อ เท่านั้น — แก้ในชีตนี้ไม่มีผล
+ */
+function writeSettingsSheet(rows) {
+  const ss = getUserSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.SETTINGS) || ss.insertSheet(SHEET_NAMES.SETTINGS);
+  const header = ["หมวด", "การตั้งค่า", "ค่า", "ที่มา", "key"];
+  const body = (rows || []).map((r) => [
+    String(r.group || ""),
+    String(r.label || ""),
+    String(r.value || ""),
+    String(r.source || ""),
+    String(r.key || ""),
+  ]);
+  sheet.clear();
+  sheet.getRange(1, 1, 1, header.length).setValues([header]).setBackground("#7c2d12").setFontColor("#ffffff").setFontWeight("bold");
+  if (body.length) {
+    sheet.getRange(2, 1, body.length, header.length).setNumberFormat("@").setValues(body);
+  }
+  const noteRow = body.length + 3;
+  sheet.getRange(noteRow, 1).setValue(
+    "อัปเดตล่าสุด " + Utilities.formatDate(new Date(), "Asia/Bangkok", "d MMM yyyy HH:mm") +
+      " — แก้ค่าที่หน้าแอดมิน › การเชื่อมต่อ เท่านั้น / ค่าลับ (token, secret) เก็บใน Script Properties แสดงที่นี่แบบปิดบัง"
+  ).setFontColor("#78716c").setFontStyle("italic");
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, header.length);
+  // กันแก้ด้วยมือโดยไม่ตั้งใจ (เจ้าของไฟล์ยังแก้ได้ แต่จะมีคำเตือน)
+  const existing = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
+  if (existing.length === 0) sheet.protect().setDescription("แก้ที่หน้าแอดมินเท่านั้น").setWarningOnly(true);
+  return { rows: body.length };
 }

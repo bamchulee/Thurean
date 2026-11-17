@@ -31,7 +31,7 @@ export function buildMainQuickReply() {
       },
       {
         type: "action",
-        action: { type: "message", label: "เช็กสต็อก (กก.)", text: "เช็กสต็อก" },
+        action: { type: "message", label: "เช็กสต็อก", text: "เช็กสต็อก" },
       },
       {
         type: "action",
@@ -55,7 +55,7 @@ export function buildMainQuickReply() {
       },
       {
         type: "action",
-        action: { type: "message", label: "แจ้งเคลม 100%", text: "แจ้งเคลม" },
+        action: { type: "message", label: "แจ้งเคลม", text: "แจ้งเคลม" },
       },
       {
         type: "action",
@@ -733,7 +733,7 @@ export function buildTicketAlertForAdmin(
               ? [
                   {
                     type: "text",
-                    text: `รหัสคำสั่งซื้อ: #${ticket.orderId}`,
+                    text: `เลขออเดอร์ ${ticket.orderId}`,
                     size: "xs",
                     color: "#0284c7",
                     weight: "bold",
@@ -923,7 +923,7 @@ export function buildWelcomeFlex(round?: Round): unknown[] {
                   height: "sm",
                   action: {
                     type: "postback",
-                    label: "แจ้งเคลม 100%",
+                    label: "แจ้งเคลม",
                     data: "action=claim",
                     displayText: "แจ้งเคลมสินค้า",
                   },
@@ -2065,14 +2065,14 @@ export function buildBookingReceiptFlex(order: Order): unknown[] {
           contents: [
             {
               type: "text",
-              text: "🍈 สั่งจองทุเรียนสำเร็จ (Pre-order)",
+              text: "✅ รับจองแล้ว",
               color: "#FDE047",
               weight: "bold",
               size: "md",
             },
             {
               type: "text",
-              text: `รหัสคำสั่งจอง: #${order.id}`,
+              text: `เลขออเดอร์ ${order.id}`,
               color: "#FFFFFF",
               size: "xs",
               margin: "xs",
@@ -2094,16 +2094,9 @@ export function buildBookingReceiptFlex(order: Order): unknown[] {
           contents: [
             { type: "text", text: `ผู้รับ: ${order.customerName} (${order.phone})`, size: "xs", wrap: true },
             { type: "text", text: itemText, size: "xs", weight: "bold", wrap: true },
-            { type: "text", text: `ความสุก: ${order.ripenessPref || "-"}`, size: "xs", color: "#B45309", wrap: true },
+            ...(order.ripenessPref ? [{ type: "text", text: `ความสุก: ${order.ripenessPref}`, size: "xs", color: "#B45309", wrap: true }] : []),
             { type: "text", text: `ขนส่ง: ${order.shippingMethod} (฿${order.shippingCost})`, size: "xs", color: "#57534E", wrap: true },
             { type: "separator", margin: "sm" },
-            {
-              type: "text",
-              text: "💰 ยอดเงิน = น้ำหนักที่ชั่งจริง × ราคาต่อกิโล + ค่าส่ง",
-              size: "xs",
-              color: "#4B5563",
-              wrap: true,
-            },
             {
               type: "box",
               layout: "vertical",
@@ -2116,14 +2109,14 @@ export function buildBookingReceiptFlex(order: Order): unknown[] {
               contents: [
                 {
                   type: "text",
-                  text: "📌 ขั้นตอนถัดไป: ยังไม่ต้องโอนเงินครับ",
+                  text: "📌 ยังไม่ต้องโอนเงินครับ",
                   size: "xs",
                   weight: "bold",
                   color: "#92400E",
                 },
                 {
                   type: "text",
-                  text: "แอดมินจะคัดผลและชั่งน้ำหนักจริงให้ จากนั้นส่งยอดเงินพร้อม QR PromptPay ให้ทางแชทนี้ครับ 🍈✨",
+                  text: "แอดมินจะคัดผลและชั่งน้ำหนักจริง แล้วส่งยอดพร้อม QR PromptPay มาในแชทนี้ครับ",
                   size: "xxs",
                   color: "#B45309",
                   wrap: true,
@@ -2188,7 +2181,7 @@ export function buildPaymentQrForCustomerFlex(order: Order, publicBaseUrl?: stri
   return [
     {
       type: "flex",
-      altText: `🍈 สรุปยอดชำระจริง #${order.id} (฿${grandTotal.toLocaleString()})`,
+      altText: `💰 ยอดที่ต้องโอน ${order.id} ฿${grandTotal.toLocaleString()}`,
       quickReply: buildMainQuickReply(),
       contents: {
         type: "bubble",
@@ -2199,14 +2192,14 @@ export function buildPaymentQrForCustomerFlex(order: Order, publicBaseUrl?: stri
           contents: [
             {
               type: "text",
-              text: "🍈 สรุปยอดชำระจริง (พร้อมโอน)",
+              text: "💰 ชั่งแล้ว — ยอดที่ต้องโอน",
               color: "#FDE047",
               weight: "bold",
               size: "md",
             },
             {
               type: "text",
-              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              text: `เลขออเดอร์ ${order.id}`,
               color: "#FFFFFF",
               size: "xs",
               margin: "xs",
@@ -2247,7 +2240,7 @@ export function buildPaymentQrForCustomerFlex(order: Order, publicBaseUrl?: stri
               layout: "horizontal",
               margin: "xs",
               contents: [
-                { type: "text", text: "ยอดชำระจริงสุทธิ", size: "sm", weight: "bold" },
+                { type: "text", text: "ยอดที่ต้องโอน", size: "sm", weight: "bold" },
                 {
                   type: "text",
                   text: `฿${grandTotal.toLocaleString()}`,
@@ -2356,7 +2349,7 @@ export function buildSlipSubmittedReceiptFlex(order: Order): unknown[] {
             },
             {
               type: "text",
-              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              text: `เลขออเดอร์ ${order.id}`,
               color: "#FFFFFF",
               size: "xs",
               margin: "xs",
@@ -2448,7 +2441,7 @@ export function buildPaymentConfirmedFlex(order: Order): unknown[] {
             },
             {
               type: "text",
-              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              text: `เลขออเดอร์ ${order.id}`,
               color: "#DCFCE7",
               size: "xs",
               margin: "xs",
@@ -2528,7 +2521,7 @@ export function buildShippedNoticeFlex(order: Order): unknown[] {
             },
             {
               type: "text",
-              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              text: `เลขออเดอร์ ${order.id}`,
               color: "#DBEAFE",
               size: "xs",
               margin: "xs",
@@ -2619,7 +2612,7 @@ export function buildDeliveredNoticeFlex(order: Order): unknown[] {
             },
             {
               type: "text",
-              text: `รหัสคำสั่งซื้อ: #${order.id}`,
+              text: `เลขออเดอร์ ${order.id}`,
               color: "#DCFCE7",
               size: "xs",
               margin: "xs",
@@ -2641,7 +2634,7 @@ export function buildDeliveredNoticeFlex(order: Order): unknown[] {
           contents: [
             {
               type: "text",
-              text: `ทุเรียนวิ่นขิ่นจัดส่งถึงมือคุณเรียบร้อยแล้วครับ 🍈🙏`,
+              text: `${shopInfo.name}ส่งถึงมือคุณเรียบร้อยแล้วครับ 🍈🙏`,
               size: "xs",
               weight: "bold",
               wrap: true,
@@ -2770,7 +2763,7 @@ export function buildPromptPayQrPaymentFlex(params: {
       contents: [
         {
           type: "text",
-          text: "🍈 สั่งจองทุเรียนสำเร็จ! (Pre-order)",
+          text: "✅ รับจองแล้ว",
           color: "#FDE047",
           weight: "bold",
           size: "md",
@@ -2778,7 +2771,7 @@ export function buildPromptPayQrPaymentFlex(params: {
         {
           type: "text",
           text: params.orderId
-            ? `รหัสคำสั่งซื้อ: #${params.orderId} • สถานะ: 🟡 สั่งจอง`
+            ? `เลขออเดอร์ ${params.orderId} • 🟡 รอชั่ง`
             : `ยอดโอนสุทธิ ฿${params.grandTotal.toLocaleString()} (PromptPay)`,
           color: "#FFFFFF",
           size: "xs",
@@ -3477,7 +3470,7 @@ export function buildBookingReviewFlex(p: BookingReviewParams): unknown[] {
             row("ราคา", `฿${pricePerKgOf(p.product).toLocaleString()}/กก.`, true),
             {
               type: "text",
-              text: "ยอดเงิน = น้ำหนักที่ชั่งจริง × ราคาต่อกิโล + ค่าส่ง",
+              text: "ยอดจริง = น้ำหนักที่ชั่ง × ราคาต่อกิโล + ค่าส่ง",
               size: "xxs",
               color: "#B45309",
               wrap: true,
