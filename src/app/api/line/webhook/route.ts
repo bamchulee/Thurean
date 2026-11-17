@@ -403,7 +403,6 @@ async function confirmReceived(ctx: Ctx, orderId: string) {
     return;
   }
   await ctx.reply(buildDeliveredNoticeFlex(res.order));
-  await notifyAdmins([text(`📦 ลูกค้ายืนยันได้รับของแล้ว\nออเดอร์ ${order.id} — ${order.customerName}`, false)]);
 }
 
 async function handleCustomerPostback(ctx: Ctx, action: string, params: URLSearchParams) {

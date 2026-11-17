@@ -42,130 +42,255 @@ function adminAlertFooter(links: AdminAlertLinks, primaryLabel: string): Record<
   };
 }
 
-export function buildOrderAlertForAdmin(order: Order, links: AdminAlertLinks): unknown[] {
-  const itemLines = order.items
-    .map((it) => `• ${it.productName} x${it.qty} — ฿${(it.pricePerKg || it.price).toLocaleString()}/กก.`)
-    .join("\n");
+// ------------------------------------------------------------
+// การ์ดออเดอร์ของกลุ่มแอดมิน — หน้าตาเดียวกันทุกเหตุการณ์
+//   หัวสี (ตามเหตุการณ์)  →  หัวข้อใหญ่ + เลขออเดอร์ + เวลา
+//   ตัวการ์ด              →  ลูกค้า / รายการ / ยอด / ข้อมูลเฉพาะเหตุการณ์
+//   ท้ายการ์ด             →  ปุ่มเปิดออเดอร์ + แชทลูกค้า
+// ------------------------------------------------------------
 
+export type AdminOrderEvent =
+  | "new"
+  | "weighed"
+  | "slip"
+  | "paid"
+  | "slip_rejected"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+
+const EVENT_STYLE: Record<AdminOrderEvent, { title: string; color: string; accent: string; button: string }> = {
+  new: { title: "🍈 ออเดอร์ใหม่ — รอชั่ง", color: "#14532D", accent: "#FDE047", button: "⚖️ เปิดเพื่อชั่ง" },
+  weighed: { title: "⚖️ ชั่งแล้ว — ส่งยอดให้ลูกค้า", color: "#92400E", accent: "#FEF3C7", button: "📋 เปิดออเดอร์" },
+  slip: { title: "🧾 ลูกค้าส่งสลิป — รอตรวจ", color: "#1E3A8A", accent: "#FDE047", button: "🔍 เปิดตรวจสลิป" },
+  paid: { title: "✅ ชำระเงินแล้ว — เตรียมส่ง", color: "#047857", accent: "#D1FAE5", button: "📦 เปิดเพื่อจัดส่ง" },
+  slip_rejected: { title: "↩️ ตีกลับสลิป — รอโอนใหม่", color: "#9F1239", accent: "#FFE4E6", button: "📋 เปิดออเดอร์" },
+  shipped: { title: "🚚 ออกจัดส่งแล้ว", color: "#3730A3", accent: "#E0E7FF", button: "📋 เปิดออเดอร์" },
+  delivered: { title: "🎉 ส่งถึงลูกค้าแล้ว", color: "#0F766E", accent: "#CCFBF1", button: "📋 เปิดออเดอร์" },
+  cancelled: { title: "⛔ ยกเลิกออเดอร์", color: "#991B1B", accent: "#FEE2E2", button: "📋 เปิดออเดอร์" },
+};
+
+const money = (n: number) => `฿${(Math.round((n || 0) * 100) / 100).toLocaleString()}`;
+
+function bangkokTime(iso?: string): string {
+  const d = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+/** แถว "หัวข้อ ........ ค่า" */
+function row(label: string, value: string, opts: { bold?: boolean; color?: string; size?: string } = {}) {
+  return {
+    type: "box",
+    layout: "horizontal",
+    spacing: "md",
+    contents: [
+      { type: "text", text: label, size: "xs", color: "#6B7280", flex: 3 },
+      { type: "text", text: value || "-", size: opts.size || "xs", color: opts.color || "#111827", weight: opts.bold ? "bold" : "regular", flex: 7, wrap: true, align: "end" },
+    ],
+  };
+}
+
+const sep = { type: "separator", margin: "md", color: "#E5E7EB" };
+
+function itemsBlock(order: Order) {
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "xs",
+    margin: "md",
+    contents: order.items.map((it) => {
+      const kgs = (it.fruitKgs || []).filter((k) => Number(k) > 0);
+      const kg = kgs.reduce((s, k) => s + Number(k), 0);
+      const perKg = it.pricePerKg || it.price || 0;
+      return {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              { type: "text", text: `${it.productName} × ${it.qty}`, size: "sm", weight: "bold", color: "#111827", flex: 7, wrap: true },
+              { type: "text", text: kgs.length ? money(kg * perKg) : `${money(perKg)}/กก.`, size: "sm", color: "#111827", flex: 4, align: "end" },
+            ],
+          },
+          {
+            type: "text",
+            text: [kgs.length ? `${kgs.join(" + ")} = ${Math.round(kg * 100) / 100} กก.` : "รอชั่งน้ำหนัก", (it as { ripenessPref?: string }).ripenessPref].filter(Boolean).join(" · "),
+            size: "xxs",
+            color: "#6B7280",
+            wrap: true,
+          },
+        ],
+      };
+    }),
+  };
+}
+
+/** สรุปยอด: ก่อนชั่งบอกราคา/กก. หลังชั่งบอกยอดสุทธิ */
+function totalBlock(order: Order) {
+  const weighed = (order.totalPrice || 0) > 0;
+  const grand = (order.totalPrice || 0) + (order.shippingCost || 0);
+  return {
+    type: "box",
+    layout: "vertical",
+    margin: "md",
+    spacing: "xs",
+    contents: [
+      row("ค่าส่ง", `${money(order.shippingCost || 0)} · ${order.shippingMethod || "-"}`),
+      weighed
+        ? row("ยอดสุทธิ", money(grand), { bold: true, color: "#B91C1C", size: "md" })
+        : row("ยอดสุทธิ", "รอชั่งน้ำหนัก", { bold: true, color: "#B45309" }),
+    ],
+  };
+}
+
+function actorText(actor?: string): string {
+  if (!actor) return "";
+  if (actor === "customer-line") return "ลูกค้ากดยืนยันใน LINE";
+  if (actor === "line-webhook" || actor === "customer") return "ลูกค้า";
+  return actor;
+}
+
+export interface AdminOrderCardExtra {
+  /** ใครทำ (ชื่อแอดมิน / ลูกค้า) */
+  actor?: string;
+  /** แถวเพิ่มเติมเฉพาะเหตุการณ์ */
+  rows?: [string, string][];
+  /** ข้อความเตือนสีแดง/เขียว ใต้หัวการ์ด */
+  note?: { text: string; tone: "ok" | "warn" | "bad" };
+  /** รูปสลิป (เต็ม URL) */
+  slipUrl?: string;
+}
+
+export function buildAdminOrderCard(event: AdminOrderEvent, order: Order, links: AdminAlertLinks, extra: AdminOrderCardExtra = {}): unknown[] {
+  const st = EVENT_STYLE[event];
+  const noteColor = { ok: "#15803D", warn: "#B45309", bad: "#B91C1C" };
+  const body: unknown[] = [
+    ...(extra.note
+      ? [
+          {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: extra.note.tone === "ok" ? "#F0FDF4" : extra.note.tone === "bad" ? "#FEF2F2" : "#FFFBEB",
+            cornerRadius: "md",
+            paddingAll: "sm",
+            contents: [{ type: "text", text: extra.note.text, size: "xs", wrap: true, color: noteColor[extra.note.tone], weight: "bold" }],
+          },
+        ]
+      : []),
+    {
+      type: "box",
+      layout: "vertical",
+      margin: extra.note ? "md" : "none",
+      spacing: "xs",
+      contents: [
+        { type: "text", text: `👤 ${order.customerName || "ลูกค้า"}`, size: "md", weight: "bold", color: "#111827", wrap: true },
+        { type: "text", text: `📞 ${order.phone || "-"}`, size: "xs", color: "#4B5563" },
+        ...(order.address && (event === "new" || event === "paid" || event === "shipped")
+          ? [{ type: "text", text: `📍 ${order.address}`, size: "xs", color: "#6B7280", wrap: true, maxLines: 3 }]
+          : []),
+      ],
+    },
+    sep,
+    itemsBlock(order),
+    sep,
+    totalBlock(order),
+    ...((extra.rows || []).length ? [sep, { type: "box", layout: "vertical", margin: "md", spacing: "xs", contents: extra.rows!.map(([k, v]) => row(k, v)) }] : []),
+    ...(extra.actor ? [{ type: "text", text: `โดย ${actorText(extra.actor)}`, size: "xxs", color: "#9CA3AF", margin: "md", align: "end" }] : []),
+  ];
+
+  const grand = (order.totalPrice || 0) + (order.shippingCost || 0);
+  const altAmount = grand > 0 && order.totalPrice > 0 ? ` ${money(grand)}` : "";
   return [
     {
       type: "flex",
-      altText: `🍈 ออเดอร์ใหม่ #${order.id} — ${order.customerName} (รอชั่ง)`,
+      altText: `${st.title} #${order.id} — ${order.customerName || "ลูกค้า"}${altAmount}`,
       contents: {
         type: "bubble",
+        size: "kilo",
         header: {
           type: "box",
           layout: "vertical",
-          backgroundColor: "#14532d",
+          backgroundColor: st.color,
           paddingAll: "lg",
           contents: [
-            { type: "text", text: "🍈 ออเดอร์ใหม่ รอชั่งน้ำหนัก", color: "#fde047", weight: "bold", size: "md" },
-            { type: "text", text: `#${order.id}`, color: "#ffffff", size: "sm", margin: "xs", weight: "bold" },
-          ],
-        },
-        body: {
-          type: "box",
-          layout: "vertical",
-          spacing: "sm",
-          contents: [
-            { type: "text", text: `👤 ${order.customerName}`, weight: "bold", size: "sm", color: "#111827", wrap: true },
-            { type: "text", text: `📞 ${order.phone}`, size: "xs", color: "#4b5563" },
-            ...(order.address
-              ? [{ type: "text", text: `📍 ${order.address}`, size: "xs", color: "#6b7280", wrap: true }]
-              : []),
-            { type: "separator", margin: "sm" },
-            { type: "text", text: itemLines, wrap: true, size: "xs", margin: "sm" },
+            { type: "text", text: st.title, color: st.accent, weight: "bold", size: "md", wrap: true },
             {
-              type: "text",
-              text: `ความสุก: ${order.ripenessPref || "ตามมาตรฐานร้าน"}`,
-              size: "xs",
-              color: "#b45309",
-              wrap: true,
+              type: "box",
+              layout: "horizontal",
+              margin: "sm",
+              contents: [
+                { type: "text", text: `#${order.id}`, color: "#FFFFFF", weight: "bold", size: "lg", flex: 6 },
+                { type: "text", text: bangkokTime(), color: "#FFFFFFCC", size: "xxs", align: "end", gravity: "center", flex: 4 },
+              ],
             },
-            { type: "text", text: `🚚 ${order.shippingMethod} (฿${order.shippingCost})`, size: "xs", color: "#4b5563", wrap: true },
           ],
         },
-        footer: adminAlertFooter(links, "⚖️ เปิดออเดอร์"),
+        ...(extra.slipUrl
+          ? { hero: { type: "image", url: extra.slipUrl, size: "full", aspectRatio: "3:4", aspectMode: "cover", action: { type: "uri", label: "ดูสลิป", uri: extra.slipUrl } } }
+          : {}),
+        body: { type: "box", layout: "vertical", paddingAll: "lg", contents: body },
+        footer: adminAlertFooter(links, st.button),
+        styles: { footer: { separator: true } },
       },
     },
   ];
 }
 
+export function buildOrderAlertForAdmin(order: Order, links: AdminAlertLinks): unknown[] {
+  return buildAdminOrderCard("new", order, links, {
+    rows: [
+      ["ช่องทาง", order.channel || "-"],
+      ...(order.notes ? ([["หมายเหตุ", order.notes]] as [string, string][]) : []),
+    ],
+  });
+}
+
 export function buildSlipAlertForAdmin(order: Order, links: AdminAlertLinks, slipUrl?: string): unknown[] {
   const base = links.orderUrl.replace(/\/admin\/orders\/.*$/, "");
-  const grandTotal = order.totalPrice + (order.shippingCost || 0);
   const fullSlipUrl = slipUrl ? (slipUrl.startsWith("http") ? slipUrl : `${base}${slipUrl}`) : undefined;
+  const qr = slipCheckText(order.slipCheck);
+  const checks = [qr.label, slipAmountText(order), slipAccountText(order.slipAccountCheck)].filter(Boolean);
+  const bad = qr.tone === "bad" || order.slipAmountCheck === "mismatch" || order.slipAccountCheck === "mismatch";
+  const ok = qr.tone === "ok" && order.slipAmountCheck === "match" && order.slipAccountCheck !== "mismatch";
+  return buildAdminOrderCard("slip", order, links, {
+    note: { text: checks.join("\n"), tone: bad ? "bad" : ok ? "ok" : "warn" },
+    rows: [
+      ...(order.slipBank ? ([["โอนจาก", order.slipBank]] as [string, string][]) : []),
+      ...(order.slipRef ? ([["เลขรายการ", order.slipRef]] as [string, string][]) : []),
+    ],
+    slipUrl: fullSlipUrl && /^https:\/\//.test(fullSlipUrl) ? fullSlipUrl : undefined,
+  });
+}
 
-  return [
-    {
-      type: "flex",
-      altText: `🧾 สลิปโอนเงิน #${order.id} (฿${grandTotal.toLocaleString()}) รอตรวจ`,
-      contents: {
-        type: "bubble",
-        header: {
-          type: "box",
-          layout: "vertical",
-          backgroundColor: "#1E3A8A",
-          contents: [
-            { type: "text", text: "🧾 ลูกค้าส่งสลิปแล้ว รอตรวจ", color: "#FDE047", weight: "bold", size: "sm" },
-            { type: "text", text: `#${order.id}`, color: "#FFFFFF", size: "xs", margin: "xs" },
-          ],
-        },
-        body: {
-          type: "box",
-          layout: "vertical",
-          spacing: "xs",
-          contents: [
-            { type: "text", text: `👤 ${order.customerName} (${order.phone})`, size: "xs", weight: "bold", wrap: true },
-            {
-              type: "text",
-              text: [
-                slipCheckText(order.slipCheck).label,
-                slipAmountText(order),
-                slipAccountText(order.slipAccountCheck),
-                order.slipBank ? `โอนจาก: ${order.slipBank}${order.slipRef ? " · เลขรายการ " + order.slipRef : ""}` : "",
-              ]
-                .filter(Boolean)
-                .join("\n"),
-              size: "xs",
-              wrap: true,
-              color: slipCheckText(order.slipCheck).tone === "ok" ? "#15803D" : slipCheckText(order.slipCheck).tone === "bad" ? "#B91C1C" : "#B45309",
-            },
-            {
-              type: "box",
-              layout: "horizontal",
-              margin: "xs",
-              contents: [
-                { type: "text", text: "💰 ยอดที่ต้องได้รับ", size: "xs", color: "#4B5563", flex: 6 },
-                {
-                  type: "text",
-                  text: `฿${grandTotal.toLocaleString()}`,
-                  size: "sm",
-                  weight: "bold",
-                  color: "#15803D",
-                  align: "end",
-                  flex: 4,
-                },
-              ],
-            },
-            ...(fullSlipUrl
-              ? [
-                  {
-                    type: "image",
-                    url: fullSlipUrl,
-                    size: "full",
-                    aspectRatio: "3:4",
-                    aspectMode: "fit",
-                    margin: "sm",
-                  },
-                ]
-              : []),
-          ],
-        },
-        footer: adminAlertFooter(links, "✅ ตรวจสลิป"),
-      },
-    },
-  ];
+/** อัปเดตสถานะออเดอร์ → แจ้งกลุ่มแอดมิน */
+export function buildOrderUpdateAlertForAdmin(
+  event: Exclude<AdminOrderEvent, "new" | "slip">,
+  order: Order,
+  links: AdminAlertLinks,
+  opts: { actor?: string; reason?: string } = {}
+): unknown[] {
+  const rows: [string, string][] = [];
+  let note: AdminOrderCardExtra["note"];
+  if (event === "shipped") {
+    rows.push(["ขนส่ง", order.courier || "-"]);
+    if (order.trackingNo) rows.push(["เลขพัสดุ", order.trackingNo]);
+  }
+  if (event === "cancelled") {
+    note = { text: `เหตุผล: ${order.cancelReason || opts.reason || "-"}${order.paymentStatus === "refunded" ? "\n💸 ลูกค้าโอนแล้ว — ต้องโอนเงินคืน" : ""}`, tone: "bad" };
+  }
+  if (event === "slip_rejected") note = { text: `เหตุผล: ${opts.reason || "สลิปไม่ถูกต้อง"}\nแจ้งลูกค้าให้โอน/ส่งสลิปใหม่แล้ว`, tone: "bad" };
+  if (event === "weighed") note = { text: "ส่งยอดพร้อม QR ให้ลูกค้าทาง LINE แล้ว — รอลูกค้าโอน", tone: "warn" };
+  if (event === "paid") note = { text: "ยืนยันยอดแล้ว — แพ็กของแล้วกด \"จัดส่ง\" ในหน้าออเดอร์", tone: "ok" };
+  if (event === "delivered") {
+    note = {
+      text: opts.actor === "customer-line" ? "📦 ลูกค้ากดยืนยันได้รับของแล้ว — ปิดงาน 🙏" : "ส่งถึงลูกค้าแล้ว — ปิดงาน 🙏",
+      tone: "ok",
+    };
+  }
+  return buildAdminOrderCard(event, order, links, { actor: opts.actor, rows, note });
 }
 
 export function buildClaimAlertForAdmin(claim: Claim, publicBaseUrl?: string): unknown[] {

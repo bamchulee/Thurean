@@ -17,11 +17,13 @@ import {
   buildPaymentQrForCustomerFlex,
   buildShippedNoticeFlex,
   buildSlipAlertForAdmin,
+  buildOrderUpdateAlertForAdmin,
   buildSlipRejectedNotice,
   buildSlipSubmittedReceiptFlex,
   pushLineMessage,
 } from "./line-notify";
 import { findOrderById } from "./ids";
+import { runInBackground } from "./background";
 import { resolveCourierInfo } from "./courier";
 import {
   type CanonicalOrderStatus,
@@ -61,6 +63,18 @@ export async function adminAlertLinks(order: Order): Promise<AdminAlertLinks> {
     orderUrl: adminOrderUrl(order.id, cfg.publicBaseUrl),
     chatUrl: await getLineChatUrl(order.lineUserId, cfg.lineChannelAccessToken),
   };
+}
+
+/** อัปเดตสถานะ → การ์ดเข้ากลุ่มแอดมิน (ส่งเบื้องหลัง แอดมินที่กดอยู่ไม่ต้องรอ) */
+function alertGroup(
+  event: Parameters<typeof buildOrderUpdateAlertForAdmin>[0],
+  order: Order,
+  actor: string,
+  reason?: string
+): void {
+  runInBackground(`group alert ${event} ${order.id}`, async () =>
+    notifyAdmins(buildOrderUpdateAlertForAdmin(event, order, await adminAlertLinks(order), { actor, reason }))
+  );
 }
 
 async function notifyCustomer(order: Order, messages: unknown[]): Promise<void> {
@@ -158,6 +172,7 @@ export async function weighOrder(orderRef: string, input: WeighInput, actor: str
     actor
   );
   await notifyCustomer(updated, buildPaymentQrForCustomerFlex(updated, publicBaseUrl()));
+  alertGroup("weighed", updated, actor);
   return { ok: true, order: updated, changed: true };
 }
 
@@ -182,6 +197,7 @@ export async function quoteAtBookedPrice(orderRef: string, actor: string): Promi
     actor
   );
   await notifyCustomer(updated, buildPaymentQrForCustomerFlex(updated, publicBaseUrl()));
+  alertGroup("weighed", updated, actor);
   return { ok: true, order: updated, changed: true };
 }
 
@@ -261,6 +277,7 @@ export async function confirmPayment(orderRef: string, actor: string): Promise<W
     actor
   );
   await notifyCustomer(updated, buildPaymentConfirmedFlex(updated));
+  alertGroup("paid", updated, actor);
   return { ok: true, order: updated, changed: true };
 }
 
@@ -272,6 +289,7 @@ export async function rejectSlip(orderRef: string, actor: string, reason?: strin
   }
   const updated = await save(order, { paymentStatus: "pending" }, actor);
   await notifyCustomer(updated, buildSlipRejectedNotice(updated, publicBaseUrl(), reason));
+  alertGroup("slip_rejected", updated, actor, reason);
   return { ok: true, order: updated, changed: true };
 }
 
@@ -300,6 +318,7 @@ export async function cancelOrder(orderRef: string, actor: string, reason?: stri
     actor
   );
   await notifyCustomer(updated, buildCancelledNoticeFlex(updated));
+  alertGroup("cancelled", updated, actor, reason);
   return { ok: true, order: updated, changed: true };
 }
 
@@ -327,7 +346,10 @@ export async function markShipped(
     { orderStatus: "กำลังจัดส่ง", trackingNo: trackingNo || undefined, courier },
     actor
   );
-  if (status !== "กำลังจัดส่ง") await notifyCustomer(updated, buildShippedNoticeFlex(updated));
+  if (status !== "กำลังจัดส่ง") {
+    await notifyCustomer(updated, buildShippedNoticeFlex(updated));
+    alertGroup("shipped", updated, actor);
+  }
   return { ok: true, order: updated, changed: status !== "กำลังจัดส่ง" };
 }
 
@@ -345,6 +367,7 @@ export async function markDelivered(orderRef: string, actor: string, opts: { not
     actor
   );
   if (opts.notifyCustomer !== false) await notifyCustomer(updated, buildDeliveredNoticeFlex(updated));
+  alertGroup("delivered", updated, actor);
   return { ok: true, order: updated, changed: true };
 }
 
