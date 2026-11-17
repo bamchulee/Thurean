@@ -19,7 +19,6 @@ import {
   Phone,
   Plus,
   Scale,
-  Settings,
   ShieldAlert,
   ShieldCheck,
   ShoppingBasket,
@@ -66,6 +65,8 @@ function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const { user, loading: authLoading, openAuthModal, logout } = useAuth();
+  // ลิงก์หลังบ้านโชว์เฉพาะเจ้าของร้าน/พนักงานที่ล็อกอินแล้ว (ลูกค้าและคนที่ยังไม่ล็อกอินไม่เห็น)
+  const canManage = user?.role === "admin" || user?.role === "staff";
 
   return (
     <>
@@ -153,13 +154,13 @@ function Navbar({
           {/* Action Buttons */}
           <div className="flex items-center gap-2.5">
             {/* Admin Badge & Direct Access */}
-            {user?.role === "admin" && (
+            {canManage && (
               <a
                 href="/admin"
                 className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-stone-950 text-xs font-black shadow-xs transition"
               >
                 <ShieldAlert className="w-3.5 h-3.5 text-stone-950" />
-                <span>หลังบ้านแอดมิน</span>
+                <span>{user?.role === "admin" ? "หลังบ้านแอดมิน" : "งานพนักงาน"}</span>
               </a>
             )}
 
@@ -227,7 +228,7 @@ function Navbar({
                           </p>
                         )}
                       </div>
-                      {user.role === "admin" && (
+                      {canManage && (
                         <a
                           href="/admin"
                           onClick={() => setUserDropdownOpen(false)}
@@ -377,7 +378,7 @@ function Navbar({
                   <span>ที่อยู่จัดส่งของฉัน</span>
                 </button>
 
-                {user.role === "admin" && (
+                {canManage && (
                   <a
                     href="/admin"
                     className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-500 text-stone-950 py-2.5 rounded-xl font-black text-xs mb-3 transition shadow-sm"
@@ -429,14 +430,6 @@ function Navbar({
             >
               <ShieldCheck className="w-4 h-4" />
               <span>ศูนย์แจ้งเคลม 100%</span>
-            </a>
-            <a
-              href="/admin"
-              className="flex items-center gap-2.5 py-2 text-emerald-300"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <Settings className="w-4 h-4" />
-              <span>ระบบหลังบ้าน (Admin)</span>
             </a>
             <a
               href={`tel:${shopInfo.phone.replace(/-/g, "")}`}
@@ -1508,13 +1501,6 @@ function Footer() {
             >
               <Zap className="w-3.5 h-3.5" />
               <span>หน้าสั่งด่วนสำหรับ LINE OA (HTML/JS)</span>
-            </a>
-            <a
-              href="/admin"
-              className="flex items-center gap-1.5 hover:text-white transition"
-            >
-              <Settings className="w-3.5 h-3.5 text-stone-400" />
-              <span>เข้าสู่ระบบหลังบ้าน (Admin)</span>
             </a>
           </div>
 
