@@ -39,6 +39,74 @@ function getRuntimeConfigPath(): string {
 let runtimeAdminGroupId = "";
 let runtimeAdminUserId = "";
 
+// ค่าที่แอดมินตั้งจากหน้าเว็บ (เก็บใน Apps Script Script Properties) — ชนะ env เสมอ
+// โหลดเก็บไว้ในหน่วยความจำเท่านั้น ไม่เขียนลงดิสก์ (มี secret)
+export type AppSettings = Partial<Record<string, string>> & { richMenu?: unknown };
+export interface SheetSchemaInfo {
+  file: "USER" | "THUREAN";
+  idCol: string;
+  headers: string[];
+  notes: string[];
+}
+let remoteSettings: AppSettings = {};
+let remoteCustomColumns: Record<string, string[]> = {};
+let remoteSchema: Record<string, SheetSchemaInfo> = {};
+let remoteLoadedAt = 0;
+let remoteLoading: Promise<void> | null = null;
+const SETTINGS_TTL_MS = 60 * 1000;
+
+/** ดึงค่าตั้งค่าจาก Apps Script (แคช 1 นาที) — เรียกก่อนใช้ token/secret ในเส้นทางที่ไม่ได้โหลดฐานข้อมูล */
+export async function loadAppSettings(force = false): Promise<void> {
+  const url = process.env.GOOGLE_SHEETS_WEBAPP_URL || "";
+  if (!url || !process.env.GOOGLE_SHEETS_API_KEY) return;
+  if (!force && Date.now() - remoteLoadedAt < SETTINGS_TTL_MS) return;
+  if (remoteLoading && !force) return remoteLoading;
+  remoteLoading = (async () => {
+    try {
+      const data = await callGoogleAppsScriptPost<{
+        settings?: AppSettings;
+        customColumns?: Record<string, string[]>;
+        schema?: Record<string, SheetSchemaInfo>;
+      }>(url, "getSettings", {});
+      remoteSettings = data?.settings || {};
+      remoteCustomColumns = data?.customColumns || {};
+      remoteSchema = data?.schema || {};
+      remoteLoadedAt = Date.now();
+    } catch (err) {
+      console.warn("[settings] load failed, using env/defaults:", String(err));
+      remoteLoadedAt = Date.now() - SETTINGS_TTL_MS + 10_000; // ลองใหม่ใน 10 วินาที
+    } finally {
+      remoteLoading = null;
+    }
+  })();
+  return remoteLoading;
+}
+
+export function getSettingsBundle() {
+  return { settings: remoteSettings, customColumns: remoteCustomColumns, schema: remoteSchema, loadedAt: remoteLoadedAt };
+}
+
+/** บันทึกค่า (ค่าว่าง = ลบ กลับไปใช้ env/ค่าเริ่มต้น) */
+export async function saveAppSettings(partial: Record<string, unknown>): Promise<void> {
+  const url = getRuntimeConfig().googleSheetsWebAppUrl;
+  if (!url) throw new Error("ยังไม่ได้เชื่อม Google Sheets — บันทึกค่าถาวรไม่ได้");
+  await callGoogleAppsScriptPost(url, "saveSettings", { settings: partial });
+  await loadAppSettings(true);
+}
+
+export async function saveCustomColumns(table: string, columns: string[]): Promise<{ message?: string }> {
+  const url = getRuntimeConfig().googleSheetsWebAppUrl;
+  if (!url) throw new Error("ยังไม่ได้เชื่อม Google Sheets");
+  const res = await callGoogleAppsScriptPost<{ message?: string }>(url, "saveCustomColumns", { table, columns });
+  await loadAppSettings(true);
+  return res;
+}
+
+const pickSetting = (key: string): string => {
+  const v = remoteSettings[key];
+  return typeof v === "string" ? v.trim() : "";
+};
+
 export function getRuntimeConfig(): RuntimeConfig {
   let fileConfig: RuntimeConfig = {};
   const cfgPath = getRuntimeConfigPath();
@@ -77,31 +145,36 @@ export function getRuntimeConfig(): RuntimeConfig {
       fileConfig.thureanSheetViewUrl ||
       "https://docs.google.com/spreadsheets/d/1QQcCxxnuHg9nmAQ-JHmTdIaC2kA-vnJEJpmOvWlgMb8/edit?usp=sharing",
     lineOaId:
-      process.env.LINE_OA_ID || fileConfig.lineOaId || "@713imada",
+      pickSetting("lineOaId") || process.env.LINE_OA_ID || fileConfig.lineOaId || "@713imada",
     lineChannelAccessToken:
-      process.env.LINE_CHANNEL_ACCESS_TOKEN || fileConfig.lineChannelAccessToken || "",
+      pickSetting("lineChannelAccessToken") || process.env.LINE_CHANNEL_ACCESS_TOKEN || fileConfig.lineChannelAccessToken || "",
     lineAdminUserId:
-      process.env.LINE_ADMIN_USER_ID || runtimeAdminUserId || fileConfig.lineAdminUserId || "",
+      pickSetting("lineAdminUserId") || process.env.LINE_ADMIN_USER_ID || runtimeAdminUserId || fileConfig.lineAdminUserId || "",
     lineAdminGroupId:
-      process.env.LINE_ADMIN_GROUP_ID || runtimeAdminGroupId || fileConfig.lineAdminGroupId || "",
+      pickSetting("lineAdminGroupId") || process.env.LINE_ADMIN_GROUP_ID || runtimeAdminGroupId || fileConfig.lineAdminGroupId || "",
     lineLiffId:
-      process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "2012605985-l0IfXrhJ",
+      pickSetting("lineLiffId") || process.env.NEXT_PUBLIC_LINE_LIFF_ID || fileConfig.lineLiffId || "2012605985-l0IfXrhJ",
     lineLoginChannelId:
-      process.env.LINE_LOGIN_CHANNEL_ID || fileConfig.lineLoginChannelId || "2012605985",
+      pickSetting("lineLoginChannelId") || process.env.LINE_LOGIN_CHANNEL_ID || fileConfig.lineLoginChannelId || "2012605985",
     lineLoginChannelSecret:
-      process.env.LINE_LOGIN_CHANNEL_SECRET || fileConfig.lineLoginChannelSecret || "",
+      pickSetting("lineLoginChannelSecret") || process.env.LINE_LOGIN_CHANNEL_SECRET || fileConfig.lineLoginChannelSecret || "",
     googleSheetsApiKey:
       process.env.GOOGLE_SHEETS_API_KEY || fileConfig.googleSheetsApiKey || "",
     // ไม่มี PIN เริ่มต้น: ถ้าไม่ตั้ง ADMIN_PIN จะเข้าแอดมินด้วย PIN ไม่ได้
     adminPin: process.env.ADMIN_PIN || fileConfig.adminPin || "",
     publicBaseUrl:
-      process.env.NEXT_PUBLIC_BASE_URL || fileConfig.publicBaseUrl || vercelFallbackUrl,
+      pickSetting("publicBaseUrl") || process.env.NEXT_PUBLIC_BASE_URL || fileConfig.publicBaseUrl || vercelFallbackUrl,
     liveStreamPlatform:
-      process.env.LINE_LIVE_PLATFORM || fileConfig.liveStreamPlatform || "",
-    liveStreamUrl: process.env.LINE_LIVE_URL || fileConfig.liveStreamUrl || "",
-    liveStreamNote: process.env.LINE_LIVE_NOTE || fileConfig.liveStreamNote || "",
+      pickSetting("liveStreamPlatform") || process.env.LINE_LIVE_PLATFORM || fileConfig.liveStreamPlatform || "",
+    liveStreamUrl: pickSetting("liveStreamUrl") || process.env.LINE_LIVE_URL || fileConfig.liveStreamUrl || "",
+    liveStreamNote: pickSetting("liveStreamNote") || process.env.LINE_LIVE_NOTE || fileConfig.liveStreamNote || "",
     isLiveNow:
-      process.env.LINE_IS_LIVE_NOW === "true" || Boolean(fileConfig.isLiveNow),
+      pickSetting("isLiveNow")
+        ? pickSetting("isLiveNow") === "true"
+        : process.env.LINE_IS_LIVE_NOW === "true" || Boolean(fileConfig.isLiveNow),
+    lineChannelSecret: pickSetting("lineChannelSecret") || process.env.LINE_CHANNEL_SECRET || "",
+    googleClientId: pickSetting("googleClientId") || process.env.GOOGLE_CLIENT_ID || "",
+    googleClientSecret: pickSetting("googleClientSecret") || process.env.GOOGLE_CLIENT_SECRET || "",
     lastSyncedAt: fileConfig.lastSyncedAt,
   };
 }
@@ -299,7 +372,7 @@ async function callGoogleAppsScriptPost<T>(
     });
     return await parseSheetsResponse<T>(res, `POST ${action}`);
   } finally {
-    if (action !== "getAll" && action !== "ping") invalidateDatabaseCache();
+    if (action !== "getAll" && action !== "ping" && action !== "getSettings") invalidateDatabaseCache();
   }
 }
 
@@ -521,6 +594,7 @@ export async function getAllDatabase(forceRefresh = false): Promise<{
   source: "google-sheets" | "local";
   warning?: string;
 }> {
+  await loadAppSettings();
   const now = Date.now();
   if (!memoryCache) {
     memoryCache = readDiskCache();

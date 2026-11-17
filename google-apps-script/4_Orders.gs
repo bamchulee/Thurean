@@ -18,7 +18,12 @@ function normalizeUser(u) {
 function flattenProduct(p, isNew) {
   const out = {};
   Object.keys(p || {}).forEach((k) => {
-    if (k === "specs") {
+    if (k === "custom") {
+      // คอลัมน์ที่แอดมินเพิ่มเอง: เขียนลงคอลัมน์ชื่อเดียวกัน
+      Object.keys(p.custom || {}).forEach((c) => {
+        out[c] = p.custom[c];
+      });
+    } else if (k === "specs") {
       const s = p.specs || {};
       if (s.maturity !== undefined) out.maturity = s.maturity;
       if (s.texture !== undefined) out.texture = s.texture;

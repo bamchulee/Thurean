@@ -6,7 +6,7 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getRuntimeConfig } from "./sheets-db";
+import { getRuntimeConfig, loadAppSettings } from "./sheets-db";
 import { getSigningSecret } from "./secrets";
 import { createSessionToken, toSafeUser, verifySessionToken } from "./user-auth";
 import { USER_COOKIE_NAME } from "./admin-auth";
@@ -28,7 +28,7 @@ function credentialsFor(provider: AuthProvider): ProviderCredentials | null {
     case "line":
       return pick(cfg.lineLoginChannelId, cfg.lineLoginChannelSecret);
     case "google":
-      return pick(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+      return pick(cfg.googleClientId, cfg.googleClientSecret);
   }
 }
 
@@ -105,7 +105,8 @@ function redirectWith(req: NextRequest, next: string, params: Record<string, str
 // เริ่ม: ส่งผู้ใช้ไปหน้ายินยอมของผู้ให้บริการ
 // ------------------------------------------------------------
 
-export function startOAuth(req: NextRequest, provider: AuthProvider): NextResponse {
+export async function startOAuth(req: NextRequest, provider: AuthProvider): Promise<NextResponse> {
+  await loadAppSettings();
   const params = req.nextUrl.searchParams;
   const next = safeNext(params.get("next") || params.get("redirect"));
   const creds = credentialsFor(provider);
@@ -212,6 +213,7 @@ async function fetchProfile(
 }
 
 export async function finishOAuth(req: NextRequest, provider: AuthProvider): Promise<NextResponse> {
+  await loadAppSettings();
   const params = req.nextUrl.searchParams;
   const state = readState(params.get("state"));
   if (!state || state.p !== provider) return redirectWith(req, "/", { auth_error: "invalid_state" });

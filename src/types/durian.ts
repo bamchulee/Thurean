@@ -239,6 +239,9 @@ export interface RuntimeConfig {
   lineLiffId?: string;
   lineLoginChannelId?: string;
   lineLoginChannelSecret?: string;
+  lineChannelSecret?: string;
+  googleClientId?: string;
+  googleClientSecret?: string;
   adminPin?: string;
   publicBaseUrl?: string;
   liveStreamPlatform?: string;

@@ -10,6 +10,7 @@ import type { NextRequest } from "next/server";
 import {
   getAllDatabase,
   getRuntimeConfig,
+  loadAppSettings,
   setLineAdminTarget,
   upsertLineUser,
 } from "../../../../lib/sheets-db";
@@ -196,7 +197,8 @@ function parseContactInput(raw: string): { customerName: string; phone: string; 
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
-  const secret = (process.env.LINE_CHANNEL_SECRET || "").trim();
+  await loadAppSettings();
+  const secret = (getRuntimeConfig().lineChannelSecret || "").trim();
   if (!secret) {
     // ไม่ตั้ง secret = ตรวจไม่ได้ว่ามาจาก LINE จริง → ไม่รับ (ใครก็ปลอมข้อความ/กดปุ่มแอดมินได้)
     console.error("[LINE Webhook] LINE_CHANNEL_SECRET is not set — rejecting all events");

@@ -35,12 +35,8 @@ yarn-error.log*
 !.env.example
 
 # local runtime data & secrets
-/data/local-db.json
-/data/runtime-config.json
-/data/.signing-secret
-/data/*.tmp
-/data/line-sessions.json
-/data/slips/
+/data/
+/.claude/
 
 # ข้อมูลชีตที่ดึงลงเครื่อง (มีข้อมูลลูกค้า) ห้ามขึ้น git — schema อยู่ที่ google-apps-script/1_Config.gs
 /sheets/*.csv

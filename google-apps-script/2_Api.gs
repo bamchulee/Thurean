@@ -56,7 +56,9 @@ function doPost(e) {
     const action = body.action;
     const payload = body.payload || {};
 
+    ensureCustomColumns();
     if (action === "ping") return jsonResponse({ ok: true, data: { secured: true } });
+    if (action === "getSettings") return jsonResponse({ ok: true, data: readSettingsBundle() });
     if (action === "getAll") return jsonResponse({ ok: true, data: readAllDatabase() });
 
     const lock = LockService.getScriptLock();
@@ -110,6 +112,10 @@ function handleWrite(action, payload) {
       return createUserRow(normalizeUser(payload));
     case "updateUser":
       return updateById(SHEET_NAMES.USERS, payload.userId || payload.id, normalizeUser(payload));
+    case "saveSettings":
+      return saveAppSettings(payload.settings || {});
+    case "saveCustomColumns":
+      return saveCustomColumns(payload.table, payload.columns || []);
     case "setConfig": {
       // กลุ่ม/บัญชี LINE แอดมิน เก็บใน Script Properties (เว็บตรวจ PIN ก่อนเรียก)
       const props = PropertiesService.getScriptProperties();
@@ -123,4 +129,96 @@ function handleWrite(action, payload) {
     default:
       throw new Error("UNKNOWN_ACTION: " + action);
   }
+}
+
+// ============================================================
+// ตั้งค่าร้าน (Token / Secret / Rich menu) — เก็บใน Script Properties ถาวร แก้จากหน้าแอดมินได้
+// ============================================================
+
+function readJsonProperty(name, fallback) {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty(name);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function readSettingsBundle() {
+  const props = PropertiesService.getScriptProperties();
+  const settings = readJsonProperty("APP_SETTINGS", {});
+  // ค่าที่บอทบันทึกเอง (ผูกกลุ่มแอดมิน) ใช้ค่าเดียวกัน
+  if (!settings.lineAdminGroupId && props.getProperty("LINE_ADMIN_GROUP_ID")) settings.lineAdminGroupId = props.getProperty("LINE_ADMIN_GROUP_ID");
+  if (!settings.lineAdminUserId && props.getProperty("LINE_ADMIN_USER_ID")) settings.lineAdminUserId = props.getProperty("LINE_ADMIN_USER_ID");
+  const schema = {};
+  Object.keys(SHEET_DEFS).forEach((name) => {
+    schema[name] = {
+      file: name === SHEET_NAMES.USERS ? "USER" : "THUREAN",
+      idCol: SHEET_DEFS[name].idCol,
+      headers: SHEET_DEFS[name].headers.slice(),
+      notes: SHEET_DEFS[name].headers.map((h) => HEADER_NOTES[h] || ""),
+    };
+  });
+  return { settings: settings, customColumns: readJsonProperty("CUSTOM_COLUMNS", {}), schema: schema };
+}
+
+/** รวมค่าใหม่เข้ากับค่าเดิม — ค่าว่าง/null = ลบคีย์นั้น */
+function saveAppSettings(partial) {
+  const props = PropertiesService.getScriptProperties();
+  const current = readJsonProperty("APP_SETTINGS", {});
+  Object.keys(partial).forEach((k) => {
+    if (!/^[a-zA-Z][a-zA-Z0-9_]{0,60}$/.test(k)) return;
+    const v = partial[k];
+    if (v === null || v === "" || v === undefined) delete current[k];
+    else current[k] = typeof v === "object" ? v : String(v);
+    if (k === "lineAdminGroupId") props.setProperty("LINE_ADMIN_GROUP_ID", String(v || ""));
+    if (k === "lineAdminUserId") props.setProperty("LINE_ADMIN_USER_ID", String(v || ""));
+  });
+  props.setProperty("APP_SETTINGS", JSON.stringify(current));
+  return { keys: Object.keys(current) };
+}
+
+// ============================================================
+// คอลัมน์เพิ่มเอง (แอดมินเพิ่มจากหน้าเว็บ) — ต่อก่อนคอลัมน์ระบบ isActive
+// ============================================================
+let _customApplied = false;
+
+function ensureCustomColumns() {
+  if (_customApplied) return;
+  _customApplied = true;
+  const custom = readJsonProperty("CUSTOM_COLUMNS", {});
+  Object.keys(custom).forEach((name) => {
+    const def = SHEET_DEFS[name];
+    if (!def || !Array.isArray(custom[name])) return;
+    custom[name].forEach((col) => {
+      if (def.headers.indexOf(col) !== -1) return;
+      const at = def.headers.indexOf("isActive");
+      def.headers.splice(at === -1 ? def.headers.length : at, 0, col);
+    });
+  });
+}
+
+function saveCustomColumns(table, columns) {
+  const def = SHEET_DEFS[table];
+  if (!def) throw new Error("BAD_TABLE: ไม่มีตาราง " + table);
+  const custom = readJsonProperty("CUSTOM_COLUMNS", {});
+  const before = custom[table] || [];
+  const base = def.headers.filter((h) => before.indexOf(h) === -1);
+  const clean = [];
+  (columns || []).forEach((c) => {
+    const col = String(c || "").trim();
+    if (!/^[a-zA-Z][a-zA-Z0-9_]{0,40}$/.test(col)) throw new Error("BAD_COLUMN: ชื่อคอลัมน์ต้องเป็นภาษาอังกฤษ/ตัวเลข/_ ขึ้นต้นด้วยตัวอักษร: " + col);
+    if (base.indexOf(col) !== -1) throw new Error("BAD_COLUMN: คอลัมน์ " + col + " มีอยู่แล้วในระบบ");
+    if (clean.indexOf(col) === -1) clean.push(col);
+  });
+  if (clean.length) custom[table] = clean;
+  else delete custom[table];
+  PropertiesService.getScriptProperties().setProperty("CUSTOM_COLUMNS", JSON.stringify(custom));
+  // ใช้โครงใหม่ทันที: ถอดคอลัมน์เดิมที่เพิ่มเอง แล้วต่อชุดใหม่
+  def.headers = base.slice();
+  _customApplied = false;
+  ensureCustomColumns();
+  const message = arrangeColumns(ensureSheet(table), table) || table + ": คอลัมน์ตรงแล้ว";
+  _tables = {};
+  return { table: table, columns: clean, message: message };
 }

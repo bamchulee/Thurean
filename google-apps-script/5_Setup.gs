@@ -6,6 +6,7 @@
 // ============================================================
 
 function setupDurianWinkinSheets() {
+  ensureCustomColumns();
   _tables = {};
   const log = [];
   Object.keys(SHEET_DEFS).forEach((name) => {
@@ -52,6 +53,7 @@ function setupDurianWinkinSheets() {
  * กู้คืนได้จาก ไฟล์ → ประวัติเวอร์ชัน ของแต่ละไฟล์
  */
 function cleanupExtraSheets() {
+  ensureCustomColumns();
   const keepUser = [SHEET_NAMES.USERS];
   const keepThurean = Object.keys(SHEET_DEFS).filter((n) => n !== SHEET_NAMES.USERS);
   const log = [];

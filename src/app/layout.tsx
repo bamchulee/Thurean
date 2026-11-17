@@ -10,7 +10,13 @@ export const metadata: Metadata = {
   description:
     "ทุเรียนวินคิน คัดสรรทุเรียนแก่จัด 85%+ สดตรงจากสวนระยองและจันทบุรี วิ่งรถส่งตรงถึงบ้านคุณ การันตีคุณภาพเนื้อทุกลูก พบปัญหาเคลมฟรี 100% โทร. 082-282-4238",
   icons: {
-    icon: "/logo.jpg",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-icon.png" },
+    ],
   },
 };
 

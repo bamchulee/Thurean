@@ -18,7 +18,9 @@ function optNum(v) {
 }
 
 function readAllDatabase() {
+  const productCustom = (readJsonProperty("CUSTOM_COLUMNS", {}).Products || []);
   const products = readTable(SHEET_NAMES.PRODUCTS).rows.map((p) => ({
+    custom: productCustom.reduce((acc, c) => { acc[c] = p[c] === undefined ? "" : String(p[c]); return acc; }, {}),
     id: String(p.id),
     productType: String(p.productType || ""),
     name: String(p.name),
