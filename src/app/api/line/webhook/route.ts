@@ -38,6 +38,7 @@ import {
   replyLineMessage,
   showLineLoadingAnimation,
 } from "../../../../lib/line-notify";
+import { replies } from "../../../../lib/line/replies";
 import { checkClaimEligibility } from "../../../../lib/claim-policy";
 import { downloadAndVerifyLineImage } from "../../../../lib/line-media";
 import { clearLineSession, getLineSession, setLineSession } from "../../../../lib/line-sessions";
@@ -283,7 +284,7 @@ async function processEvents(events: LineWebhookEvent[], req: NextRequest, baseU
     } catch (err) {
       console.error("[LINE Webhook] event failed", ev.type, err);
       if (ev.replyToken && ev.source?.type === "user") {
-        await ctx.reply([text(`ขออภัยครับ ระบบขัดข้องชั่วคราว ลองใหม่อีกครั้ง หรือโทร ${shopInfo.phone} ครับ 🙏`)]);
+        await ctx.reply([text(replies.systemError())]);
       }
     }
   }
@@ -384,21 +385,21 @@ async function confirmReceived(ctx: Ctx, orderId: string) {
   const { data } = await getAllDatabase(true);
   const order = ordersOfUser(data, ctx.userId).find((o) => o.id === orderId);
   if (!order) {
-    await ctx.reply([text("ไม่พบออเดอร์นี้ในบัญชี LINE ของคุณครับ")]);
+    await ctx.reply([text(replies.orderNotFound())]);
     return;
   }
   const status = orderStatusOf(order);
   if (status === "จัดส่งสำเร็จ") {
-    await ctx.reply([text(`ออเดอร์ ${order.id} บันทึกว่าได้รับของแล้วครับ 🙏`)]);
+    await ctx.reply([text(replies.alreadyReceived(order.id))]);
     return;
   }
   if (status !== "กำลังจัดส่ง") {
-    await ctx.reply([text(`ออเดอร์ ${order.id} ยังไม่ได้ออกจัดส่งครับ (สถานะ: ${status})`)]);
+    await ctx.reply([text(replies.notShippedYet(order.id, status))]);
     return;
   }
   const res = await markDelivered(order.id, "customer-line", { notifyCustomer: false });
   if (!res.ok || !res.order) {
-    await ctx.reply([text(res.ok ? "บันทึกแล้วครับ" : res.error)]);
+    await ctx.reply([text(res.ok ? replies.saved() : res.error)]);
     return;
   }
   await ctx.reply(buildDeliveredNoticeFlex(res.order));
@@ -409,7 +410,7 @@ async function handleCustomerPostback(ctx: Ctx, action: string, params: URLSearc
   switch (action) {
     case "cancel":
       clearLineSession(ctx.userId);
-      await ctx.reply([text("ยกเลิกรายการแล้วครับ เลือกเมนูด้านล่างต่อได้เลย")]);
+      await ctx.reply([text(replies.cancelled())]);
       return;
     case "received":
       return confirmReceived(ctx, params.get("orderId") || "");
@@ -491,7 +492,7 @@ async function replyMyOrders(ctx: Ctx) {
   const { data } = await getAllDatabase();
   const orders = ordersOfUser(data, ctx.userId);
   if (orders.length === 0) {
-    await ctx.reply([text("ยังไม่มีออเดอร์ในบัญชี LINE นี้ครับ\nกด \"สั่งซื้อทุเรียน\" เพื่อจองได้เลย หรือพิมพ์เลขออเดอร์ที่ได้จากหน้าเว็บ")]);
+    await ctx.reply([text(replies.noOrdersYet())]);
     return;
   }
   await ctx.reply(buildUserOrdersFlex(orders, data.claims || [], ctx.baseUrl));
@@ -503,7 +504,7 @@ async function replyOwnOrderStatus(ctx: Ctx, orderRef: string) {
   const order = findOrderById(ordersOfUser(data, ctx.userId), orderRef);
   if (!order) {
     await ctx.reply([
-      text(`ไม่พบออเดอร์ ${orderRef} ในบัญชี LINE นี้ครับ\nถ้าสั่งผ่านหน้าเว็บ เช็กได้ที่ ${ctx.baseUrl || "หน้าเว็บร้าน"}/tracking`),
+      text(replies.orderNotFound(orderRef, ctx.baseUrl ? `${ctx.baseUrl}/tracking` : undefined)),
     ]);
     return;
   }
@@ -521,7 +522,7 @@ async function loadOrderableProduct(ctx: Ctx, productId: string) {
   const product = data.products.find((p) => p.id === productId);
   const stock = product ? formatProductStock(product) : null;
   if (!product || !product.isAvailable || stock?.isOutOfStock) {
-    await ctx.reply([text("ขออภัยครับ สินค้านี้หมดหรือปิดรับจองชั่วคราว ลองดูพันธุ์อื่นได้เลยครับ 🍈")]);
+    await ctx.reply([text(replies.outOfStock())]);
     return null;
   }
   return { data, product, stock };
@@ -595,11 +596,11 @@ async function confirmBooking(ctx: Ctx, draft: BookingDraft) {
   );
   clearLineSession(ctx.userId);
   if (!res.ok) {
-    await ctx.reply([text(`จองไม่สำเร็จครับ: ${res.error}`)]);
+    await ctx.reply([text(replies.bookingFailed(res.error))]);
     return;
   }
   const messages = buildBookingReceiptFlex(res.order);
-  if (res.duplicate) messages.unshift(text(`ℹ️ การจองนี้บันทึกไว้แล้วครับ (ออเดอร์ #${res.order.id}) — ไม่ได้สร้างซ้ำ`, false));
+  if (res.duplicate) messages.unshift(text(replies.bookingDuplicate(res.order.id), false));
   await ctx.reply(messages);
 }
 
@@ -611,22 +612,20 @@ async function promptSlip(ctx: Ctx, orderRef: string) {
   const { data } = await getAllDatabase();
   const order = findOrderById(ordersOfUser(data, ctx.userId), orderRef);
   if (!order) {
-    await ctx.reply([text(`ไม่พบออเดอร์ ${orderRef} ในบัญชีนี้ครับ`)]);
+    await ctx.reply([text(replies.orderNotFound(orderRef))]);
     return;
   }
   const status = orderStatusOf(order);
   if (status === "สั่งจอง") {
-    await ctx.reply([text(`ออเดอร์ #${order.id} ยังรอแอดมินชั่งน้ำหนักครับ ยังไม่ต้องโอน\nชั่งเสร็จจะส่งยอดจริงพร้อม QR ให้ในแชทนี้ครับ 🍈`)]);
+    await ctx.reply([text(replies.waitingToWeigh(order.id))]);
     return;
   }
   if (status !== "รอชำระเงิน") {
-    await ctx.reply([text(`ออเดอร์ #${order.id} ${ORDER_STATUS_META[status].customerHint}`)]);
+    await ctx.reply([text(replies.orderStatusHint(order.id, ORDER_STATUS_META[status].customerHint))]);
     return;
   }
   await ctx.reply([
-    text(
-      `📸 ส่ง "รูปสลิป" ของออเดอร์ #${order.id} เข้ามาในแชทนี้ได้เลยครับ\nยอดที่ต้องโอน ฿${(order.totalPrice + order.shippingCost).toLocaleString()}\n\nแอดมินตรวจยอดแล้วจะแจ้งยืนยันให้ครับ`
-    ),
+    text(replies.sendSlipPrompt(order.id, order.totalPrice + order.shippingCost)),
   ]);
 }
 
@@ -642,7 +641,7 @@ async function handleImage(ctx: Ctx, messageId: string) {
 
   if (awaiting.length > 0) {
     if (!media.ok || !media.apiPath) {
-      await ctx.reply([text(`อ่านรูปสลิปไม่ได้ (${media.reason}) รบกวนส่งเป็นรูป JPG/PNG อีกครั้งครับ`)]);
+      await ctx.reply([text(replies.slipUnreadable(String(media.reason)))]);
       return;
     }
     // อ่าน QR บนสลิป: ธนาคารผู้โอน + เลขรายการ → กันรูปที่ไม่ใช่สลิปและสลิปที่เคยใช้กับออเดอร์อื่น
@@ -672,13 +671,13 @@ async function handleImage(ctx: Ctx, messageId: string) {
     // ยอดขาด/ผิดบัญชี: บอกลูกค้าทันที (แอดมินเห็นผลเดียวกันในการ์ดแจ้งเตือน)
     if (res.ok && textCheck && (textCheck.amountCheck === "mismatch" || textCheck.accountCheck === "mismatch")) {
       await ctx.reply([
-        text(`⚠️ ตรวจสลิปของออเดอร์ ${target.id} แล้วพบว่า\n${textCheck.notes.filter((n) => /ขาด|เกิน|ไม่ใช่บัญชีร้าน/.test(n)).join("\n")}\n\nยอดที่ต้องโอน: ฿${expected.toLocaleString()}\nโอนเข้า: ${getBankAccount().bank} ${getBankAccount().number} (${getBankAccount().name})\nแอดมินจะตรวจอีกครั้งครับ ถ้าโอนเพิ่มส่งสลิปใหม่เข้ามาได้เลย`),
+        text(replies.slipProblem({ orderId: target.id, notes: textCheck.notes.filter((n) => /ขาด|เกิน|ไม่ใช่บัญชีร้าน/.test(n)), expected, bank: getBankAccount() })),
       ]);
     }
     if (!res.ok) await ctx.reply([text(res.error)]);
     else if (awaiting.length > 1) {
       await ctx.reply([
-        text(`ผูกสลิปกับออเดอร์ล่าสุด #${awaiting[0].id} แล้วครับ (มีอีก ${awaiting.length - 1} ออเดอร์ที่รอชำระ — ถ้าผิดใบ กด "คุยกับแอดมิน")`),
+        text(replies.slipLinkedToLatest(awaiting[0].id, awaiting.length - 1)),
       ]);
     }
     return;
@@ -696,11 +695,7 @@ async function handleImage(ctx: Ctx, messageId: string) {
     ...(imageUrl ? [{ type: "image", originalContentUrl: imageUrl, previewImageUrl: imageUrl }] : []),
   ]);
   await ctx.reply([
-    text(
-      booked
-        ? `ได้รับรูปแล้วครับ 🙏 ออเดอร์ #${booked.id} ยังรอแอดมินชั่งน้ำหนัก ยังไม่ต้องโอนนะครับ — ชั่งเสร็จจะส่งยอดจริงให้`
-        : "ได้รับรูปแล้วครับ แอดมินจะดูและตอบกลับในแชทนี้ครับ 🙏"
-    ),
+    text(replies.imageReceived(booked?.id)),
   ]);
 }
 
@@ -794,7 +789,7 @@ async function sendTicket(ctx: Ctx, message: string, orderId?: string) {
     )
   );
   clearLineSession(ctx.userId);
-  await ctx.reply([text(`✅ ส่งเรื่องถึงแอดมินแล้วครับ (Ticket #${ticketId})\nแอดมินจะตอบกลับในแชทนี้โดยเร็วครับ 🙏`)]);
+  await ctx.reply([text(replies.ticketSent(ticketId))]);
 }
 
 // ------------------------------------------------------------
@@ -875,7 +870,7 @@ async function finishClaim(ctx: Ctx, input: { imageMessageId?: string; descripti
   });
   clearLineSession(ctx.userId);
   if (!res.ok) {
-    await ctx.reply([text(`ส่งเคลมไม่สำเร็จ: ${res.error}`)]);
+    await ctx.reply([text(replies.claimFailed(res.error))]);
     return;
   }
   await ctx.reply(buildClaimReceiptForCustomerFlex(res.claim));
@@ -1009,7 +1004,7 @@ async function handleCustomerMessage(ctx: Ctx) {
 
   if (["ยกเลิก", "cancel", "เริ่มใหม่"].includes(lower)) {
     clearLineSession(ctx.userId);
-    await ctx.reply([text("ยกเลิกรายการแล้วครับ เลือกเมนูด้านล่างต่อได้เลย")]);
+    await ctx.reply([text(replies.cancelled())]);
     return;
   }
   if (lower === "myid") {
