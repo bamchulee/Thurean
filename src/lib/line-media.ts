@@ -11,6 +11,8 @@ export interface DownloadedLineMedia {
   apiPath?: string;
   sizeBytes?: number;
   contentType?: string;
+  /** ไฟล์รูป (ใช้อ่าน QR สลิปต่อ) */
+  buffer?: Buffer;
   reason?: string;
 }
 
@@ -70,6 +72,7 @@ export async function downloadAndVerifyLineImage(
       apiPath: `/api/slips/${filename}`,
       sizeBytes: buf.length,
       contentType,
+      buffer: buf,
     };
   } catch (err) {
     return { ok: false, reason: String(err) };

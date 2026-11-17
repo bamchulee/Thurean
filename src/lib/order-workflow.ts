@@ -201,7 +201,12 @@ export function findAwaitingPaymentOrders(orders: Order[], lineUserId: string): 
     .sort((a, b) => (b.weighedAt || b.createDate || "").localeCompare(a.weighedAt || a.createDate || ""));
 }
 
-export async function submitSlip(orderRef: string, slipPath: string, actor: string): Promise<WorkflowResult> {
+export async function submitSlip(
+  orderRef: string,
+  slipPath: string,
+  actor: string,
+  qr?: { slipRef?: string; slipBank?: string; slipCheck?: string }
+): Promise<WorkflowResult> {
   const { order } = await loadFresh(orderRef);
   if (!order) return fail(`ไม่พบออเดอร์ "${orderRef}"`, 404);
   if (orderStatusOf(order) !== "รอชำระเงิน") {
@@ -209,7 +214,12 @@ export async function submitSlip(orderRef: string, slipPath: string, actor: stri
   }
   const updated = await save(
     order,
-    { slipUrl: slipPath, paymentStatus: "slip_submitted", slipSubmittedAt: new Date().toISOString() },
+    {
+      slipUrl: slipPath,
+      paymentStatus: "slip_submitted",
+      slipSubmittedAt: new Date().toISOString(),
+      ...(qr ? { slipRef: qr.slipRef || "", slipBank: qr.slipBank || "", slipCheck: qr.slipCheck || "" } : {}),
+    },
     actor
   );
   await notifyCustomer(updated, buildSlipSubmittedReceiptFlex(updated));
@@ -303,7 +313,7 @@ export async function markShipped(
   return { ok: true, order: updated, changed: status !== "กำลังจัดส่ง" };
 }
 
-export async function markDelivered(orderRef: string, actor: string): Promise<WorkflowResult> {
+export async function markDelivered(orderRef: string, actor: string, opts: { notifyCustomer?: boolean } = {}): Promise<WorkflowResult> {
   const { order } = await loadFresh(orderRef);
   if (!order) return fail(`ไม่พบออเดอร์ "${orderRef}"`, 404);
   const status = orderStatusOf(order);
@@ -316,7 +326,7 @@ export async function markDelivered(orderRef: string, actor: string): Promise<Wo
     { orderStatus: "จัดส่งสำเร็จ", deliveredAt: new Date().toISOString() },
     actor
   );
-  await notifyCustomer(updated, buildDeliveredNoticeFlex(updated));
+  if (opts.notifyCustomer !== false) await notifyCustomer(updated, buildDeliveredNoticeFlex(updated));
   return { ok: true, order: updated, changed: true };
 }
 

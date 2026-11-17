@@ -5,6 +5,7 @@ import { Check, CheckCircle2, Copy, CreditCard, Package } from "lucide-react";
 import { shopInfo } from "../data/shop";
 import type { Order } from "../types/durian";
 import { PromptPayQR } from "./PromptPayQR";
+import { useBankAccount } from "../hooks/useBankAccount";
 import { LineIcon } from "./Icons";
 import { LineDirectLink } from "./LineDirectLink";
 
@@ -16,6 +17,7 @@ export function OrderSuccessModal({
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const bank = useBankAccount();
   const grandTotal = order.totalPrice + order.shippingCost;
 
   const summaryText = [
@@ -69,9 +71,9 @@ export function OrderSuccessModal({
         ) : (
           <>
             <PromptPayQR
-              target={shopInfo.bankAccount.promptPay}
+              target={bank.promptPay}
               amount={grandTotal}
-              accountName={shopInfo.bankAccount.name}
+              accountName={bank.name}
             />
 
             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 text-xs text-stone-700 text-left space-y-1.5 mb-4">
@@ -80,14 +82,14 @@ export function OrderSuccessModal({
                 <span>หรือโอนเข้าบัญชีธนาคาร</span>
               </p>
               <p>
-                ธนาคาร: <strong>{shopInfo.bankAccount.bank}</strong>
+                ธนาคาร: <strong>{bank.bank}</strong>
               </p>
               <p>
                 เลขบัญชี:{" "}
                 <strong className="font-mono text-stone-900 text-sm">
-                  {shopInfo.bankAccount.number}
+                  {bank.number}
                 </strong>{" "}
-                ({shopInfo.bankAccount.name})
+                ({bank.name})
               </p>
               <p className="text-[11px] text-stone-500 pt-1.5 border-t border-stone-200">
                 สแกน QR ชำระยอดตรงอัตโนมัติ จากนั้นกดคัดลอกสรุปออเดอร์แล้วส่งสลิปทาง LINE{" "}

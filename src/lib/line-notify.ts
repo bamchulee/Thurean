@@ -10,6 +10,8 @@ import type {
   RuntimeConfig,
 } from "../types/durian";
 import { shopInfo } from "../data/shop";
+import { getBankAccount } from "./sheets-db";
+import { slipCheckText } from "./slip-check";
 import { resolveCourierInfo } from "./courier";
 import { formatProductStock, pricePerKgOf } from "./stock";
 import { checkClaimEligibility } from "./claim-policy";
@@ -296,6 +298,13 @@ export function buildSlipAlertForAdmin(order: Order, links: AdminAlertLinks, sli
           contents: [
             { type: "text", text: `👤 ${order.customerName} (${order.phone})`, size: "xs", weight: "bold", wrap: true },
             {
+              type: "text",
+              text: slipCheckText(order.slipCheck).label + (order.slipBank ? `\nโอนจาก: ${order.slipBank}${order.slipRef ? " · เลขรายการ " + order.slipRef : ""}` : ""),
+              size: "xs",
+              wrap: true,
+              color: slipCheckText(order.slipCheck).tone === "ok" ? "#15803D" : slipCheckText(order.slipCheck).tone === "bad" ? "#B91C1C" : "#B45309",
+            },
+            {
               type: "box",
               layout: "horizontal",
               margin: "xs",
@@ -440,14 +449,14 @@ ${ORDER_STATUS_META[orderStatusOf(order)].customerHint}`,
         contents: [
           {
             type: "text",
-            text: `PromptPay: ${shopInfo.bankAccount.promptPay}`,
+            text: `PromptPay: ${getBankAccount().promptPay}`,
             size: "xs",
             weight: "bold",
             color: "#78350F",
           },
           {
             type: "text",
-            text: `${shopInfo.bankAccount.bank}: ${shopInfo.bankAccount.number}`,
+            text: `${getBankAccount().bank}: ${getBankAccount().number}`,
             size: "xs",
             color: "#78350F",
           },
@@ -2270,14 +2279,14 @@ export function buildPaymentQrForCustomerFlex(order: Order, publicBaseUrl?: stri
               contents: [
                 {
                   type: "text",
-                  text: `PromptPay: ${shopInfo.bankAccount.promptPay}`,
+                  text: `PromptPay: ${getBankAccount().promptPay}`,
                   size: "xs",
                   weight: "bold",
                   color: "#78350F",
                 },
                 {
                   type: "text",
-                  text: `${shopInfo.bankAccount.bank}: ${shopInfo.bankAccount.number}`,
+                  text: `${getBankAccount().bank}: ${getBankAccount().number}`,
                   size: "xs",
                   color: "#78350F",
                 },
@@ -2583,6 +2592,18 @@ export function buildShippedNoticeFlex(order: Order): unknown[] {
                 displayText: `เช็กสถานะ #${order.id}`,
               },
             },
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              margin: "sm",
+              action: {
+                type: "postback",
+                label: "✅ ได้รับของแล้ว",
+                data: `action=received&orderId=${order.id}`,
+                displayText: "ได้รับของแล้ว",
+              },
+            },
           ],
         },
       },
@@ -2882,7 +2903,7 @@ export function buildPromptPayQrPaymentFlex(params: {
         { type: "separator", margin: "sm" },
         {
           type: "text",
-          text: `พร้อมเพย์: ${shopInfo.bankAccount.promptPay}`,
+          text: `พร้อมเพย์: ${getBankAccount().promptPay}`,
           size: "xs",
           weight: "bold",
           color: "#1B4D31",
@@ -2890,7 +2911,7 @@ export function buildPromptPayQrPaymentFlex(params: {
         },
         {
           type: "text",
-          text: `${shopInfo.bankAccount.bank}: ${shopInfo.bankAccount.number} (${shopInfo.bankAccount.name})`,
+          text: `${getBankAccount().bank}: ${getBankAccount().number} (${getBankAccount().name})`,
           size: "xs",
           color: "#44403C",
           wrap: true,

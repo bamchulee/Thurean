@@ -23,7 +23,7 @@ import { Badge, ConfirmDialog, Field, inputCls, Section, Toast, usePageActions }
 
 type FieldInfo = {
   key: string;
-  group: "line" | "login" | "web";
+  group: "line" | "login" | "pay" | "web";
   label: string;
   secret: boolean;
   value: string;
@@ -63,6 +63,7 @@ const SOURCE: Record<FieldInfo["source"], { label: string; cls: string }> = {
 const GROUPS: { id: FieldInfo["group"]; title: string; desc: string }[] = [
   { id: "line", title: "LINE Official Account (บอท)", desc: "จาก LINE Developers → channel Messaging API" },
   { id: "login", title: "การเข้าสู่ระบบ", desc: "LINE Login / LIFF / Google — ดูวิธีขอคีย์ใน docs/LOGIN_SETUP.md" },
+  { id: "pay", title: "บัญชีรับเงินของร้าน", desc: "โชว์ในข้อความยอดเงิน/QR พร้อมเพย์ และใช้ตรวจว่าสลิปโอนเข้าบัญชีร้านจริง" },
   { id: "web", title: "เว็บ & ไลฟ์สด", desc: "ที่อยู่เว็บที่ใช้ในลิงก์ข้อความ LINE และข้อมูลไลฟ์" },
 ];
 

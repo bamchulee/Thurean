@@ -21,6 +21,7 @@ import {
   buildCustomerStatusFlex,
   buildLiveStreamFlex,
   buildMainQuickReply,
+  buildDeliveredNoticeFlex,
   buildMoreMenuFlex,
   buildNeedAddressMessage,
   buildOrderCatalogMessages,
@@ -38,7 +39,7 @@ import { checkClaimEligibility } from "../../../../lib/claim-policy";
 import { downloadAndVerifyLineImage } from "../../../../lib/line-media";
 import { clearLineSession, getLineSession, setLineSession } from "../../../../lib/line-sessions";
 import { submitNewClaim, submitNewOrder } from "../../../../lib/order-service";
-import { findAwaitingPaymentOrders, notifyAdmins, submitSlip } from "../../../../lib/order-workflow";
+import { findAwaitingPaymentOrders, markDelivered, notifyAdmins, submitSlip } from "../../../../lib/order-workflow";
 import { ORDER_STATUS_META, orderStatusOf } from "../../../../lib/order-status";
 import {
   RIPENESS_OPTIONS,
@@ -52,6 +53,7 @@ import {
 import { addressFormUrlFor, bookingReviewMessages } from "../../../../lib/line-booking";
 import { formatProductStock } from "../../../../lib/stock";
 import { isValidLineSignature } from "../../../../lib/line-verify";
+import { checkSlip, readSlipQr } from "../../../../lib/slip-qr";
 import { extractOrderId, findOrderById } from "../../../../lib/ids";
 import { shopInfo } from "../../../../data/shop";
 import type { DatabaseState, Order, RuntimeConfig, User } from "../../../../types/durian";
@@ -373,12 +375,40 @@ async function handleGroupEvent(ctx: Ctx, groupId: string) {
 // ลูกค้า: ปุ่ม (postback)
 // ============================================================
 
+/** ลูกค้ากด "ได้รับของแล้ว" → จัดส่งสำเร็จ (เฉพาะออเดอร์ของตัวเองที่กำลังจัดส่ง) */
+async function confirmReceived(ctx: Ctx, orderId: string) {
+  const { data } = await getAllDatabase(true);
+  const order = ordersOfUser(data, ctx.userId).find((o) => o.id === orderId);
+  if (!order) {
+    await ctx.reply([text("ไม่พบออเดอร์นี้ในบัญชี LINE ของคุณครับ")]);
+    return;
+  }
+  const status = orderStatusOf(order);
+  if (status === "จัดส่งสำเร็จ") {
+    await ctx.reply([text(`ออเดอร์ ${order.id} บันทึกว่าได้รับของแล้วครับ 🙏`)]);
+    return;
+  }
+  if (status !== "กำลังจัดส่ง") {
+    await ctx.reply([text(`ออเดอร์ ${order.id} ยังไม่ได้ออกจัดส่งครับ (สถานะ: ${status})`)]);
+    return;
+  }
+  const res = await markDelivered(order.id, "customer-line", { notifyCustomer: false });
+  if (!res.ok || !res.order) {
+    await ctx.reply([text(res.ok ? "บันทึกแล้วครับ" : res.error)]);
+    return;
+  }
+  await ctx.reply(buildDeliveredNoticeFlex(res.order));
+  await notifyAdmins([text(`📦 ลูกค้ายืนยันได้รับของแล้ว\nออเดอร์ ${order.id} — ${order.customerName}`, false)]);
+}
+
 async function handleCustomerPostback(ctx: Ctx, action: string, params: URLSearchParams) {
   switch (action) {
     case "cancel":
       clearLineSession(ctx.userId);
       await ctx.reply([text("ยกเลิกรายการแล้วครับ เลือกเมนูด้านล่างต่อได้เลย")]);
       return;
+    case "received":
+      return confirmReceived(ctx, params.get("orderId") || "");
     case "stock":
       return replyStock(ctx);
     case "order":
@@ -611,8 +641,16 @@ async function handleImage(ctx: Ctx, messageId: string) {
       await ctx.reply([text(`อ่านรูปสลิปไม่ได้ (${media.reason}) รบกวนส่งเป็นรูป JPG/PNG อีกครั้งครับ`)]);
       return;
     }
-    // submitSlip ส่งใบรับสลิปให้ลูกค้า + แจ้งกลุ่มแอดมินพร้อมปุ่มยืนยันเอง
-    const res = await submitSlip(awaiting[0].id, media.apiPath, "customer-line");
+    // อ่าน QR บนสลิป: ธนาคารผู้โอน + เลขรายการ → กันรูปที่ไม่ใช่สลิปและสลิปที่เคยใช้กับออเดอร์อื่น
+    const qr = media.buffer ? await readSlipQr(media.buffer) : { found: false };
+    const slipCheck = checkSlip(qr, data.orders, awaiting[0].id);
+    console.log("[LINE Webhook] slip QR", slipCheck, qr.bankCode || "-");
+    // submitSlip ส่งใบรับสลิปให้ลูกค้า + แจ้งกลุ่มแอดมิน (พร้อมผลตรวจ QR) ให้กดยืนยันเอง
+    const res = await submitSlip(awaiting[0].id, media.apiPath, "customer-line", {
+      slipRef: qr.transRef,
+      slipBank: qr.bankName,
+      slipCheck,
+    });
     if (!res.ok) await ctx.reply([text(res.error)]);
     else if (awaiting.length > 1) {
       await ctx.reply([

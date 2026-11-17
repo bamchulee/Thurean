@@ -19,6 +19,9 @@ import { deductProductStock, restoreProductStock } from "./stock";
 import { getWritableDataDir } from "./storage-dir";
 import { getSigningSecret } from "./secrets";
 import { nextRunningId, type IdKind } from "./ids";
+import { shopInfo } from "../data/shop";
+
+const shopInfoBank = () => shopInfo.bankAccount;
 
 // URL ของ Web App ใช้ได้ต่อเมื่อมี API key เท่านั้น (ดู google-apps-script/Code.gs)
 const DEFAULT_SHEETS_WEBAPP_URL =
@@ -113,6 +116,24 @@ const pickSetting = (key: string): string => {
   const v = remoteSettings[key];
   return typeof v === "string" ? v.trim() : "";
 };
+
+export interface BankAccount {
+  bank: string;
+  number: string;
+  name: string;
+  promptPay: string;
+}
+
+/** บัญชีรับเงินของร้าน — ตั้งได้ที่หน้าแอดมิน › การเชื่อมต่อ (ใช้ตรวจสลิปว่าโอนเข้าบัญชีร้านจริง) */
+export function getBankAccount(): BankAccount {
+  const d = shopInfoBank();
+  return {
+    bank: pickSetting("shopBankName") || d.bank,
+    number: pickSetting("shopAccountNumber") || d.number,
+    name: pickSetting("shopAccountName") || d.name,
+    promptPay: pickSetting("shopPromptPay") || d.promptPay,
+  };
+}
 
 export function getRuntimeConfig(): RuntimeConfig {
   let fileConfig: RuntimeConfig = {};

@@ -107,7 +107,7 @@ const SHEET_DEFS = {
       "id", "createDate", "roundId", "orderStatus", "paymentStatus",
       "customerName", "phone", "address", "mapsUrl", "userId", "lineUserId", "channel",
       "itemSummary", "ripenessPref", "totalKg", "totalPrice", "shippingMethod", "shippingCost", "grandTotal",
-      "slipUrl", "courier", "trackingNo",
+      "slipUrl", "slipRef", "slipBank", "slipCheck", "courier", "trackingNo",
       "weighedAt", "slipSubmittedAt", "paidAt", "deliveredAt", "cancelledAt", "cancelReason",
       "lotId", "notes", "bookingKey", "itemsJson",
     ].concat(AUDIT_NO_DATE),
@@ -226,6 +226,9 @@ const HEADER_NOTES = {
   shippingCost: "ค่าส่ง",
   grandTotal: "ยอดที่ต้องจ่าย = ค่าทุเรียน + ค่าส่ง",
   slipUrl: "รูปสลิป",
+  slipRef: "เลขอ้างอิงรายการโอน (อ่านจาก QR บนสลิป) — ใช้กันสลิปซ้ำ",
+  slipBank: "ธนาคารผู้โอน (จาก QR สลิป)",
+  slipCheck: "ผลตรวจ QR สลิป: ok / no_qr = ไม่พบ QR / not_slip / duplicate:เลขออเดอร์ที่ใช้สลิปนี้แล้ว",
   courier: "ขนส่ง",
   trackingNo: "เลขพัสดุ",
   weighedAt: "ชั่งเสร็จเมื่อ",
@@ -268,5 +271,5 @@ const TEXT_COLUMNS = {
   mapsUrl: 1, deliveredAt: 1, ripenessType: 1, evidencePhotos: 1, resolutionType: 1,
   weighedAt: 1, slipSubmittedAt: 1, paidAt: 1, cancelledAt: 1,
   // รหัสบัญชี Google เป็นตัวเลขยาว — ถ้าชีตแปลงเป็นตัวเลขจะเพี้ยน
-  googleId: 1, lineUserId: 1,
+  googleId: 1, lineUserId: 1, slipRef: 1,
 };

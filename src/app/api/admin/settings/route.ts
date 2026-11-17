@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
-import { getRuntimeConfig, getSettingsBundle, loadAppSettings, saveAppSettings, saveCustomColumns, writeSettingsSheet } from "../../../../lib/sheets-db";
+import { getBankAccount, getRuntimeConfig, getSettingsBundle, loadAppSettings, saveAppSettings, saveCustomColumns, writeSettingsSheet } from "../../../../lib/sheets-db";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,10 @@ const SETTING_FIELDS = [
   { key: "lineLiffId", group: "login", label: "LIFF ID", secret: false, env: "NEXT_PUBLIC_LINE_LIFF_ID" },
   { key: "googleClientId", group: "login", label: "Google Client ID", secret: false, env: "GOOGLE_CLIENT_ID" },
   { key: "googleClientSecret", group: "login", label: "Google Client secret", secret: true, env: "GOOGLE_CLIENT_SECRET" },
+  { key: "shopBankName", group: "pay", label: "ธนาคาร", secret: false, env: "SHOP_BANK_NAME" },
+  { key: "shopAccountNumber", group: "pay", label: "เลขบัญชี", secret: false, env: "SHOP_ACCOUNT_NUMBER" },
+  { key: "shopAccountName", group: "pay", label: "ชื่อบัญชี", secret: false, env: "SHOP_ACCOUNT_NAME" },
+  { key: "shopPromptPay", group: "pay", label: "พร้อมเพย์ (เบอร์/เลขบัตร)", secret: false, env: "SHOP_PROMPTPAY" },
   { key: "publicBaseUrl", group: "web", label: "ที่อยู่เว็บ (Base URL)", secret: false, env: "NEXT_PUBLIC_BASE_URL" },
   { key: "liveStreamPlatform", group: "web", label: "แพลตฟอร์มไลฟ์สด", secret: false, env: "LINE_LIVE_PLATFORM" },
   { key: "liveStreamUrl", group: "web", label: "ลิงก์ไลฟ์สด", secret: false, env: "LINE_LIVE_URL" },
@@ -30,7 +34,7 @@ function mask(v: string) {
   return v.length <= 8 ? "••••••••" : `${v.slice(0, 4)}••••••••${v.slice(-4)}`;
 }
 
-const GROUP_LABEL: Record<string, string> = { line: "LINE OA", login: "เข้าสู่ระบบ", web: "เว็บ & ไลฟ์" };
+const GROUP_LABEL: Record<string, string> = { line: "LINE OA", login: "เข้าสู่ระบบ", pay: "บัญชีรับเงิน", web: "เว็บ & ไลฟ์" };
 const SOURCE_LABEL: Record<string, string> = { admin: "ตั้งจากหน้าแอดมิน", env: "Vercel", default: "ค่าเริ่มต้น", none: "ยังไม่ตั้ง" };
 
 function sourceOf(key: string, env: string): string {
@@ -64,6 +68,9 @@ function settingsSheetRows() {
 }
 
 function effective(key: string): string {
+  const bank = getBankAccount();
+  const bankKeys: Record<string, string> = { shopBankName: bank.bank, shopAccountNumber: bank.number, shopAccountName: bank.name, shopPromptPay: bank.promptPay };
+  if (key in bankKeys) return bankKeys[key];
   const cfg = getRuntimeConfig() as Record<string, unknown>;
   const v = cfg[key];
   return typeof v === "string" ? v : "";

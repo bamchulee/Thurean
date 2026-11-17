@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { LineIcon } from "../../../../components/Icons";
 import { COURIER_OPTIONS } from "../../../../lib/courier";
+import { slipCheckText } from "../../../../lib/slip-check";
 import {
   ORDER_STATUS_META,
   PAYMENT_STATUS_LABEL,
@@ -403,6 +404,26 @@ export default function AdminOrderPage() {
             </a>
           ) : (
             <p className="text-sm text-stone-500">ลูกค้ายังไม่ได้ส่งสลิป</p>
+          )}
+          {order.slipUrl && (
+            <div
+              className={`mt-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
+                slipCheckText(order.slipCheck).tone === "ok"
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                  : slipCheckText(order.slipCheck).tone === "bad"
+                  ? "bg-rose-50 border-rose-200 text-rose-800"
+                  : "bg-amber-50 border-amber-200 text-amber-900"
+              }`}
+            >
+              <p>{slipCheckText(order.slipCheck).label}</p>
+              {order.slipBank && (
+                <p className="font-normal mt-0.5">
+                  โอนจาก {order.slipBank}
+                  {order.slipRef ? <> · เลขรายการ <span className="font-mono">{order.slipRef}</span></> : null}
+                </p>
+              )}
+              <p className="font-normal text-stone-500 mt-0.5">ยอดเงินและบัญชีผู้รับ ต้องเช็กกับแอปธนาคารก่อนกดยืนยัน</p>
+            </div>
           )}
           <p className="text-sm mt-3">
             ยอดที่ต้องได้รับ: <strong className="text-[#1B4D31] text-lg font-mono">฿{grandTotal.toLocaleString()}</strong>

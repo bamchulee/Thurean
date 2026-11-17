@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import QRCode from "qrcode";
-import { shopInfo } from "../../../data/shop";
+import { getBankAccount, loadAppSettings } from "../../../lib/sheets-db";
 import { generatePromptPayPayload } from "../../../lib/promptpay";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +19,9 @@ export async function GET(req: NextRequest) {
         ? Math.round(parsedAmount * 100) / 100
         : undefined;
 
+    await loadAppSettings();
     const payload = generatePromptPayPayload(
-      shopInfo.bankAccount.promptPay,
+      getBankAccount().promptPay,
       validAmount
     );
 

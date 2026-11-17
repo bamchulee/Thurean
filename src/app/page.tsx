@@ -31,6 +31,7 @@ import {
   Zap,
 } from "lucide-react";
 import { shopInfo } from "../data/shop";
+import { useBankAccount } from "../hooks/useBankAccount";
 import { CheckoutAccountGate, canCheckout } from "../components/CheckoutAccountGate";
 import type { Order, Product, Round } from "../types/durian";
 import { useCart } from "../context/CartContext";
@@ -1431,6 +1432,7 @@ function OrderModal({
 
 // ===================== FOOTER =====================
 function Footer() {
+  const bank = useBankAccount();
   return (
     <footer
       id="contact"
@@ -1517,16 +1519,16 @@ function Footer() {
               บัญชีชำระเงินทางการ
             </h5>
             <p className="text-white font-semibold">
-              {shopInfo.bankAccount.bank}
+              {bank.bank}
             </p>
             <p className="font-mono text-white text-sm font-bold">
-              {shopInfo.bankAccount.number}
+              {bank.number}
             </p>
             <p className="text-amber-300 text-xs font-mono">
-              พร้อมเพย์: {shopInfo.bankAccount.promptPay}
+              พร้อมเพย์: {bank.promptPay}
             </p>
             <p className="text-stone-400 text-[10px]">
-              {shopInfo.bankAccount.name}
+              {bank.name}
             </p>
           </div>
         </div>

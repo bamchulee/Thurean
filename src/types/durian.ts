@@ -127,6 +127,12 @@ export interface Order extends BaseAuditLog {
   cancelReason?: string;
   bookingKey?: string; // กันออเดอร์ซ้ำจากปุ่มยืนยันอันเดิมใน LINE
   slipUrl?: string;
+  /** เลขอ้างอิงรายการโอนจาก QR บนสลิป (กันสลิปซ้ำ) */
+  slipRef?: string;
+  /** ธนาคารผู้โอน (จาก QR สลิป) */
+  slipBank?: string;
+  /** ผลตรวจ QR: ok / no_qr / not_slip / duplicate:ODxxxxxx */
+  slipCheck?: string;
   lotId?: string;
   mapsUrl?: string;
   latitude?: number;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAllDatabase, getRuntimeConfig } from "../../../lib/sheets-db";
+import { getAllDatabase, getRuntimeConfig, getBankAccount } from "../../../lib/sheets-db";
 import { shopInfo } from "../../../data/shop";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +23,7 @@ export async function GET() {
     );
 
     return NextResponse.json({
+      bankAccount: getBankAccount(),
       ok: true,
       source,
       warning,
