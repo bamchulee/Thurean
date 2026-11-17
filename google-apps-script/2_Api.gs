@@ -61,7 +61,7 @@ function doPost(e) {
     if (action === "getSettings") return jsonResponse({ ok: true, data: readSettingsBundle() });
     // อ่านสลิป: ช้าไม่กี่วินาที ไม่ต้องล็อกชีต
     if (action === "ocrSlip") return jsonResponse({ ok: true, data: ocrSlip(payload) });
-    if (action === "getAll") return jsonResponse({ ok: true, data: readAllDatabase() });
+    if (action === "getAll") return jsonResponse({ ok: true, data: readAllCached() });
 
     const lock = LockService.getScriptLock();
     lock.waitLock(25000);
@@ -70,6 +70,8 @@ function doPost(e) {
       SpreadsheetApp.flush();
       return jsonResponse({ ok: true, data: data });
     } finally {
+      // มีการเขียน (สำเร็จหรือไม่ก็ตาม) → ข้อมูลที่จำไว้ใช้ไม่ได้แล้ว
+      clearReadAllCache();
       lock.releaseLock();
     }
   } catch (err) {
@@ -339,4 +341,64 @@ function ocrSlip(payload) {
     DriveApp.getFileById(docId).setTrashed(true);
   }
   return { text: text, fileId: file.getId(), fileUrl: file.getUrl() };
+}
+
+// ============================================================
+// แคชผล getAll ไว้ใน CacheService (ล้างทุกครั้งที่เขียนผ่าน API)
+// อ่านทั้งหมดจากชีตใช้ 4-5 วินาที — จากแคชเหลือไม่ถึงครึ่งวินาที
+// แก้ชีตด้วยมือ: เว็บเห็นค่าใหม่ภายใน READ_ALL_CACHE_SECONDS
+// ============================================================
+const READ_ALL_CACHE_KEY = "readAll_v1";
+const READ_ALL_CACHE_SECONDS = 60;
+const READ_ALL_GEN_KEY = "readAll_gen";
+const READ_ALL_CHUNK = 25000; // ตัวอักษรต่อชิ้น (ภาษาไทย 3 ไบต์/ตัว ไม่เกินลิมิต 100KB ต่อค่า)
+
+function readAllCached() {
+  const cache = CacheService.getScriptCache();
+  try {
+    const count = Number(cache.get(READ_ALL_CACHE_KEY) || 0);
+    if (count > 0) {
+      const keys = [];
+      for (let i = 0; i < count; i++) keys.push(READ_ALL_CACHE_KEY + "_" + i);
+      const parts = cache.getAll(keys);
+      if (keys.every((k) => parts[k] !== undefined && parts[k] !== null)) {
+        return JSON.parse(keys.map((k) => parts[k]).join(""));
+      }
+    }
+  } catch (err) {
+    // แคชเสีย — อ่านจากชีตแทน
+  }
+
+  // จำรุ่นไว้ก่อนอ่าน — ถ้ามีการเขียนระหว่างอ่าน ห้ามเก็บข้อมูลชุดนี้ลงแคช
+  const gen = cache.get(READ_ALL_GEN_KEY) || "0";
+  _readOnly = true;
+  let data;
+  try {
+    data = readAllDatabase();
+  } finally {
+    _readOnly = false;
+  }
+  try {
+    const json = JSON.stringify(data);
+    const chunks = {};
+    let n = 0;
+    for (let i = 0; i < json.length; i += READ_ALL_CHUNK) chunks[READ_ALL_CACHE_KEY + "_" + n++] = json.slice(i, i + READ_ALL_CHUNK);
+    if (n <= 200 && (cache.get(READ_ALL_GEN_KEY) || "0") === gen) {
+      cache.putAll(chunks, READ_ALL_CACHE_SECONDS);
+      cache.put(READ_ALL_CACHE_KEY, String(n), READ_ALL_CACHE_SECONDS);
+    }
+  } catch (err) {
+    // เก็บแคชไม่ได้ก็ไม่เป็นไร
+  }
+  return data;
+}
+
+function clearReadAllCache() {
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.put(READ_ALL_GEN_KEY, String(Date.now()), 21600);
+    cache.remove(READ_ALL_CACHE_KEY);
+  } catch (err) {
+    // ignore
+  }
 }

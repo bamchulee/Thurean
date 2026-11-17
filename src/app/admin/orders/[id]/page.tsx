@@ -64,6 +64,7 @@ export default function AdminOrderPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const [order, setOrder] = useState<Order | null>(null);
   const [chatUrl, setChatUrl] = useState<string | undefined>();
@@ -86,9 +87,9 @@ export default function AdminOrderPage() {
     );
   }, []);
 
-  const fetchOrder = useCallback(async (): Promise<OrderResponse> => {
+  const fetchOrder = useCallback(async (fresh = false): Promise<OrderResponse> => {
     try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: "no-store" });
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}${fresh ? "?fresh=1" : ""}`, { cache: "no-store" });
       return (await res.json()) as OrderResponse;
     } catch {
       return { ok: false, error: "โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชอีกครั้ง" };
@@ -114,13 +115,22 @@ export default function AdminOrderPage() {
     [applyOrder]
   );
 
-  const load = useCallback(async () => showResponse(await fetchOrder()), [fetchOrder, showResponse]);
+  const load = useCallback(async () => showResponse(await fetchOrder(true)), [fetchOrder, showResponse]);
 
+  // เปิดทันทีจากแคช แล้วอ่านสดจากชีตเบื้องหลัง — เปลี่ยนเฉพาะถ้าข้อมูลในชีตใหม่กว่า (เช่น สลิปเพิ่งเข้า)
   useEffect(() => {
     let cancelled = false;
-    fetchOrder().then((json) => {
-      if (!cancelled) showResponse(json);
-    });
+    (async () => {
+      const quick = await fetchOrder();
+      if (cancelled) return;
+      showResponse(quick);
+      if (!quick.ok || !quick.isAdmin) return;
+      setSyncing(true);
+      const latest = await fetchOrder(true);
+      if (cancelled) return;
+      setSyncing(false);
+      if (latest.ok && latest.order && JSON.stringify(latest.order) !== JSON.stringify(quick.order)) showResponse(latest);
+    })();
     return () => {
       cancelled = true;
     };
@@ -237,6 +247,7 @@ export default function AdminOrderPage() {
         </p>
       </div>
 
+      {syncing && <p className="text-[11px] text-stone-400 text-right -mb-2">⟳ กำลังเช็กข้อมูลล่าสุดจากชีต…</p>}
       {notice && (
         <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 text-sm font-bold rounded-2xl p-3">✅ {notice}</div>
       )}

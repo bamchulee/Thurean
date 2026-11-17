@@ -29,15 +29,18 @@ export async function GET(
     const { id } = await context.params;
     const q = decodeURIComponent(id).trim().toUpperCase();
     const isAdmin = (await requireStaff(req));
-    // แอดมินอ่านสด (เพิ่งมีสลิป/ชั่งจากเครื่องอื่น) — ลูกค้าทั่วไปใช้แคชได้
-    const { data } = await getAllDatabase(isAdmin);
-
-    const order =
-      data.orders.find(
-        (o) =>
-          o.id.toUpperCase() === q ||
-          (o.trackingNo && o.trackingNo.toUpperCase() === q)
-      ) || findOrderById(data.orders, q);
+    // เปิดหน้าออเดอร์ทันทีจากแคช (ชีตตอบช้า 3-8 วิ) — หน้าแอดมินขอ ?fresh=1 ตามมาเบื้องหลังเพื่ออ่านสดจากชีต
+    const fresh = isAdmin && req.nextUrl.searchParams.get("fresh") === "1";
+    const lookup = (orders: Order[]) =>
+      orders.find((o) => o.id.toUpperCase() === q || (o.trackingNo && o.trackingNo.toUpperCase() === q)) ||
+      findOrderById(orders, q);
+    let { data } = await getAllDatabase(fresh);
+    let order = lookup(data.orders);
+    // ออเดอร์ใหม่ที่แคชเครื่องนี้ยังไม่เห็น → อ่านสดอีกครั้ง
+    if (!order && !fresh) {
+      ({ data } = await getAllDatabase(true));
+      order = lookup(data.orders);
+    }
 
     if (!order) {
       return NextResponse.json(

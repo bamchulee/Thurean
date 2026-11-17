@@ -7,14 +7,22 @@
 
 let _tables = {};
 
+// เปิดไฟล์ครั้งเดียวต่อการเรียก (openById ช้า ครั้งละหลายร้อยมิลลิวินาที)
+let _spreadsheets = {};
+
 function getUserSpreadsheet() {
-  return SpreadsheetApp.openById(USER_SPREADSHEET_ID);
+  if (!_spreadsheets.user) _spreadsheets.user = SpreadsheetApp.openById(USER_SPREADSHEET_ID);
+  return _spreadsheets.user;
 }
 
 // เปิดตามรหัสไฟล์เสมอ (ไม่ใช้ getActiveSpreadsheet) — ถ้าสคริปต์ผูกอยู่กับไฟล์ USER ตารางร้านจะได้ไม่ไปงอกในไฟล์ USER
 function getThureanSpreadsheet() {
-  return SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID);
+  if (!_spreadsheets.thurean) _spreadsheets.thurean = SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID);
+  return _spreadsheets.thurean;
 }
+
+/** โหมดอ่านอย่างเดียว (getAll): ไม่ต้องตรวจ/ซ่อมหัวคอลัมน์ทุกตาราง — ตรวจตอนเขียนก็พอ */
+let _readOnly = false;
 
 function getSpreadsheetFor(sheetName) {
   return sheetName === SHEET_NAMES.USERS ? getUserSpreadsheet() : getThureanSpreadsheet();
@@ -140,7 +148,7 @@ function normalizeCell(v) {
 function readTable(name) {
   if (_tables[name]) return _tables[name];
   const def = SHEET_DEFS[name];
-  const sheet = ensureSheet(name);
+  const sheet = (_readOnly && getSpreadsheetFor(name).getSheetByName(name)) || ensureSheet(name);
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map(String);
   let idIdx = headers.indexOf(def.idCol);
