@@ -1,7 +1,7 @@
 "use client";
 
 // ชิ้นส่วน UI ที่ใช้ร่วมกันทุกหน้าหลังบ้าน: แถบปุ่ม (บันทึก/ล้างค่า/ทดสอบ/กลับหน้าหลัก), ตาราง, ลิ้นชักแก้ไข, กล่องยืนยัน
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Home, Loader2, RotateCcw, Save, Search, Stethoscope, X, XCircle } from "lucide-react";
 
 // ============== ปุ่มประจำหน้า (แต่ละหน้าบอก shell ว่าบันทึก/ล้างค่าทำอะไร) ==============
@@ -21,10 +21,23 @@ export const ActionsProvider = ActionsCtx.Provider;
 /** หน้าลงทะเบียนปุ่มของตัวเองกับแถบด้านบน */
 export function usePageActions(actions: PageActions) {
   const set = useContext(ActionsCtx);
-  const { dirty, onSave, onClear, clearLabel, clearConfirm } = actions;
+  // ฟังก์ชันของหน้าเปลี่ยนทุกครั้งที่ render — เก็บตัวล่าสุดใน ref แล้วส่งตัวห่อที่คงที่ขึ้นไป (กัน render วนไม่จบ)
+  const latest = useRef(actions);
+  useLayoutEffect(() => {
+    latest.current = actions;
+  });
+  const { dirty, clearLabel, clearConfirm } = actions;
+  const hasSave = Boolean(actions.onSave);
+  const hasClear = Boolean(actions.onClear);
   useEffect(() => {
-    set({ dirty, onSave, onClear, clearLabel, clearConfirm });
-  }, [set, dirty, onSave, onClear, clearLabel, clearConfirm]);
+    set({
+      dirty,
+      clearLabel,
+      clearConfirm,
+      onSave: hasSave ? () => latest.current.onSave?.() : undefined,
+      onClear: hasClear ? () => latest.current.onClear?.() : undefined,
+    });
+  }, [set, dirty, hasSave, hasClear, clearLabel, clearConfirm]);
   useEffect(() => () => set({}), [set]);
 }
 

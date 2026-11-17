@@ -42,11 +42,11 @@ export async function POST(req: NextRequest) {
 
     const newLot: LotCost = {
       lotId: body.lotId?.trim() || localNextId("lots", data.lots.map((l) => l.lotId)),
-      roundId: body.roundId?.trim() || "WK-ROUND-46",
+      roundId: body.roundId?.trim() || "",
       date: body.date || new Date().toISOString().slice(0, 10),
       supplierName: body.supplierName.trim(),
       supplierPhone: body.supplierPhone?.trim() || "",
-      variety: body.variety?.trim() || "หมอนทอง",
+      variety: body.variety?.trim() || "",
       weightKg,
       costPerKg,
       totalFruitCost,

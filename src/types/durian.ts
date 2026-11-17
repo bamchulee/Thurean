@@ -45,6 +45,8 @@ export interface Product extends BaseAuditLog {
     texture: string;
     flavor: string;
   };
+  /** คอลัมน์ที่แอดมินเพิ่มเองในชีต Products */
+  custom?: Record<string, string>;
 }
 
 export interface Round extends BaseAuditLog {

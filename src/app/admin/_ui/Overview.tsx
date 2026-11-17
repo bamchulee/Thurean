@@ -189,7 +189,7 @@ export function Overview({
           ) : (
             <div className="overflow-x-auto -mx-4">
               <table className="w-full text-sm">
-                <thead className="text-[11px] text-stone-500">
+                <thead className="text-[11px] text-stone-500 whitespace-nowrap">
                   <tr>
                     <th className="text-left px-4 py-1.5">รอบ</th>
                     <th className="text-right px-2">ออเดอร์</th>

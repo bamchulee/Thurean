@@ -32,39 +32,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ช่องที่เว้นว่างให้ว่างจริง — ไม่เติมค่าตัวอย่าง
+    const num = (v: unknown) => (v === "" || v === null || v === undefined || Number.isNaN(Number(v)) ? undefined : Number(v));
     const newProduct: Product = {
       id: body.id?.trim() || localNextId("products", data.products.map((p) => p.id)),
-      productType: body.productType?.trim() || "รับคัดลูก",
+      productType: body.productType?.trim() || "",
       name: body.name.trim(),
-      variety: body.variety?.trim() || "หมอนทอง",
+      variety: body.variety?.trim() || "",
       type: body.type === "flesh" ? "flesh" : "whole",
-      maturity: body.maturity?.trim() || body.specs?.maturity || "แก่จัด 85%+",
-      texture: body.texture?.trim() || body.specs?.texture || "กรอบนอกนุ่มใน",
-      grade: body.grade?.trim() || "เกรด A+ พรีเมียม",
-      stockQty: typeof body.stockQty === "number" ? body.stockQty : 10,
-      stockKg: typeof body.stockKg === "number" ? body.stockKg : 30,
-      weight: body.weight?.trim() || "3.0 - 3.5 กก.",
+      maturity: body.maturity?.trim() || body.specs?.maturity || "",
+      texture: body.texture?.trim() || body.specs?.texture || "",
+      grade: body.grade?.trim() || "",
+      stockQty: num(body.stockQty),
+      stockKg: num(body.stockKg),
+      avgWeightKg: num(body.avgWeightKg),
+      weight: body.weight?.trim() || "",
       pricePerKg: targetPrice,
       price: targetPrice,
-      marketPrice: body.marketPrice ? Number(body.marketPrice) : undefined,
+      marketPrice: num(body.marketPrice),
       unit: body.unit?.trim() || "ลูก",
-      origin: body.origin?.trim() || "สวนระยองแท้",
-      brix: body.brix?.trim() || "33° Brix",
-      image:
-        body.image?.trim() ||
-        "https://images.unsplash.com/photo-1519544442-93857b48665e?auto=format&fit=crop&w=800&q=80",
+      origin: body.origin?.trim() || "",
+      brix: body.brix?.trim() || "",
+      image: body.image?.trim() || "",
       badge: body.badge?.trim() || undefined,
+      custom: body.custom,
       isAvailable: body.isAvailable !== false,
       isActive: (body.isActive === 0 || (body.isActive as any) === "0" || body.isActive === false) ? 0 : 1,
       createDate: new Date().toISOString(),
       createdBy: body.createdBy?.trim() || getAdminOperatorName(req),
       updatedAt: new Date().toISOString(),
       updatedBy: body.updatedBy?.trim() || body.createdBy?.trim() || getAdminOperatorName(req),
-      description: body.description?.trim() || "ทุเรียนคัดคุณภาพจากสวนโดยทุเรียนวินคิน",
+      description: body.description?.trim() || "",
       specs: {
-        maturity: body.maturity?.trim() || body.specs?.maturity || "แก่จัด 85%+",
-        texture: body.texture?.trim() || body.specs?.texture || "กรอบนอกนุ่มใน",
-        flavor: body.specs?.flavor || "หวานมันกลมกล่อม",
+        maturity: body.maturity?.trim() || body.specs?.maturity || "",
+        texture: body.texture?.trim() || body.specs?.texture || "",
+        flavor: body.specs?.flavor || "",
       },
     };
 

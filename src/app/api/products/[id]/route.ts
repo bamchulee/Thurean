@@ -41,6 +41,13 @@ export async function PATCH(
     if (body.stockKg !== undefined) updates.stockKg = Number(body.stockKg);
     if (body.avgWeightKg !== undefined) updates.avgWeightKg = Number(body.avgWeightKg);
     if (body.stockQty !== undefined) updates.stockQty = Number(body.stockQty);
+    if (body.variety !== undefined) updates.variety = body.variety;
+    if (body.origin !== undefined) updates.origin = body.origin;
+    if (body.brix !== undefined) updates.brix = body.brix;
+    if (body.unit !== undefined) updates.unit = body.unit;
+    if (body.type !== undefined) updates.type = body.type === "flesh" ? "flesh" : "whole";
+    if (body.marketPrice !== undefined) updates.marketPrice = Number(body.marketPrice) || 0;
+    if (body.custom !== undefined && body.custom && typeof body.custom === "object") updates.custom = body.custom;
     if (body.isActive !== undefined) {
       updates.isActive = (body.isActive === 0 || (body.isActive as any) === "0" || body.isActive === false) ? 0 : 1;
     }

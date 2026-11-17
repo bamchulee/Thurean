@@ -33,16 +33,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const totalQuota = Number(body.totalQuota) || 100;
+    const totalQuota = Number(body.totalQuota) || 0;
     const newRound: Round = {
       id: body.id?.trim() || localNextId("rounds", data.rounds.map((r) => r.id)),
       name: body.name.trim(),
-      truckRoute:
-        body.truckRoute?.trim() ||
-        "สายวิ่ง: ระยอง (แกลง) → จันทบุรี → ส่งตรงถึงบ้าน",
-      harvestDate: body.harvestDate?.trim() || "ศุกร์นี้",
-      closeDate: body.closeDate?.trim() || new Date(Date.now() + 3 * 86400000).toISOString(),
-      deliveryDate: body.deliveryDate?.trim() || "เสาร์-อาทิตย์นี้",
+      truckRoute: body.truckRoute?.trim() || "",
+      harvestDate: body.harvestDate?.trim() || "",
+      closeDate: body.closeDate?.trim() || "",
+      deliveryDate: body.deliveryDate?.trim() || "",
       status: "open",
       quotaRemaining: totalQuota,
       totalQuota,
