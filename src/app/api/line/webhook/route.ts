@@ -5,7 +5,7 @@
 // ลูกค้า (1:1) : จอง (ปุ่มพกข้อมูลการจองเอง ไม่พึ่งสถานะในเซิร์ฟเวอร์) → ส่งสลิป → เคลม / ติดตาม
 // ทุกการเปลี่ยนสถานะออเดอร์ผ่าน lib/order-workflow.ts
 // ============================================================
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import {
   getAllDatabase,
@@ -57,7 +57,7 @@ import { shopInfo } from "../../../../data/shop";
 import type { DatabaseState, Order, RuntimeConfig, User } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 interface LineWebhookEvent {
   type: string;
@@ -197,8 +197,12 @@ function parseContactInput(raw: string): { customerName: string; phone: string; 
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
-  await loadAppSettings();
-  const secret = (getRuntimeConfig().lineChannelSecret || "").trim();
+  // ตรวจลายเซ็นด้วยค่าที่มีอยู่แล้วทันที (env/แคช) — โหลดจาก Apps Script เฉพาะตอนยังไม่มีค่าเลย
+  let secret = (getRuntimeConfig().lineChannelSecret || "").trim();
+  if (!secret) {
+    await loadAppSettings();
+    secret = (getRuntimeConfig().lineChannelSecret || "").trim();
+  }
   if (!secret) {
     // ไม่ตั้ง secret = ตรวจไม่ได้ว่ามาจาก LINE จริง → ไม่รับ (ใครก็ปลอมข้อความ/กดปุ่มแอดมินได้)
     console.error("[LINE Webhook] LINE_CHANNEL_SECRET is not set — rejecting all events");
@@ -214,27 +218,59 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, error: "Bad JSON" }, { status: 400 });
   }
+  if (events.length === 0) return NextResponse.json({ ok: true });
 
-  // โหลดฐานข้อมูลก่อนอ่าน config: รหัสกลุ่ม/บัญชีแอดมินที่ผูกไว้มากับข้อมูลชีต
+  // ตอบ LINE ว่า "รับแล้ว" ทันที แล้วค่อยทำงานเบื้องหลัง — ถ้าตอบช้า LINE จะส่ง event เดิมซ้ำ (reply token ใช้ไม่ได้)
+  const baseUrlHint = resolvePublicBaseUrl(req, getRuntimeConfig().publicBaseUrl);
+  const work = () => processEvents(events, req, baseUrlHint);
+  try {
+    after(work);
+  } catch {
+    // นอก request ของ Next (เช่นสคริปต์ทดสอบ) — ทำให้เสร็จก่อนตอบ
+    await work();
+  }
+  return NextResponse.json({ ok: true });
+}
+
+async function processEvents(events: LineWebhookEvent[], req: NextRequest, baseUrlHint: string) {
+  // log สั้นๆ ไว้ไล่ปัญหา (ไม่มีข้อความ/รหัสลูกค้า)
+  console.log(
+    "[LINE Webhook]",
+    events.map((ev) => `${ev.source?.type || "?"}:${ev.type}${ev.message ? "/" + ev.message.type : ""}${ev.deliveryContext?.isRedelivery ? " (redelivery)" : ""}`).join(", ")
+  );
+
+  // โชว์ "กำลังพิมพ์…" ให้ลูกค้าก่อนอย่างอื่น
+  const earlyToken = getRuntimeConfig().lineChannelAccessToken || "";
+  await Promise.all(
+    events
+      .filter((ev) => ev.source?.type === "user" && ev.source.userId && (ev.type === "message" || ev.type === "postback"))
+      .map((ev) => showLineLoadingAnimation(ev.source!.userId!, earlyToken, 20))
+  );
+
+  // โหลดค่าตั้งค่า + ฐานข้อมูล (รหัสกลุ่ม/บัญชีแอดมินที่ผูกไว้มากับข้อมูลชีต)
+  await loadAppSettings();
   await getAllDatabase().catch((err) => console.warn("[LINE Webhook] preload failed", err));
   const cfg = getRuntimeConfig();
   const token = cfg.lineChannelAccessToken || "";
   if (!token) {
     console.error("[LINE Webhook] LINE_CHANNEL_ACCESS_TOKEN is not set — cannot reply");
-    return NextResponse.json({ ok: true });
+    return;
   }
-  const baseUrl = resolvePublicBaseUrl(req, cfg.publicBaseUrl);
+  const baseUrl = cfg.publicBaseUrl ? resolvePublicBaseUrl(req, cfg.publicBaseUrl) : baseUrlHint;
 
   for (const ev of events) {
     if (alreadyHandled(ev)) continue;
     const userId = ev.source?.userId || "";
+    // push แทนการตอบได้เฉพาะ event ที่ LINE ส่งซ้ำ (reply token ของรอบซ้ำมักใช้ไม่ได้)
+    // event ปกติถ้าตอบไม่สำเร็จจะไม่ push ซ้ำ — กันลูกค้าได้ข้อความเบิ้ลและกันโควต้า push หมด
+    const pushFallback = ev.deliveryContext?.isRedelivery ? userId || undefined : undefined;
     const ctx: Ctx = {
       ev,
       userId,
       token,
       cfg,
       baseUrl,
-      reply: (messages) => replyLineMessage(ev.replyToken || "", messages, token, userId || undefined),
+      reply: (messages) => replyLineMessage(ev.replyToken || "", messages, token, pushFallback),
     };
     try {
       await handleEvent(ctx);
@@ -245,7 +281,6 @@ export async function POST(req: NextRequest) {
       }
     }
   }
-  return NextResponse.json({ ok: true });
 }
 
 async function handleEvent(ctx: Ctx) {
@@ -256,9 +291,6 @@ async function handleEvent(ctx: Ctx) {
   }
   if (!ctx.userId || !ev.replyToken) return;
 
-  if (ev.type === "message" || ev.type === "postback") {
-    await showLineLoadingAnimation(ctx.userId, ctx.token, 10);
-  }
   if (ev.type === "follow") {
     const { data } = await getAllDatabase();
     await ctx.reply(buildWelcomeFlex(activeRoundOf(data)));
