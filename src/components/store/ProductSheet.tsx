@@ -247,7 +247,7 @@ export function ProductSheet({
             <div className="flex items-baseline gap-1.5 flex-wrap">
               <span className="text-2xl font-bold text-[#D9480F]">{baht(pricePerKg)}</span>
               <span className="text-xs text-stone-500">/กก.</span>
-              {product.marketPrice ? <span className="text-xs text-stone-400 line-through">{baht(product.marketPrice)}</span> : null}
+              {(product.marketPrice || 0) > pricePerKg ? <span className="text-xs text-stone-400 line-through">{baht(product.marketPrice || 0)}</span> : null}
             </div>
             <h3 className="mt-1 text-base font-semibold text-stone-900 leading-snug">{product.name}</h3>
             <p className={`mt-0.5 text-xs font-medium ${out ? "text-rose-600" : stock.isLowStock ? "text-rose-600" : "text-stone-500"}`}>{stock.summary}</p>

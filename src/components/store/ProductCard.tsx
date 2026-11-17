@@ -73,8 +73,8 @@ export function ProductCard({
           <div className="mt-1.5 pr-8 flex items-baseline gap-1 min-w-0">
             <span className="text-[#D9480F] font-bold text-base leading-none">{baht(pricePerKgOf(product))}</span>
             <span className="text-[10px] text-stone-500">/กก.</span>
-            {product.marketPrice ? (
-              <span className="text-[10px] text-stone-400 line-through truncate">{baht(product.marketPrice)}</span>
+            {(product.marketPrice || 0) > pricePerKgOf(product) ? (
+              <span className="text-[10px] text-stone-400 line-through truncate">{baht(product.marketPrice || 0)}</span>
             ) : null}
           </div>
           <p className="mt-1 pr-8 text-[10px] text-stone-500 flex items-center gap-0.5 min-w-0">
