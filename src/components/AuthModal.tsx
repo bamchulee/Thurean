@@ -1,6 +1,6 @@
 "use client";
 
-// หน้าต่างบัญชีสมาชิก: เข้าสู่ระบบด้วย LINE / Google / Facebook, เชื่อมช่องทางอื่น, แก้ชื่อ-ที่อยู่
+// หน้าต่างบัญชีสมาชิก: เข้าสู่ระบบด้วย LINE / Google, เชื่อมช่องทางอื่น, แก้ชื่อ-ที่อยู่
 // ทุกคนต้องเชื่อม LINE ก่อนสั่งซื้อ (ร้านส่งยอดเงิน QR และสถานะออเดอร์ทาง LINE)
 import React, { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, Link2, LogOut, ShieldCheck, X } from "lucide-react";
@@ -11,7 +11,6 @@ import { shopInfo } from "../data/shop";
 const PROVIDERS: { id: AuthProviderName; label: string }[] = [
   { id: "line", label: "LINE" },
   { id: "google", label: "Google" },
-  { id: "facebook", label: "Facebook" },
 ];
 
 const ERROR_TEXT: Record<string, string> = {
@@ -20,10 +19,8 @@ const ERROR_TEXT: Record<string, string> = {
   login_required: "กรุณาเข้าสู่ระบบก่อนเชื่อมบัญชี",
   line_failed: "เข้าสู่ระบบด้วย LINE ไม่สำเร็จ ลองใหม่อีกครั้ง",
   google_failed: "เข้าสู่ระบบด้วย Google ไม่สำเร็จ ลองใหม่อีกครั้ง",
-  facebook_failed: "เข้าสู่ระบบด้วย Facebook ไม่สำเร็จ ลองใหม่อีกครั้ง",
   line_not_configured: "ร้านยังไม่ได้เปิดใช้การเข้าสู่ระบบด้วย LINE",
   google_not_configured: "ร้านยังไม่ได้เปิดใช้การเข้าสู่ระบบด้วย Google",
-  facebook_not_configured: "ร้านยังไม่ได้เปิดใช้การเข้าสู่ระบบด้วย Facebook",
 };
 
 function GoogleIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -37,28 +34,18 @@ function GoogleIcon({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
-function FacebookIcon({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="currentColor">
-      <path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.88v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z" />
-    </svg>
-  );
-}
-
 const PROVIDER_STYLE: Record<AuthProviderName, string> = {
   line: "bg-[#06C755] hover:bg-[#05b34c] text-white",
   google: "bg-white hover:bg-stone-50 text-stone-800 border border-stone-300",
-  facebook: "bg-[#1877F2] hover:bg-[#166fe0] text-white",
 };
 
 function ProviderIcon({ id, className }: { id: AuthProviderName; className?: string }) {
   if (id === "line") return <LineIcon className={className} />;
-  if (id === "google") return <GoogleIcon className={className} />;
-  return <FacebookIcon className={className} />;
+  return <GoogleIcon className={className} />;
 }
 
-function linkedOf(user: { lineUserId?: string; googleId?: string; facebookId?: string }): Record<AuthProviderName, boolean> {
-  return { line: Boolean(user.lineUserId), google: Boolean(user.googleId), facebook: Boolean(user.facebookId) };
+function linkedOf(user: { lineUserId?: string; googleId?: string }): Record<AuthProviderName, boolean> {
+  return { line: Boolean(user.lineUserId), google: Boolean(user.googleId) };
 }
 
 export function AuthModal() {
@@ -228,7 +215,7 @@ export function AuthModal() {
                   {PROVIDERS.filter((p) => linked[p.id] || providers[p.id]).map((p) => (
                     <div key={p.id} className="flex items-center justify-between border border-stone-200 rounded-xl px-3 py-2">
                       <span className="inline-flex items-center gap-2 text-sm font-semibold text-stone-800">
-                        <ProviderIcon id={p.id} className={`w-4 h-4 ${p.id === "line" ? "text-[#06C755]" : p.id === "facebook" ? "text-[#1877F2]" : ""}`} />
+                        <ProviderIcon id={p.id} className={`w-4 h-4 ${p.id === "line" ? "text-[#06C755]" : ""}`} />
                         {p.label}
                       </span>
                       {linked[p.id] ? (

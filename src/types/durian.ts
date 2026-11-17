@@ -199,7 +199,6 @@ export interface User extends BaseAuditLog {
   /** user = ลูกค้า, staff = พนักงาน (ชั่ง/ยืนยันสลิป/จัดส่ง), admin = เจ้าของร้าน (ทุกอย่าง) */
   role: "user" | "staff" | "admin";
   googleId?: string;
-  facebookId?: string;
   email?: string;
   /** ช่องทางที่ผูกไว้ คั่นด้วยจุลภาค เช่น "google,line" */
   loginProviders?: string;

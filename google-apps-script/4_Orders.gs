@@ -27,7 +27,15 @@ function flattenProduct(p, isNew) {
       out[k] = p[k];
     }
   });
-  if (out.price !== undefined) out.price = Number(out.price) || 0;
+  // ร้านขายตามน้ำหนักจริงเท่านั้น: price จากเว็บ = ราคาต่อกิโล เก็บในคอลัมน์ pricePerKg คอลัมน์เดียว
+  if (out.price !== undefined) {
+    if (out.pricePerKg === undefined || out.pricePerKg === "") out.pricePerKg = Number(out.price) || 0;
+    delete out.price;
+  }
+  if (out.ripeness !== undefined) {
+    if (out.maturity === undefined) out.maturity = out.ripeness;
+    delete out.ripeness;
+  }
   if (out.isAvailable !== undefined) {
     out.isAvailable = out.isAvailable === true || String(out.isAvailable).toUpperCase() === "TRUE";
   }
@@ -39,6 +47,29 @@ function flattenProduct(p, isNew) {
   return out;
 }
 
+/** น้ำหนักที่ชั่งได้ของรายการ (กก.) — 0 = ยังไม่ชั่ง */
+function itemKg(it) {
+  const kgs = Array.isArray(it.fruitKgs) ? it.fruitKgs.map(Number).filter((n) => n > 0) : [];
+  if (kgs.length > 0) return kgs.reduce((a, b) => a + b, 0);
+  return Number(it.actualWeightKg) > 0 ? Number(it.actualWeightKg) : 0;
+}
+
+/** ข้อความอ่านง่ายในชีต เช่น "หมอนทอง 2 ลูก: 3.2 + 3.4 = 6.6 กก. × 180 = 1,188 บาท" */
+function summarizeItem(it) {
+  const perKg = Number(it.pricePerKg) || Number(it.price) || 0;
+  const unit = it.unit || "ลูก";
+  let text = String(it.productName || it.productId || "") + " " + (Number(it.qty) || 1) + " " + unit;
+  const kgs = Array.isArray(it.fruitKgs) ? it.fruitKgs.map(Number).filter((n) => n > 0) : [];
+  const kg = itemKg(it);
+  if (kg > 0) {
+    text += ": " + (kgs.length > 1 ? kgs.join(" + ") + " = " : "") + Number(kg.toFixed(2)) + " กก.";
+    if (perKg > 0) text += " × " + perKg + " = " + Math.round(kg * perKg).toLocaleString("en-US") + " บาท";
+  } else if (perKg > 0) {
+    text += " (" + perKg + " บาท/กก. รอชั่ง)";
+  }
+  return text;
+}
+
 // isNew = แถวใหม่เท่านั้นที่เติมค่าเริ่มต้น — ตอนอัปเดตบางช่อง ห้ามเขียนทับสถานะ/ขนส่ง/ช่องทางเดิม
 function flattenOrder(o, isNew) {
   const out = {};
@@ -46,15 +77,9 @@ function flattenOrder(o, isNew) {
     if (k === "items") {
       const items = Array.isArray(o.items) ? o.items : [];
       out.itemsJson = JSON.stringify(items);
-      out.itemSummary = items.map((it) => it.productName + " x" + it.qty).join(", ");
-      if (items.length > 0) {
-        if (!out.productType && items[0].productType) out.productType = items[0].productType;
-        if (!out.productId && items[0].productId) out.productId = items[0].productId;
-        if (!out.productName && items[0].productName) out.productName = items[0].productName;
-        if (!out.pricePerItem && items[0].price) out.pricePerItem = Number(items[0].price) || 0;
-        if (!out.weightPerItem && items[0].weightPerItem) out.weightPerItem = items[0].weightPerItem;
-        if (!out.quantity && items[0].qty) out.quantity = Number(items[0].qty) || 1;
-      }
+      out.itemSummary = items.map(summarizeItem).join("\n");
+      const kg = items.reduce((sum, it) => sum + itemKg(it), 0);
+      out.totalKg = kg > 0 ? Number(kg.toFixed(2)) : "";
     } else if (k !== "createdAt") {
       out[k] = o[k];
     }
@@ -62,12 +87,9 @@ function flattenOrder(o, isNew) {
   if (!out.createDate && o.createdAt) out.createDate = o.createdAt;
   if (out.totalPrice !== undefined) out.totalPrice = Number(out.totalPrice) || 0;
   if (out.shippingCost !== undefined) out.shippingCost = Number(out.shippingCost) || 0;
-  if (out.pricePerItem !== undefined) out.pricePerItem = Number(out.pricePerItem) || 0;
-  if (out.quantity !== undefined) out.quantity = Number(out.quantity) || 1;
   if (isNew) {
     if (!out.channel) out.channel = out.lineUserId ? "LINE Official" : "หน้าร้าน / Web";
     if (!out.courier) out.courier = "Flash Express";
-    if (!out.vehicleType) out.vehicleType = "รถห้องเย็นปรับอุณหภูมิ";
     if (!out.orderStatus) out.orderStatus = "สั่งจอง";
   }
   return out;

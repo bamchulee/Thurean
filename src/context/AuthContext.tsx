@@ -1,6 +1,6 @@
 "use client";
 
-// สถานะสมาชิกฝั่งหน้าเว็บ: เข้าสู่ระบบด้วย LINE / Google / Facebook (ไม่มีรหัสผ่าน)
+// สถานะสมาชิกฝั่งหน้าเว็บ: เข้าสู่ระบบด้วย LINE / Google (ไม่มีรหัสผ่าน)
 // การเข้า/เชื่อมบัญชีเป็นการเปลี่ยนหน้าไป /api/auth/<provider>/login แล้วกลับมาหน้าเดิม
 import React, {
   createContext,
@@ -12,7 +12,7 @@ import React, {
 } from "react";
 import type { SafeUser } from "../types/durian";
 
-export type AuthProviderName = "line" | "google" | "facebook";
+export type AuthProviderName = "line" | "google";
 
 export interface LineLoginPayload {
   /** access token จาก liff.getAccessToken() — เซิร์ฟเวอร์ใช้ยืนยันตัวตนกับ LINE */
@@ -38,7 +38,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const USER_STORAGE_KEY = "winkin_durian_user_v1";
-const NO_PROVIDERS = { line: false, google: false, facebook: false };
+const NO_PROVIDERS = { line: false, google: false };
 
 function currentPath(): string {
   if (typeof window === "undefined") return "/";

@@ -1,5 +1,5 @@
 // ============================================================
-// เข้าสู่ระบบด้วย LINE / Google / Facebook (OAuth 2.0 authorization code)
+// เข้าสู่ระบบด้วย LINE / Google (OAuth 2.0 authorization code)
 // /api/auth/<provider>/login?mode=login|link&next=/path → ผู้ให้บริการ → /api/auth/<provider>/callback
 // state เซ็นด้วย HMAC (ไม่ต้องเก็บในเซิร์ฟเวอร์) + nonce ใน cookie กันคนอื่นยัดผลล็อกอินมาให้
 // ============================================================
@@ -29,8 +29,6 @@ function credentialsFor(provider: AuthProvider): ProviderCredentials | null {
       return pick(cfg.lineLoginChannelId, cfg.lineLoginChannelSecret);
     case "google":
       return pick(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
-    case "facebook":
-      return pick(process.env.FACEBOOK_APP_ID, process.env.FACEBOOK_APP_SECRET);
   }
 }
 
@@ -39,7 +37,6 @@ export function configuredProviders(): Record<AuthProvider, boolean> {
   return {
     line: Boolean(credentialsFor("line")),
     google: Boolean(credentialsFor("google")),
-    facebook: Boolean(credentialsFor("facebook")),
   };
 }
 
@@ -128,13 +125,10 @@ export function startOAuth(req: NextRequest, provider: AuthProvider): NextRespon
     url.searchParams.set("scope", "profile openid");
     // ชวนเพิ่มเพื่อน OA ตอนล็อกอิน — ต้องเป็นเพื่อนถึงจะได้รับยอด/QR/สถานะทาง LINE
     url.searchParams.set("bot_prompt", "aggressive");
-  } else if (provider === "google") {
+  } else {
     url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("scope", "openid email profile");
     url.searchParams.set("prompt", "select_account");
-  } else {
-    url = new URL("https://www.facebook.com/dialog/oauth");
-    url.searchParams.set("scope", "public_profile,email");
   }
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", creds.clientId);
@@ -190,49 +184,31 @@ async function fetchProfile(
     return { provider, providerId: p.userId, displayName: p.displayName, avatarUrl: p.pictureUrl, lineFriend };
   }
 
-  if (provider === "google") {
-    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: redirectUri,
-        client_id: creds.clientId,
-        client_secret: creds.clientSecret,
-      }),
-    });
-    if (!tokenRes.ok) throw new Error(`google token ${tokenRes.status}`);
-    const { access_token } = (await tokenRes.json()) as { access_token: string };
-    const infoRes = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-      headers: { Authorization: `Bearer ${access_token}` },
-    });
-    if (!infoRes.ok) throw new Error(`google userinfo ${infoRes.status}`);
-    const g = (await infoRes.json()) as { sub: string; name?: string; email?: string; email_verified?: boolean; picture?: string };
-    return {
-      provider,
-      providerId: g.sub,
-      displayName: g.name,
-      email: g.email_verified ? g.email : undefined,
-      avatarUrl: g.picture,
-    };
-  }
-
-  const tokenUrl = new URL("https://graph.facebook.com/oauth/access_token");
-  tokenUrl.searchParams.set("client_id", creds.clientId);
-  tokenUrl.searchParams.set("client_secret", creds.clientSecret);
-  tokenUrl.searchParams.set("redirect_uri", redirectUri);
-  tokenUrl.searchParams.set("code", code);
-  const tokenRes = await fetch(tokenUrl);
-  if (!tokenRes.ok) throw new Error(`facebook token ${tokenRes.status}`);
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+      client_id: creds.clientId,
+      client_secret: creds.clientSecret,
+    }),
+  });
+  if (!tokenRes.ok) throw new Error(`google token ${tokenRes.status}`);
   const { access_token } = (await tokenRes.json()) as { access_token: string };
-  const meUrl = new URL("https://graph.facebook.com/me");
-  meUrl.searchParams.set("fields", "id,name,email,picture.type(large)");
-  meUrl.searchParams.set("access_token", access_token);
-  const meRes = await fetch(meUrl);
-  if (!meRes.ok) throw new Error(`facebook me ${meRes.status}`);
-  const f = (await meRes.json()) as { id: string; name?: string; email?: string; picture?: { data?: { url?: string } } };
-  return { provider, providerId: f.id, displayName: f.name, email: f.email, avatarUrl: f.picture?.data?.url };
+  const infoRes = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+    headers: { Authorization: `Bearer ${access_token}` },
+  });
+  if (!infoRes.ok) throw new Error(`google userinfo ${infoRes.status}`);
+  const g = (await infoRes.json()) as { sub: string; name?: string; email?: string; email_verified?: boolean; picture?: string };
+  return {
+    provider,
+    providerId: g.sub,
+    displayName: g.name,
+    email: g.email_verified ? g.email : undefined,
+    avatarUrl: g.picture,
+  };
 }
 
 export async function finishOAuth(req: NextRequest, provider: AuthProvider): Promise<NextResponse> {

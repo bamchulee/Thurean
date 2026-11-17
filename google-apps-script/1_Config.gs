@@ -29,7 +29,8 @@
  * 2. เลือกฟังก์ชัน generateApiKey แล้วกด Run (ครั้งเดียว) คัดลอก key จาก Execution log
  * 3. นำ key ไปใส่ที่เว็บ: ตัวแปร GOOGLE_SHEETS_API_KEY แล้ว redeploy เว็บ
  * 4. Deploy > Manage deployments > แก้ไข > Version: New version > Deploy (URL เดิม)
- * 5. เลือกฟังก์ชัน migrateToRunningIds แล้วกด Run (ครั้งเดียว) เพื่อจัดระเบียบข้อมูลเก่า
+ * 5. เลือกฟังก์ชัน setupDurianWinkinSheets แล้วกด Run — จัดลำดับคอลัมน์ตาม SHEET_DEFS ใส่โน้ตภาษาไทยที่หัวคอลัมน์
+ *    และลบคอลัมน์เลิกใช้ (สำรองชีตเป็น <ชื่อ>_backup_<วันเวลา> ก่อนถ้ามีข้อมูล) กดซ้ำได้ ไม่ทำข้อมูลหาย
  * ============================================================
  */
 
@@ -46,7 +47,10 @@ const SHEET_NAMES = {
   USERS: "Users",
 };
 
+// คอลัมน์ท้ายตารางทุกตาราง (ใครสร้าง/แก้ล่าสุด เมื่อไร)
 const AUDIT_HEADERS = ["isActive", "createDate", "createdBy", "updatedAt", "updatedBy"];
+// ตารางที่โชว์วันที่สร้างไว้คอลัมน์ที่ 2 (ออเดอร์/เคลม ต้องดูวันที่ก่อน)
+const AUDIT_NO_DATE = ["isActive", "createdBy", "updatedAt", "updatedBy"];
 
 // รูปแบบรหัสเลขรัน (ต้องตรงกับ src/lib/ids.ts ฝั่งเว็บ)
 // เลขใหม่ = เลขสูงสุดที่ตรงรูปแบบในตาราง + 1 — รหัสเก่าที่ไม่ตรงรูปแบบจะถูกข้าม
@@ -63,51 +67,48 @@ const ID_FORMATS = {
 // ชื่อหัวคอลัมน์รุ่นเก่า → ชื่อปัจจุบัน (เปลี่ยนชื่อให้อัตโนมัติ ข้อมูลในคอลัมน์ไม่หาย)
 const HEADER_ALIASES = { createdAt: "createDate", id: "userId" };
 
+// ============================================================
+// โครงตาราง — ลำดับคอลัมน์ในชีตเป็นไปตามนี้เสมอ (setupDurianWinkinSheets จัดเรียงให้)
+// ============================================================
 const SHEET_DEFS = {
   Users: {
     color: "#1e3a8a",
     idCol: "userId",
     headers: [
-      "userId", "lineUserId", "username", "displayName", "firstName", "lastName",
-      "phone", "address", "postalCode", "mapsUrl", "latitude", "longitude", "avatarUrl", "role", "source", "notes",
-      "passwordHash", "lastLoginAt",
-      // ช่องทางเข้าสู่ระบบ: บัญชีเดียวผูกได้หลายช่องทาง (ต้องผูก LINE ก่อนสั่งซื้อ)
-      "googleId", "facebookId", "email", "loginProviders",
+      "userId", "role", "displayName", "firstName", "lastName", "phone", "email",
+      "address", "postalCode", "mapsUrl", "latitude", "longitude",
+      "lineUserId", "googleId", "loginProviders", "avatarUrl", "source", "lastLoginAt", "notes",
     ].concat(AUDIT_HEADERS),
   },
   Products: {
     color: "#15803d",
     idCol: "id",
     headers: [
-      "id", "productType", "name", "maturity", "texture", "stockQty", "grade",
-      "weight", "image", "description", "pricePerKg", "price",
-      "variety", "type", "unit", "isAvailable", "stockKg", "stockUnit", "avgWeightKg",
-      "origin", "brix", "badge",
+      "id", "name", "variety", "productType", "grade", "maturity", "texture", "flavor",
+      "weight", "avgWeightKg", "pricePerKg", "marketPrice",
+      "isAvailable", "stockQty", "stockKg", "unit", "stockUnit", "type",
+      "badge", "origin", "brix", "image", "description",
     ].concat(AUDIT_HEADERS),
   },
   Rounds: {
     color: "#b45309",
     idCol: "id",
     headers: [
-      "id", "name", "truckRoute", "harvestDate", "closeDate", "deliveryDate", "status",
-      "quotaRemaining", "totalQuota",
+      "id", "name", "status", "truckRoute", "harvestDate", "closeDate", "deliveryDate",
+      "totalQuota", "quotaRemaining",
     ].concat(AUDIT_HEADERS),
   },
   Orders: {
     color: "#166534",
     idCol: "id",
     headers: [
-      "id", "roundId", "userId", "lineUserId", "customerName", "phone", "address",
-      "productType", "productId", "productName", "pricePerItem", "weightPerItem", "quantity",
-      "totalPrice", "courier", "channel", "vehicleType", "trackingNo", "orderStatus",
-      "paymentStatus", "shippingMethod", "shippingCost", "grandTotal", "itemsJson", "itemSummary",
-      "mapsUrl", "slipUrl", "notes", "lotId", "deliveredAt", "ripenessPref",
-      // เวลาแต่ละขั้นของ flow จอง → ชั่ง → ส่งสลิป → ยืนยันยอด / ยกเลิก
-      "weighedAt", "slipSubmittedAt", "paidAt", "cancelledAt", "cancelReason",
-      // กันออเดอร์ซ้ำเมื่อลูกค้ากดปุ่มยืนยันอันเดิมใน LINE ซ้ำ
-      "bookingKey",
-      "isActive", "createDate", "createdBy", "updatedAt", "updatedBy",
-    ],
+      "id", "createDate", "roundId", "orderStatus", "paymentStatus",
+      "customerName", "phone", "address", "mapsUrl", "userId", "lineUserId", "channel",
+      "itemSummary", "ripenessPref", "totalKg", "totalPrice", "shippingMethod", "shippingCost", "grandTotal",
+      "slipUrl", "courier", "trackingNo",
+      "weighedAt", "slipSubmittedAt", "paidAt", "deliveredAt", "cancelledAt", "cancelReason",
+      "lotId", "notes", "bookingKey", "itemsJson",
+    ].concat(AUDIT_NO_DATE),
   },
   Lots_Cost: {
     color: "#7c2d12",
@@ -121,11 +122,10 @@ const SHEET_DEFS = {
     color: "#991b1b",
     idCol: "claimId",
     headers: [
-      "claimId", "createDate", "orderId", "userId", "lineUserId", "customerName", "phone",
-      "ripenessType", "deliveredAt", "reason", "description",
-      "evidencePhotos", "evidenceName", "status", "resolutionType", "resolutionNote", "lotId",
-      "isActive", "createdBy", "updatedAt", "updatedBy",
-    ],
+      "claimId", "createDate", "status", "orderId", "customerName", "phone", "userId", "lineUserId",
+      "reason", "description", "evidencePhotos", "evidenceName", "ripenessType", "deliveredAt", "lotId",
+      "resolutionType", "resolutionNote",
+    ].concat(AUDIT_NO_DATE),
   },
   Promotions: {
     color: "#b45309",
@@ -136,11 +136,135 @@ const SHEET_DEFS = {
   },
 };
 
+// คอลัมน์รุ่นเก่าที่เลิกใช้แล้ว — setupDurianWinkinSheets ลบทิ้ง (สำรองชีตไว้ก่อนถ้ามีข้อมูล)
+// คอลัมน์อื่นที่ไม่อยู่ในโครงและมีข้อมูล (เช่นที่แอดมินเพิ่มเอง) จะถูกย้ายไปท้ายตาราง ไม่ลบ
+const RETIRED_COLUMNS = {
+  Users: ["username", "passwordHash", "facebookId"],
+  Products: ["price", "ripeness"],
+  Orders: ["productType", "productId", "productName", "pricePerItem", "weightPerItem", "quantity", "vehicleType"],
+};
+
+// ย้ายค่าจากคอลัมน์เลิกใช้ไปคอลัมน์ใหม่ก่อนลบ (เฉพาะช่องปลายทางที่ยังว่าง)
+const RETIRED_MOVES = {
+  Products: { price: "pricePerKg", ripeness: "maturity" },
+};
+
+// คำอธิบายภาษาไทย — ขึ้นเป็นโน้ตเมื่อเอาเมาส์ชี้หัวคอลัมน์
+const HEADER_NOTES = {
+  // ใช้ร่วมกัน
+  isActive: "1 = ใช้งาน, 0 = ปิด/ลบแล้ว (ไม่ลบแถวจริง)",
+  createDate: "วันเวลาที่สร้าง (ระบบใส่ให้)",
+  createdBy: "ใครสร้าง (ระบบใส่ให้)",
+  updatedAt: "แก้ไขล่าสุดเมื่อ (ระบบใส่ให้)",
+  updatedBy: "ใครแก้ล่าสุด (ระบบใส่ให้)",
+  notes: "หมายเหตุ",
+  phone: "เบอร์โทร",
+  address: "ที่อยู่จัดส่ง",
+  mapsUrl: "ลิงก์ Google Maps",
+  userId: "รหัสสมาชิก (USR-xxxxx)",
+  lineUserId: "รหัส LINE ของลูกค้า (ใช้ส่งข้อความหา)",
+  customerName: "ชื่อลูกค้า",
+  roundId: "รอบส่ง (WK-ROUND-xx)",
+  lotId: "ล็อตต้นทุนที่ใช้ (LOT-xxx)",
+  status: "สถานะ",
+  variety: "สายพันธุ์ เช่น หมอนทอง",
+  badge: "ป้ายบนการ์ด เช่น ขายดี",
+  // Users
+  role: "สิทธิ์: user = ลูกค้า, staff = พนักงาน (ชั่ง/สลิป/ส่งของ), admin = เจ้าของร้าน",
+  displayName: "ชื่อที่แสดง (จาก LINE/Google)",
+  firstName: "ชื่อจริง",
+  lastName: "นามสกุล",
+  email: "อีเมล (จาก Google)",
+  postalCode: "รหัสไปรษณีย์",
+  latitude: "ละติจูดที่ปักหมุด",
+  longitude: "ลองจิจูดที่ปักหมุด",
+  googleId: "รหัสบัญชี Google (ถ้าเคยเข้าด้วย Google)",
+  loginProviders: "ช่องทางที่ผูกไว้ เช่น line,google",
+  avatarUrl: "รูปโปรไฟล์",
+  source: "สมัครจากไหน: line-login / line-chat / web",
+  lastLoginAt: "เข้าระบบล่าสุด",
+  // Products
+  name: "ชื่อสินค้า",
+  productType: "รับคัดลูก / รับมาเป็นโลแล้วขายเลย",
+  grade: "เกรด/ไซส์",
+  maturity: "ความสุก",
+  texture: "เนื้อสัมผัส",
+  flavor: "รสชาติ",
+  weight: "น้ำหนักต่อลูก (ข้อความ เช่น 3-4 กก.)",
+  avgWeightKg: "น้ำหนักเฉลี่ยต่อลูก (ตัวเลข กก.) ใช้คิดสต็อกจาก stockKg",
+  pricePerKg: "ราคาต่อกิโล (บาท) — ร้านขายตามน้ำหนักจริงเท่านั้น",
+  marketPrice: "ราคาตลาดต่อกิโล (โชว์ขีดฆ่า) — ว่างได้",
+  isAvailable: "TRUE = เปิดขาย, FALSE = ปิดขาย",
+  stockQty: "สต็อกเป็นลูก (ว่าง = ไม่นับสต็อก)",
+  stockKg: "สต็อกเป็นกิโล (ใช้เมื่อไม่ได้นับเป็นลูก)",
+  unit: "หน่วยขาย เช่น ลูก / กล่อง",
+  stockUnit: "kg = นับสต็อกเป็นกิโล, qty = นับเป็นชิ้น",
+  type: "whole = ทั้งลูก, flesh = แกะเนื้อ",
+  origin: "แหล่งปลูก",
+  brix: "ความหวาน (brix)",
+  image: "ลิงก์รูปสินค้า",
+  description: "รายละเอียดสินค้า",
+  // Rounds
+  truckRoute: "เส้นทางรถ",
+  harvestDate: "วันตัด",
+  closeDate: "ปิดรับจอง",
+  deliveryDate: "วันส่ง",
+  totalQuota: "โควต้าทั้งหมด (ลูก)",
+  quotaRemaining: "โควต้าคงเหลือ (ระบบหักให้)",
+  // Orders
+  id: "รหัส",
+  orderStatus: "สั่งจอง → รอชำระเงิน → ชำระเงินแล้ว/เตรียมจัดส่ง → กำลังจัดส่ง → จัดส่งสำเร็จ (หรือ ยกเลิก)",
+  paymentStatus: "pending = ยังไม่จ่าย, slip_submitted = ส่งสลิปแล้ว, confirmed = ยืนยันแล้ว, refunded = คืนเงิน",
+  channel: "สั่งผ่าน LINE หรือเว็บ",
+  itemSummary: "สรุปรายการ + น้ำหนักที่ชั่ง (อ่านง่าย ระบบเขียนให้)",
+  ripenessPref: "ความสุกที่ลูกค้าต้องการ",
+  totalKg: "น้ำหนักรวมที่ชั่งได้ (กก.)",
+  totalPrice: "ค่าทุเรียน = น้ำหนัก × ราคาต่อกิโล (0 = ยังไม่ชั่ง)",
+  shippingMethod: "วิธีจัดส่ง",
+  shippingCost: "ค่าส่ง",
+  grandTotal: "ยอดที่ต้องจ่าย = ค่าทุเรียน + ค่าส่ง",
+  slipUrl: "รูปสลิป",
+  courier: "ขนส่ง",
+  trackingNo: "เลขพัสดุ",
+  weighedAt: "ชั่งเสร็จเมื่อ",
+  slipSubmittedAt: "ลูกค้าส่งสลิปเมื่อ",
+  paidAt: "ยืนยันยอดเมื่อ",
+  deliveredAt: "ส่งถึงเมื่อ",
+  cancelledAt: "ยกเลิกเมื่อ",
+  cancelReason: "เหตุผลที่ยกเลิก",
+  bookingKey: "กันออเดอร์ซ้ำจากปุ่มใน LINE (ระบบใช้)",
+  itemsJson: "รายการสินค้าแบบเต็ม (ระบบใช้ — ไม่ต้องแก้เอง)",
+  // Lots_Cost
+  date: "วันที่รับของ",
+  supplierName: "สวน/ผู้ขาย",
+  supplierPhone: "เบอร์ผู้ขาย",
+  weightKg: "น้ำหนักที่รับมา (กก.)",
+  costPerKg: "ต้นทุนต่อกิโล",
+  totalFruitCost: "ค่าทุเรียนรวม",
+  packagingCost: "ค่ากล่อง/แพ็ก",
+  truckFuelCost: "ค่ารถ/น้ำมัน",
+  // Claims
+  claimId: "รหัสเคลม (CLM-xxxxx)",
+  orderId: "ออเดอร์ที่เคลม",
+  reason: "เหตุผล",
+  evidencePhotos: "รูปหลักฐาน",
+  evidenceName: "ชื่อไฟล์หลักฐาน",
+  ripenessType: "ready_to_eat = สุกพร้อมทาน, ripen_at_home = บ่มเอง",
+  resolutionType: "replacement = ส่งใหม่, refund = คืนเงิน",
+  resolutionNote: "บันทึกการแก้ไข",
+  // Promotions
+  title: "ชื่อโปรโมชัน",
+  discountText: "ข้อความส่วนลด",
+  conditionText: "เงื่อนไข",
+  promoCode: "โค้ด",
+};
+
 // คอลัมน์ที่ต้องเก็บเป็น "ข้อความ" เสมอ (กันเลข 0 นำหน้าหาย / เลขพัสดุกลายเป็น 1.2E+15 / วันที่ถูกแปลง)
 const TEXT_COLUMNS = {
   phone: 1, supplierPhone: 1, postalCode: 1, trackingNo: 1, promoCode: 1,
-  username: 1, passwordHash: 1, createDate: 1, updatedAt: 1, date: 1, lastLoginAt: 1,
+  createDate: 1, updatedAt: 1, date: 1, lastLoginAt: 1,
   mapsUrl: 1, deliveredAt: 1, ripenessType: 1, evidencePhotos: 1, resolutionType: 1,
-  // รหัสบัญชี Google/Facebook เป็นตัวเลขยาว — ถ้าชีตแปลงเป็นตัวเลขจะเพี้ยน
-  googleId: 1, facebookId: 1, lineUserId: 1,
+  weighedAt: 1, slipSubmittedAt: 1, paidAt: 1, cancelledAt: 1,
+  // รหัสบัญชี Google เป็นตัวเลขยาว — ถ้าชีตแปลงเป็นตัวเลขจะเพี้ยน
+  googleId: 1, lineUserId: 1,
 };

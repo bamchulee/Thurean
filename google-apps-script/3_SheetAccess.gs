@@ -30,7 +30,7 @@ function styleHeader(sheet, color) {
   sheet.setFrozenRows(1);
 }
 
-/** สร้างชีต/เติมหัวคอลัมน์ที่ขาดให้อัตโนมัติ (ไม่ลบหรือย้ายคอลัมน์เดิม) */
+/** สร้างชีต / เปลี่ยนชื่อหัวคอลัมน์รุ่นเก่า / ถ้าคอลัมน์ขาดจะจัดเรียงทั้งตารางใหม่ตาม SHEET_DEFS */
 function ensureSheet(name) {
   const def = SHEET_DEFS[name];
   const ss = getSpreadsheetFor(name);
@@ -52,15 +52,87 @@ function ensureSheet(name) {
       current[at] = target;
     }
   });
-  const missing = def.headers.filter((h) => current.indexOf(h) === -1);
-  if (missing.length > 0) {
-    const startCol = current.length + 1;
-    const needCols = startCol + missing.length - 1 - sheet.getMaxColumns();
-    if (needCols > 0) sheet.insertColumnsAfter(sheet.getMaxColumns(), needCols);
-    sheet.getRange(1, startCol, 1, missing.length).setValues([missing]);
-    styleHeader(sheet, def.color);
-  }
+  if (def.headers.some((h) => current.indexOf(h) === -1)) arrangeColumns(sheet, name);
   return sheet;
+}
+
+/**
+ * จัดคอลัมน์ให้ตรง SHEET_DEFS (ย้ายข้อมูลตามชื่อหัวคอลัมน์ ไม่ใช่ตามตำแหน่ง)
+ * - คอลัมน์ใน RETIRED_COLUMNS ถูกลบ
+ * - คอลัมน์อื่นที่ไม่อยู่ในโครง: ว่าง = ลบ, มีข้อมูล = ย้ายไปท้ายตาราง
+ * - ถ้าจะลบคอลัมน์ที่มีข้อมูล สำรองชีตไว้ก่อนเป็น <ชื่อ>_backup_<วันเวลา>
+ * คืนข้อความสรุปสิ่งที่ทำ หรือ "" ถ้าเรียงถูกอยู่แล้ว
+ */
+function arrangeColumns(sheet, name) {
+  const def = SHEET_DEFS[name];
+  const retired = RETIRED_COLUMNS[name] || [];
+  const values = sheet.getDataRange().getValues();
+  const header = values[0].map(String);
+  const rows = values.slice(1).filter((r) => r.some((v) => v !== "" && v !== null));
+  const hasData = (col) => rows.some((r) => r[col] !== "" && r[col] !== null);
+
+  const extras = [];
+  const dropped = [];
+  let dropsData = false;
+  header.forEach((h, i) => {
+    if (!h || def.headers.indexOf(h) !== -1 || extras.indexOf(h) !== -1) return;
+    if (retired.indexOf(h) === -1 && hasData(i)) {
+      extras.push(h);
+    } else {
+      dropped.push(h);
+      if (hasData(i)) dropsData = true;
+    }
+  });
+  const target = def.headers.concat(extras);
+  if (target.length === header.length && target.every((h, i) => h === header[i])) return "";
+
+  if (dropsData) {
+    const stamp = Utilities.formatDate(new Date(), "Asia/Bangkok", "yyyyMMdd_HHmm");
+    sheet.copyTo(sheet.getParent()).setName(name + "_backup_" + stamp);
+  }
+
+  const idx = {};
+  header.forEach((h, i) => {
+    if (h && idx[h] === undefined) idx[h] = i;
+  });
+  const moves = RETIRED_MOVES[name] || {};
+  const out = rows.map((r) => {
+    const next = target.map((h) => (idx[h] === undefined ? "" : r[idx[h]]));
+    Object.keys(moves).forEach((from) => {
+      const to = target.indexOf(moves[from]);
+      if (idx[from] !== undefined && to !== -1 && (next[to] === "" || next[to] === null)) next[to] = r[idx[from]];
+    });
+    return next;
+  });
+
+  sheet.clear();
+  sheet.clearNotes();
+  sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).clearDataValidations();
+  if (sheet.getMaxColumns() < target.length) sheet.insertColumnsAfter(sheet.getMaxColumns(), target.length - sheet.getMaxColumns());
+  const bodyRows = Math.max(1, sheet.getMaxRows() - 1);
+  // ตั้งคอลัมน์ข้อความก่อนเขียน กันเบอร์โทร 0 นำหน้าหาย / รหัสยาวกลายเป็นตัวเลข
+  target.forEach((h, i) => {
+    if (TEXT_COLUMNS[h]) sheet.getRange(2, i + 1, bodyRows, 1).setNumberFormat("@");
+  });
+  sheet.getRange(1, 1, 1, target.length).setValues([target]);
+  if (out.length > 0) sheet.getRange(2, 1, out.length, target.length).setValues(out);
+  if (sheet.getMaxColumns() > target.length) {
+    sheet.deleteColumns(target.length + 1, sheet.getMaxColumns() - target.length);
+  }
+  styleHeader(sheet, def.color);
+  _tables[name] = undefined;
+
+  const parts = [name + ": จัดเรียงคอลัมน์ใหม่"];
+  if (dropped.length) parts.push("ลบ " + dropped.join(", "));
+  if (extras.length) parts.push("ย้ายไปท้าย " + extras.join(", "));
+  if (dropsData) parts.push("สำรองชีตเดิมไว้แล้ว");
+  return parts.join(" / ");
+}
+
+/** โน้ตภาษาไทยที่หัวคอลัมน์ (เอาเมาส์ชี้ดูความหมาย) */
+function applyHeaderNotes(sheet) {
+  const header = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  sheet.getRange(1, 1, 1, header.length).setNotes([header.map((h) => HEADER_NOTES[h] || "")]);
 }
 
 function normalizeCell(v) {

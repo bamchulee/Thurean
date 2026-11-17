@@ -5,7 +5,7 @@ import { toSafeUser } from "../../../../lib/user-auth";
 
 export const dynamic = "force-dynamic";
 
-// หลังบ้านใช้ได้เฉพาะสมาชิกที่มีสิทธิ์ staff / admin ในชีต Users (เข้าระบบด้วย LINE / Google / Facebook)
+// หลังบ้านใช้ได้เฉพาะสมาชิกที่มีสิทธิ์ staff / admin ในชีต Users (เข้าระบบด้วย LINE / Google)
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser(req);
   const role = user?.role === "admin" || user?.role === "staff" ? user.role : null;

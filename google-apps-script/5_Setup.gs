@@ -7,10 +7,14 @@
 
 function setupDurianWinkinSheets() {
   _tables = {};
+  const log = [];
   Object.keys(SHEET_DEFS).forEach((name) => {
     const def = SHEET_DEFS[name];
     const sheet = ensureSheet(name);
+    const arranged = arrangeColumns(sheet, name);
+    if (arranged) log.push(arranged);
     styleHeader(sheet, def.color);
+    applyHeaderNotes(sheet);
 
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
     const dataRows = Math.max(1, sheet.getMaxRows() - 1);
@@ -36,7 +40,10 @@ function setupDurianWinkinSheets() {
       if (dirty) range.setValues(values);
     }
   });
-  return "ตรวจโครงสร้างตารางครบทั้ง 7 ตารางแล้ว";
+  _tables = {};
+  log.push("ตรวจโครงสร้างตารางครบทั้ง 7 ตารางแล้ว");
+  Logger.log(log.join("\n"));
+  return log.join("\n");
 }
 
 /** ล้างข้อมูลเฉพาะตารางของระบบ (ไม่แตะชีตอื่นที่สร้างไว้เอง) */

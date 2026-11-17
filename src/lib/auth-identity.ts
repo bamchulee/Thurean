@@ -1,5 +1,5 @@
 // ============================================================
-// บัญชีสมาชิก 1 คน = 1 แถวในชีต Users ผูกช่องทางเข้าสู่ระบบได้หลายทาง (LINE / Google / Facebook)
+// บัญชีสมาชิก 1 คน = 1 แถวในชีต Users ผูกช่องทางเข้าสู่ระบบได้หลายทาง (LINE / Google)
 // - เข้าครั้งแรกด้วยช่องทางไหน สร้างแถวใหม่ด้วยช่องทางนั้น
 // - กด "เชื่อม" ช่องทางอื่นตอนล็อกอินอยู่ = เพิ่มรหัสช่องทางนั้นลงแถวเดิม
 // - เชื่อม LINE แล้วเจอว่า LINE นี้มีแถวอยู่แล้ว (เคยคุยกับบอท/สั่งผ่าน LINE) → รวมเข้าแถวของ LINE
@@ -15,17 +15,16 @@ import {
 } from "./sheets-db";
 import type { User } from "../types/durian";
 
-export type AuthProvider = "line" | "google" | "facebook";
+export type AuthProvider = "line" | "google";
 
-export const AUTH_PROVIDERS: AuthProvider[] = ["line", "google", "facebook"];
+export const AUTH_PROVIDERS: AuthProvider[] = ["line", "google"];
 
 export const PROVIDER_LABEL: Record<AuthProvider, string> = {
   line: "LINE",
   google: "Google",
-  facebook: "Facebook",
 };
 
-const ID_FIELD = { line: "lineUserId", google: "googleId", facebook: "facebookId" } as const;
+const ID_FIELD = { line: "lineUserId", google: "googleId" } as const;
 
 export interface IdentityProfile {
   provider: AuthProvider;
@@ -180,7 +179,6 @@ export async function signInWithIdentity(profile: IdentityProfile, linkToUserId?
     await updateUserRecord(current.id, {
       isActive: 0,
       googleId: "",
-      facebookId: "",
       notes: `รวมเข้ากับบัญชี ${owner.id} เมื่อ ${now}`,
     });
     return { ok: true, user: merged, merged: true };

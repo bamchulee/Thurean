@@ -19,7 +19,7 @@ export function CheckoutAccountGate() {
         onClick={() => openAuthModal()}
         className="w-full bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl p-3 text-xs flex items-center justify-between text-amber-950 transition text-left"
       >
-        <span className="font-semibold">เข้าสู่ระบบก่อนสั่งซื้อ (LINE / Google / Facebook)</span>
+        <span className="font-semibold">เข้าสู่ระบบก่อนสั่งซื้อ (LINE / Google)</span>
         <span className="font-extrabold underline text-[11px] shrink-0">เข้าสู่ระบบ</span>
       </button>
     );

@@ -445,7 +445,7 @@ export default function TrackingPage() {
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center shadow-xs">
             <p className="font-extrabold text-amber-900 text-base mb-1">เข้าสู่ระบบเพื่อดูออเดอร์ของคุณ</p>
             <p className="text-xs text-stone-600 max-w-md mx-auto mb-3">
-              ใช้บัญชีเดียวกับที่สั่งซื้อ (LINE / Google / Facebook) — ระบบแสดงเฉพาะออเดอร์ของบัญชีนั้น
+              ใช้บัญชีเดียวกับที่สั่งซื้อ (LINE / Google) — ระบบแสดงเฉพาะออเดอร์ของบัญชีนั้น
             </p>
             <button
               type="button"
