@@ -105,7 +105,7 @@ function Navbar({
             />
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-extrabold text-[#1B4D31] tracking-tight leading-tight">
+                <h1 className="text-xl sm:text-2xl font-extrabold text-[#1B4D31] tracking-tight leading-tight whitespace-nowrap">
                   {shopInfo.name}
                 </h1>
                 <span className="hidden sm:inline-flex items-center gap-1 bg-emerald-50 text-[#1B4D31] border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
@@ -113,11 +113,11 @@ function Navbar({
                   คัดเกรดสวนแท้
                 </span>
               </div>
-              <p className="text-xs text-stone-500 font-medium flex items-center gap-1.5 mt-0.5">
+              <p className="text-xs text-stone-500 font-medium flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
                 <Truck className="w-3.5 h-3.5 text-amber-600" />
                 <span>วิ่งส่งตรงจากสวน</span>
-                <span className="text-stone-300">•</span>
-                <span className="font-mono text-stone-700 font-semibold">
+                <span className="hidden sm:inline text-stone-300">•</span>
+                <span className="hidden sm:inline font-mono text-stone-700 font-semibold">
                   {shopInfo.phone}
                 </span>
               </p>
@@ -281,13 +281,16 @@ function Navbar({
                 )}
               </div>
             ) : (
-              <a
-                href="/api/auth/line/login"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white font-bold text-xs transition shadow-xs"
+              // เปิดหน้าต่างเลือกช่องทาง (LINE / Google) — ไม่ผูกกับ LINE อย่างเดียว
+              <button
+                type="button"
+                onClick={() => openAuthModal()}
+                aria-label="เข้าสู่ระบบ"
+                className="inline-flex items-center gap-1.5 p-2.5 sm:px-3.5 sm:py-2 rounded-xl bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold text-xs transition shadow-xs"
               >
-                <LineIcon className="w-4 h-4 text-white" />
-                <span>เข้าสู่ระบบด้วย LINE</span>
-              </a>
+                <UserIcon className="w-4 h-4 text-white" />
+                <span className="hidden sm:inline">เข้าสู่ระบบ</span>
+              </button>
             )}
 
             <button
@@ -390,13 +393,17 @@ function Navbar({
                 )}
               </>
             ) : (
-              <a
-                href="/api/auth/line/login"
-                className="w-full flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34c] text-white py-2.5 rounded-xl font-bold text-xs mb-3 transition shadow-xs"
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  openAuthModal();
+                }}
+                className="w-full flex items-center justify-center gap-2 bg-[#1B4D31] hover:bg-[#143B25] text-white py-2.5 rounded-xl font-bold text-xs mb-3 transition shadow-xs"
               >
-                <LineIcon className="w-4 h-4 text-white" />
-                <span>เข้าสู่ระบบด้วย LINE</span>
-              </a>
+                <UserIcon className="w-4 h-4 text-white" />
+                <span>เข้าสู่ระบบ (LINE / Google)</span>
+              </button>
             )}
 
             <a
