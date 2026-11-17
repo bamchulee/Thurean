@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { isAdminRequest, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { requireStaff, unauthorizedResponse } from "../../../../lib/admin-auth";
 import { pushLineMessage, buildMainQuickReply } from "../../../../lib/line-notify";
 import { getRuntimeConfig } from "../../../../lib/sheets-db";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireStaff(req))) return unauthorizedResponse();
 
   try {
     const body = await req.json();

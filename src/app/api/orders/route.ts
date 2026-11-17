@@ -1,23 +1,19 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getAllDatabase } from "../../../lib/sheets-db";
-import { isAdminRequest, unauthorizedResponse } from "../../../lib/admin-auth";
+import { getAdminOperatorName, getCurrentUser, requireStaff, unauthorizedResponse } from "../../../lib/admin-auth";
 import { submitNewOrder } from "../../../lib/order-service";
 import type { SubmitOrderInput } from "../../../lib/order-service";
-import { getSessionUser, verifyLineAccessToken } from "../../../lib/line-verify";
+import { isOwnOrder } from "../../../lib/order-access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const phoneQuery = url.searchParams.get("phone")?.trim();
-    const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
-
     const { data, source, warning } = await getAllDatabase();
 
-    // 1. แอดมิน: ดูได้ทุกคำสั่งซื้อ
-    if (isAdminRequest(req)) {
+    // 1. พนักงาน / เจ้าของร้าน: ดูได้ทุกคำสั่งซื้อ
+    if ((await requireStaff(req))) {
       return NextResponse.json({
         ok: true,
         source,
@@ -26,42 +22,15 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 2. ลูกค้าที่ล็อกอินอยู่: ดูเฉพาะประวัติคำสั่งซื้อของตนเอง
-    const session = getSessionUser(req);
-    if (session) {
-      const userOrders = data.orders.filter(
-        (o) =>
-          (o.userId && (o.userId === session.id || o.userId === session.userId)) ||
-          (session.lineUserId && o.lineUserId === session.lineUserId) ||
-          (session.phone && o.phone && cleanPhone(session.phone) === cleanPhone(o.phone))
-      );
-      return NextResponse.json({
-        ok: true,
-        source,
-        orders: userOrders,
-        user: { id: session.id, name: session.displayName || session.firstName },
-      });
-    }
-
-    // 3. ค้นหาด้วยเบอร์โทรศัพท์ (สำหรับผู้ใช้ทั่วไป / ไม่ได้ล็อกอิน)
-    if (phoneQuery && cleanPhone(phoneQuery).length >= 9) {
-      const targetPhone = cleanPhone(phoneQuery);
-      const matched = data.orders.filter(
-        (o) => o.phone && cleanPhone(o.phone) === targetPhone
-      );
-      // Mask เบอร์เพื่อความปลอดภัย
-      const safeOrders = matched.map((o) => ({
-        ...o,
-        phone: o.phone.length >= 4 ? o.phone.slice(0, -4) + "XXXX" : o.phone,
-        address: undefined,
-      }));
-      return NextResponse.json({
-        ok: true,
-        orders: safeOrders,
-      });
-    }
-
-    return unauthorizedResponse();
+    // 2. ลูกค้า: ดูเฉพาะคำสั่งซื้อของตัวเอง (ต้องล็อกอิน — ไม่มีค้นหาด้วยเบอร์โทรแล้ว)
+    const user = await getCurrentUser(req);
+    if (!user) return unauthorizedResponse();
+    return NextResponse.json({
+      ok: true,
+      source,
+      orders: data.orders.filter((o) => isOwnOrder(o, user)),
+      user: { id: user.id, name: user.displayName || user.firstName },
+    });
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: String(err) },
@@ -76,7 +45,7 @@ export async function POST(req: NextRequest) {
       lineAccessToken?: string;
       items?: { productId?: string; qty?: number; ripenessPref?: string; price?: number }[];
     };
-    const isAdmin = isAdminRequest(req);
+    const isAdmin = (await requireStaff(req));
 
     let targetUserId: string | undefined = undefined;
     let targetLineUserId: string | undefined = undefined;
@@ -85,11 +54,22 @@ export async function POST(req: NextRequest) {
       targetUserId = raw.userId;
       targetLineUserId = raw.lineUserId;
     } else {
-      // ไม่เชื่อ userId / lineUserId จากเบราว์เซอร์ลูกค้า — ระบุตัวตนจาก session หรือ token ที่ LINE ยืนยันแล้ว
-      const session = getSessionUser(req);
-      const lineProfile = session ? null : await verifyLineAccessToken(raw.lineAccessToken);
-      targetUserId = session?.id;
-      targetLineUserId = session?.lineUserId || lineProfile?.userId;
+      // ลูกค้าต้องล็อกอิน และผูก LINE แล้ว (รับยอด/QR/สถานะทาง LINE) — ไม่เชื่อ userId จากเบราว์เซอร์
+      const user = await getCurrentUser(req);
+      if (!user) {
+        return NextResponse.json(
+          { ok: false, code: "LOGIN_REQUIRED", error: "กรุณาเข้าสู่ระบบก่อนสั่งซื้อ" },
+          { status: 401 }
+        );
+      }
+      if (!user.lineUserId) {
+        return NextResponse.json(
+          { ok: false, code: "LINE_REQUIRED", error: "กรุณาเชื่อมบัญชี LINE ก่อนสั่งซื้อ เพื่อรับยอดเงินและสถานะออเดอร์ทาง LINE" },
+          { status: 403 }
+        );
+      }
+      targetUserId = user.id;
+      targetLineUserId = user.lineUserId;
     }
 
     // ลูกค้าส่งได้แค่ข้อมูลผู้รับ + รายการสินค้า — ราคา ค่าส่ง สถานะ คิดฝั่งเซิร์ฟเวอร์เท่านั้น
@@ -111,7 +91,7 @@ export async function POST(req: NextRequest) {
         : [],
       userId: targetUserId,
       lineUserId: targetLineUserId,
-      createdBy: isAdmin ? "admin" : targetUserId || "customer",
+      createdBy: isAdmin ? getAdminOperatorName(req) : targetUserId || "customer",
       ...(isAdmin
         ? {
             channel: raw.channel,

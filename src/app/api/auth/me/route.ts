@@ -1,40 +1,19 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getUserById } from "../../../../lib/sheets-db";
-import { verifySessionToken, toSafeUser } from "../../../../lib/user-auth";
+import { getCurrentUser } from "../../../../lib/admin-auth";
+import { toSafeUser } from "../../../../lib/user-auth";
+import { configuredProviders } from "../../../../lib/oauth";
 
 export const dynamic = "force-dynamic";
 
+// สมาชิกที่ล็อกอินอยู่ (ข้อมูลล่าสุดจากชีต) + ช่องทางเข้าสู่ระบบที่ร้านตั้งค่าไว้
 export async function GET(req: NextRequest) {
   try {
-    const cookieToken = req.cookies.get("winkin_user_token")?.value;
-    const authHeader = req.headers.get("authorization");
-    const bearerToken = authHeader?.startsWith("Bearer ")
-      ? authHeader.substring(7)
-      : undefined;
-
-    const token = cookieToken || bearerToken;
-    if (!token) {
-      return NextResponse.json({ ok: false, user: null }, { status: 401 });
-    }
-
-    const session = verifySessionToken(token);
-    if (!session || !session.id) {
-      return NextResponse.json({ ok: false, user: null }, { status: 401 });
-    }
-
-    // Try fetching latest details from store/sheet; fallback to signed session token
-    const user = await getUserById(session.id);
-    const resolvedUser = user ? toSafeUser(user) : session;
-
-    return NextResponse.json({
-      ok: true,
-      user: resolvedUser,
-    });
+    const providers = configuredProviders();
+    const user = await getCurrentUser(req);
+    if (!user) return NextResponse.json({ ok: false, user: null, providers }, { status: 401 });
+    return NextResponse.json({ ok: true, user: toSafeUser(user), providers });
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }

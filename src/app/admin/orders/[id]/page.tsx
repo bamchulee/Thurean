@@ -89,7 +89,9 @@ export default function AdminOrderPage() {
   const showResponse = useCallback(
     (json: OrderResponse) => {
       setError("");
-      if (!json.ok || !json.order) {
+      if ((json as { code?: string }).code === "LOGIN_REQUIRED") {
+        setNeedLogin(true);
+      } else if (!json.ok || !json.order) {
         setError(json.error || "ไม่พบออเดอร์นี้");
       } else if (!json.isAdmin) {
         setNeedLogin(true);

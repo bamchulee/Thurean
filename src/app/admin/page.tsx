@@ -174,10 +174,10 @@ function AdminLoginScreen() {
         <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-left space-y-2">
           <div className="flex items-center gap-2 text-emerald-950 font-extrabold text-xs">
             <ShieldCheck className="w-4 h-4 text-[#06C755]" />
-            <span>เข้าถึงเฉพาะผู้ดูแลระบบ (Admin)</span>
+            <span>เฉพาะเจ้าของร้านและพนักงาน</span>
           </div>
           <p className="text-[11px] text-emerald-800 leading-relaxed">
-            ระบบใช้การยืนยันตัวตนผ่านบัญชี LINE ของแอดมินเท่านั้น ไม่ต้องใช้รหัส PIN เพื่อความปลอดภัยสูงสุด
+            ล็อกอินด้วย LINE ที่เจ้าของร้านตั้งสิทธิ์ไว้แล้ว — ถ้าเข้าแล้วยังไม่เห็นหน้านี้ ให้เจ้าของร้านตั้งสิทธิ์ในแท็บ ผู้ใช้งาน
           </p>
         </div>
 
@@ -186,7 +186,7 @@ function AdminLoginScreen() {
           className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 transition shadow-lg shadow-emerald-700/20 active:scale-[0.99]"
         >
           <LineIcon className="w-5 h-5 text-white" />
-          <span>เข้าสู่ระบบด้วย LINE (บัญชีแอดมิน)</span>
+          <span>เข้าสู่ระบบด้วย LINE</span>
         </a>
 
         <a
@@ -209,6 +209,7 @@ function Sidebar({
   pendingClaims,
   pendingPayments,
   onLogout,
+  allowedTabs,
 }: {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
@@ -216,8 +217,9 @@ function Sidebar({
   pendingClaims: number;
   pendingPayments: number;
   onLogout: () => void;
+  allowedTabs: TabId[];
 }) {
-  const tabs: {
+  const allTabs: {
     id: TabId;
     icon: React.ComponentType<{ className?: string }>;
     label: string;
@@ -232,6 +234,7 @@ function Sidebar({
     { id: "summary", icon: TrendingUp, label: "กำไร-ขาดทุน" },
     { id: "settings", icon: Link2, label: "เชื่อม Google Sheet" },
   ];
+  const tabs = allTabs.filter((t) => allowedTabs.includes(t.id));
 
   return (
     <>
@@ -3944,7 +3947,7 @@ function UsersTab({
   const [searchTerm, setSearchTerm] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const handleRoleChange = async (userId: string, newRole: "user" | "admin") => {
+  const handleRoleChange = async (userId: string, newRole: "user" | "staff" | "admin") => {
     setUpdatingId(userId);
     try {
       const res = await fetch("/api/admin/users", {
@@ -4205,7 +4208,7 @@ function UsersTab({
                         onChange={(e) =>
                           handleRoleChange(
                             (u as any).userId || u.id,
-                            e.target.value as "user" | "admin"
+                            e.target.value as "user" | "staff" | "admin"
                           )
                         }
                         className={`text-[11px] font-bold rounded-lg px-2.5 py-1.5 border transition cursor-pointer ${
@@ -4214,8 +4217,9 @@ function UsersTab({
                             : "bg-stone-50 text-stone-700 border-stone-200"
                         }`}
                       >
-                        <option value="user">👤 ลูกค้า (User)</option>
-                        <option value="admin">🛡️ แอดมิน (Admin)</option>
+                        <option value="user">👤 ลูกค้า</option>
+                        <option value="staff">🧑‍🔧 พนักงาน (ชั่ง/สลิป/ส่งของ)</option>
+                        <option value="admin">🛡️ เจ้าของร้าน (ทุกอย่าง)</option>
                       </select>
                     </td>
                   </tr>
@@ -4233,6 +4237,7 @@ function UsersTab({
 export default function AdminPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
+  const [role, setRole] = useState<"admin" | "staff" | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
 
   const [sourceMode, setSourceMode] = useState<"google-sheets" | "local">(
@@ -4286,6 +4291,9 @@ export default function AdminPage() {
       .then((r) => r.json())
       .then((json) => {
         setAuthenticated(Boolean(json.authenticated));
+        setRole(json.role === "admin" || json.role === "staff" ? json.role : null);
+        // พนักงานเริ่มที่หน้าออเดอร์ (ไม่เห็นภาพรวมยอดขาย/ต้นทุน)
+        if (json.role === "staff") setActiveTab("orders");
         setAuthChecked(true);
         if (json.authenticated) {
           loadAllAdminData();
@@ -4311,6 +4319,11 @@ export default function AdminPage() {
     return <AdminLoginScreen />;
   }
 
+  // พนักงาน: ออเดอร์ + เคลม / เจ้าของร้าน: ทุกแท็บ (API ตรวจสิทธิ์ซ้ำอีกชั้น)
+  const allowedTabs: TabId[] =
+    role === "admin"
+      ? ["dashboard", "orders", "products", "lots", "claims", "users", "summary", "settings"]
+      : ["orders", "claims"];
   const pendingPayments = orders.filter(
     (o) => o.paymentStatus === "pending"
   ).length;
@@ -4325,6 +4338,7 @@ export default function AdminPage() {
         pendingClaims={pendingClaims}
         pendingPayments={pendingPayments}
         onLogout={handleLogout}
+        allowedTabs={allowedTabs}
       />
 
       <div className="md:ml-64 pb-24 md:pb-10">

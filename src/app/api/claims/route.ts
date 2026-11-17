@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getAllDatabase } from "../../../lib/sheets-db";
-import { isAdminRequest, unauthorizedResponse } from "../../../lib/admin-auth";
+import { getCurrentUser, requireStaff, unauthorizedResponse } from "../../../lib/admin-auth";
 import { submitNewClaim } from "../../../lib/order-service";
 import type { SubmitClaimInput } from "../../../lib/order-service";
 import { getSessionUser } from "../../../lib/line-verify";
@@ -11,18 +11,15 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const { data } = await getAllDatabase();
-    if (isAdminRequest(req)) {
+    if ((await requireStaff(req))) {
       return NextResponse.json({ ok: true, claims: data.claims });
     }
 
-    const session = getSessionUser(req);
-    if (session) {
-      const cleanPhone = (p?: string) => (p || "").replace(/[^\d]/g, "");
+    // ลูกค้า: เฉพาะเคลมของบัญชีตัวเอง (ไม่จับคู่ด้วยเบอร์โทร — เบอร์ในโปรไฟล์แก้เองได้)
+    const user = await getCurrentUser(req);
+    if (user) {
       const userClaims = data.claims.filter(
-        (c) =>
-          (c.userId && (c.userId === session.id || c.userId === session.userId)) ||
-          (session.lineUserId && c.lineUserId === session.lineUserId) ||
-          (session.phone && c.phone && cleanPhone(session.phone) === cleanPhone(c.phone))
+        (c) => (c.userId && c.userId === user.id) || (user.lineUserId && c.lineUserId === user.lineUserId)
       );
       return NextResponse.json({ ok: true, claims: userClaims });
     }

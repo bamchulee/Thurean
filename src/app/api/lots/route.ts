@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createLotRecord, getAllDatabase, localNextId } from "../../../lib/sheets-db";
-import { isAdminRequest, unauthorizedResponse } from "../../../lib/admin-auth";
+import { requireAdmin, unauthorizedResponse } from "../../../lib/admin-auth";
 import type { LotCost } from "../../../types/durian";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireAdmin(req))) return unauthorizedResponse();
 
   try {
     const { data } = await getAllDatabase();
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireAdmin(req))) return unauthorizedResponse();
 
   try {
     const body = (await req.json()) as Partial<LotCost>;

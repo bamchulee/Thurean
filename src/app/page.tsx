@@ -32,6 +32,7 @@ import {
   Zap,
 } from "lucide-react";
 import { shopInfo } from "../data/shop";
+import { CheckoutAccountGate, canCheckout } from "../components/CheckoutAccountGate";
 import type { Order, Product, Round } from "../types/durian";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -1286,31 +1287,7 @@ function OrderModal({
 
           {/* ข้อมูลจัดส่ง */}
           <div className="space-y-3">
-            {user ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-800 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 font-bold">
-                  <LineIcon className="w-4 h-4 text-[#06C755]" />
-                  ดึงข้อมูลจัดส่ง: {formatUserTitle(user)}
-                </span>
-                <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
-                  เชื่อมต่อแล้ว
-                </span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => openAuthModal("line")}
-                className="w-full bg-[#06C755]/10 hover:bg-[#06C755]/20 border border-[#06C755]/30 rounded-xl p-2.5 text-xs flex items-center justify-between text-emerald-900 transition text-left"
-              >
-                <span className="flex items-center gap-1.5 font-semibold">
-                  <LineIcon className="w-4 h-4 text-[#06C755] shrink-0" />
-                  เข้าสู่ระบบด้วย LINE เพื่อดึงที่อยู่อัตโนมัติ
-                </span>
-                <span className="text-[#06C755] font-extrabold underline text-[11px] shrink-0">
-                  เชื่อมต่อ LINE
-                </span>
-              </button>
-            )}
+            <CheckoutAccountGate />
 
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1">
@@ -1435,7 +1412,7 @@ function OrderModal({
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !canCheckout(user)}
               className="flex-1 bg-[#1B4D31] hover:bg-[#143B25] disabled:opacity-60 text-white py-3.5 rounded-xl text-sm font-bold shadow-md transition inline-flex items-center justify-center gap-1.5"
             >
               <CheckCircle2 className="w-4 h-4 text-amber-300" />

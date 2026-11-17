@@ -5,7 +5,8 @@ import {
   getRuntimeConfig,
   updateOrderRecord,
 } from "../../../../lib/sheets-db";
-import { isAdminRequest, unauthorizedResponse, getAdminOperatorName } from "../../../../lib/admin-auth";
+import { getAdminOperatorName, getCurrentUser, requireStaff, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { isOwnOrder } from "../../../../lib/order-access";
 import {
   buildCustomerStatusFlex,
   getLineChatUrl,
@@ -27,7 +28,7 @@ export async function GET(
   try {
     const { id } = await context.params;
     const q = decodeURIComponent(id).trim().toUpperCase();
-    const isAdmin = isAdminRequest(req);
+    const isAdmin = (await requireStaff(req));
     // แอดมินอ่านสด (เพิ่งมีสลิป/ชั่งจากเครื่องอื่น) — ลูกค้าทั่วไปใช้แคชได้
     const { data } = await getAllDatabase(isAdmin);
 
@@ -62,21 +63,18 @@ export async function GET(
       return NextResponse.json({ ok: true, order, courierInfo, isAdmin: true, products, chatUrl });
     }
 
-    // Mask phone and omit full street address for public tracking privacy
-    const maskedPhone =
-      order.phone.length >= 4
-        ? order.phone.slice(0, -4) + "XXXX"
-        : order.phone;
-
-    return NextResponse.json({
-      ok: true,
-      order: {
-        ...order,
-        phone: maskedPhone,
-        address: undefined,
-      },
-      courierInfo,
-    });
+    // ลูกค้า: เปิดได้เฉพาะออเดอร์ของตัวเอง — ของคนอื่นตอบเหมือนไม่มี (ไม่บอกว่าเลขนี้มีอยู่จริง)
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json(
+        { ok: false, code: "LOGIN_REQUIRED", error: "กรุณาเข้าสู่ระบบด้วยบัญชีที่ใช้สั่งซื้อ" },
+        { status: 401 }
+      );
+    }
+    if (!isOwnOrder(order, user)) {
+      return NextResponse.json({ ok: false, error: "ไม่พบคำสั่งซื้อนี้ในบัญชีของคุณ" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, order, courierInfo });
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: String(err) },
@@ -93,7 +91,7 @@ export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireStaff(req))) return unauthorizedResponse();
 
   try {
     const { id } = await context.params;

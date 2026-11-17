@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createProductRecord, getAllDatabase, localNextId } from "../../../lib/sheets-db";
-import { isAdminRequest, unauthorizedResponse, getAdminOperatorName } from "../../../lib/admin-auth";
+import { requireAdmin, unauthorizedResponse, getAdminOperatorName } from "../../../lib/admin-auth";
 import type { Product } from "../../../types/durian";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireAdmin(req))) return unauthorizedResponse();
 
   try {
     const body = (await req.json()) as Partial<Product>;

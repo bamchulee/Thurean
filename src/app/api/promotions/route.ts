@@ -6,7 +6,7 @@ import {
   updatePromotionRecord,
   localNextId,
 } from "../../../lib/sheets-db";
-import { isAdminRequest, unauthorizedResponse } from "../../../lib/admin-auth";
+import { requireAdmin, unauthorizedResponse } from "../../../lib/admin-auth";
 import type { Promotion } from "../../../types/durian";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireAdmin(req))) return unauthorizedResponse();
 
   try {
     const body = (await req.json()) as Partial<Promotion>;
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireAdmin(req))) return unauthorizedResponse();
 
   try {
     const body = (await req.json()) as Partial<Promotion> & { id?: string };

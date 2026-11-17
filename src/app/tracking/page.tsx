@@ -32,6 +32,7 @@ import type { Order } from "../../types/durian";
 import { LineIcon } from "../../components/Icons";
 import { resolveCourierInfo } from "../../lib/courier";
 import { normalizeOrderStatus } from "../../lib/order-status";
+import { useAuth } from "../../context/AuthContext";
 
 interface CurrentUser {
   id: string;
@@ -143,6 +144,9 @@ export default function TrackingPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [searching, setSearching] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  // ดูออเดอร์ได้เฉพาะของบัญชีตัวเอง — ยังไม่ล็อกอินให้เข้าสู่ระบบก่อน
+  const [loginRequired, setLoginRequired] = useState(false);
+  const { openAuthModal } = useAuth();
   const [copiedTrack, setCopiedTrack] = useState(false);
 
   // Filter tab for user's order list
@@ -250,6 +254,7 @@ export default function TrackingPage() {
     if (!q) return;
     setSearching(true);
     setNotFound(false);
+    setLoginRequired(false);
     setSelectedOrder(null);
     setSearchResults(null);
 
@@ -258,13 +263,18 @@ export default function TrackingPage() {
 
     try {
       if (isPhoneNumber) {
-        // Search by phone number
-        const res = await fetch(`/api/orders?phone=${encodeURIComponent(cleanDigits)}`);
-        const json = await res.json();
-        if (res.ok && json.ok && Array.isArray(json.orders) && json.orders.length > 0) {
-          setSearchResults(json.orders);
-          if (json.orders.length === 1) {
-            setSelectedOrder(json.orders[0]);
+        // ค้นด้วยเบอร์โทร: หาเฉพาะในออเดอร์ของบัญชีที่ล็อกอินอยู่
+        const res = await fetch("/api/orders");
+        if (res.status === 401) {
+          setLoginRequired(true);
+          return;
+        }
+        const json = (await res.json()) as { ok: boolean; orders?: Order[] };
+        const matched = (json.orders || []).filter((o) => (o.phone || "").replace(/[^\d]/g, "") === cleanDigits);
+        if (res.ok && json.ok && matched.length > 0) {
+          setSearchResults(matched);
+          if (matched.length === 1) {
+            setSelectedOrder(matched[0]);
           }
         } else {
           setNotFound(true);
@@ -272,6 +282,10 @@ export default function TrackingPage() {
       } else {
         // Search by Order ID or Tracking Number
         const res = await fetch(`/api/orders/${encodeURIComponent(q)}`);
+        if (res.status === 401) {
+          setLoginRequired(true);
+          return;
+        }
         const json = (await res.json()) as { ok: boolean; order?: Order };
         if (res.ok && json.ok && json.order) {
           setSelectedOrder(json.order);
@@ -427,6 +441,22 @@ export default function TrackingPage() {
         </div>
 
         {/* Not Found Alert */}
+        {loginRequired && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center shadow-xs">
+            <p className="font-extrabold text-amber-900 text-base mb-1">เข้าสู่ระบบเพื่อดูออเดอร์ของคุณ</p>
+            <p className="text-xs text-stone-600 max-w-md mx-auto mb-3">
+              ใช้บัญชีเดียวกับที่สั่งซื้อ (LINE / Google / Facebook) — ระบบแสดงเฉพาะออเดอร์ของบัญชีนั้น
+            </p>
+            <button
+              type="button"
+              onClick={() => openAuthModal()}
+              className="bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold text-sm px-5 py-2.5 rounded-xl"
+            >
+              เข้าสู่ระบบ
+            </button>
+          </div>
+        )}
+
         {notFound && (
           <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center shadow-xs">
             <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">

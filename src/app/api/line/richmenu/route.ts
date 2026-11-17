@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { isAdminRequest, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { requireAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
 import { getRuntimeConfig } from "../../../../lib/sheets-db";
 
 export const dynamic = "force-dynamic";
@@ -106,7 +106,7 @@ async function deployDefaultRichMenu(channelAccessToken: string) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireAdmin(req))) return unauthorizedResponse();
 
   try {
     const cfg = getRuntimeConfig();

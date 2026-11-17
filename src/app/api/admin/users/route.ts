@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getAllUsers, updateUserRecord } from "../../../../lib/sheets-db";
 import { toSafeUser } from "../../../../lib/user-auth";
-import { isAdminRequest, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { requireAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isAdminRequest(req)) {
+    if (!(await requireAdmin(req))) {
       return unauthorizedResponse();
     }
 
@@ -29,13 +29,13 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    if (!isAdminRequest(req)) {
+    if (!(await requireAdmin(req))) {
       return unauthorizedResponse();
     }
 
     const body = (await req.json()) as {
       userId?: string;
-      role?: "user" | "admin";
+      role?: "user" | "staff" | "admin";
       isActive?: number | boolean;
       notes?: string;
     };
@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const updates: Partial<Parameters<typeof updateUserRecord>[1]> = {};
-    if (body.role && ["user", "admin"].includes(body.role)) {
+    if (body.role && ["user", "staff", "admin"].includes(body.role)) {
       updates.role = body.role;
     }
     if (body.isActive !== undefined) {

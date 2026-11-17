@@ -3,7 +3,6 @@ import path from "path";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import {
-  createAdminSessionToken,
   getDataSourceMode,
   getRuntimeConfig,
   saveRuntimeConfig,
@@ -13,8 +12,7 @@ import {
   rebuildSheetsSchema,
 } from "../../../../lib/sheets-db";
 import {
-  ADMIN_COOKIE_NAME,
-  isAdminRequest,
+  requireAdmin,
   unauthorizedResponse,
 } from "../../../../lib/admin-auth";
 import { isCloudServerless } from "../../../../lib/storage-dir";
@@ -28,7 +26,7 @@ function maskSecret(val?: string) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireAdmin(req))) return unauthorizedResponse();
 
   const cfg = getRuntimeConfig();
   let appsScriptCode = "";
@@ -78,7 +76,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireAdmin(req))) return unauthorizedResponse();
 
   try {
     const body = (await req.json()) as {
@@ -181,7 +179,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Save config
-    const updated = saveRuntimeConfig({
+    saveRuntimeConfig({
       googleSheetsWebAppUrl: body.googleSheetsWebAppUrl,
       googleSheetViewUrl: body.googleSheetViewUrl,
       googleSheetsApiKey:
@@ -219,17 +217,6 @@ export async function POST(req: NextRequest) {
       mode: getDataSourceMode(),
       message: "บันทึกการตั้งค่าเรียบร้อยแล้ว",
     });
-
-    // If PIN changed, refresh session cookie
-    if (body.adminPin && body.adminPin.trim().length >= 4) {
-      const newToken = createAdminSessionToken(updated.adminPin || "");
-      res.cookies.set(ADMIN_COOKIE_NAME, newToken, {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
-      });
-    }
 
     return res;
   } catch (err) {

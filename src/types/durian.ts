@@ -196,7 +196,13 @@ export interface User extends BaseAuditLog {
   latitude?: number;
   longitude?: number;
   lastLoginAt?: string;
-  role: "user" | "admin";
+  /** user = ลูกค้า, staff = พนักงาน (ชั่ง/ยืนยันสลิป/จัดส่ง), admin = เจ้าของร้าน (ทุกอย่าง) */
+  role: "user" | "staff" | "admin";
+  googleId?: string;
+  facebookId?: string;
+  email?: string;
+  /** ช่องทางที่ผูกไว้ คั่นด้วยจุลภาค เช่น "google,line" */
+  loginProviders?: string;
   source?: "line-login" | "line-chat" | "web" | string;
   notes?: string;
   orderCount?: number;

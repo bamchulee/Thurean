@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { updateProductRecord } from "../../../../lib/sheets-db";
-import { isAdminRequest, unauthorizedResponse, getAdminOperatorName } from "../../../../lib/admin-auth";
+import { requireAdmin, unauthorizedResponse, getAdminOperatorName } from "../../../../lib/admin-auth";
 import type { Product } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  if (!isAdminRequest(req)) return unauthorizedResponse();
+  if (!(await requireAdmin(req))) return unauthorizedResponse();
 
   try {
     const { id } = await context.params;

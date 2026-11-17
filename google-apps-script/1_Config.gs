@@ -71,6 +71,8 @@ const SHEET_DEFS = {
       "userId", "lineUserId", "username", "displayName", "firstName", "lastName",
       "phone", "address", "postalCode", "mapsUrl", "latitude", "longitude", "avatarUrl", "role", "source", "notes",
       "passwordHash", "lastLoginAt",
+      // ช่องทางเข้าสู่ระบบ: บัญชีเดียวผูกได้หลายช่องทาง (ต้องผูก LINE ก่อนสั่งซื้อ)
+      "googleId", "facebookId", "email", "loginProviders",
     ].concat(AUDIT_HEADERS),
   },
   Products: {
@@ -139,4 +141,6 @@ const TEXT_COLUMNS = {
   phone: 1, supplierPhone: 1, postalCode: 1, trackingNo: 1, promoCode: 1,
   username: 1, passwordHash: 1, createDate: 1, updatedAt: 1, date: 1, lastLoginAt: 1,
   mapsUrl: 1, deliveredAt: 1, ripenessType: 1, evidencePhotos: 1, resolutionType: 1,
+  // รหัสบัญชี Google/Facebook เป็นตัวเลขยาว — ถ้าชีตแปลงเป็นตัวเลขจะเพี้ยน
+  googleId: 1, facebookId: 1, lineUserId: 1,
 };
