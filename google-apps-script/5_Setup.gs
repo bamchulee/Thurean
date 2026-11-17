@@ -46,6 +46,41 @@ function setupDurianWinkinSheets() {
   return log.join("\n");
 }
 
+/**
+ * ลบแท็บที่ไม่อยู่ในโครง ทั้ง 2 ไฟล์ (ไฟล์ USER เหลือแค่ Users / ไฟล์ THUREAN เหลือ 6 ตารางร้าน)
+ * เช่น ตารางร้านที่ค้างในไฟล์ USER, Users เก่าในไฟล์ THUREAN, ชีต _backup_, ชีตรายงานเก่า
+ * กู้คืนได้จาก ไฟล์ → ประวัติเวอร์ชัน ของแต่ละไฟล์
+ */
+function cleanupExtraSheets() {
+  const keepUser = [SHEET_NAMES.USERS];
+  const keepThurean = Object.keys(SHEET_DEFS).filter((n) => n !== SHEET_NAMES.USERS);
+  const log = [];
+  [
+    { label: "USER", ss: getUserSpreadsheet(), keep: keepUser },
+    { label: "THUREAN", ss: getThureanSpreadsheet(), keep: keepThurean },
+  ].forEach((file) => {
+    // สร้างตารางที่ต้องมีให้ครบก่อน (ไฟล์ต้องเหลืออย่างน้อย 1 แท็บเสมอ)
+    file.keep.forEach((name) => ensureSheet(name));
+    file.ss.getSheets().forEach((sheet) => {
+      const name = sheet.getName();
+      if (file.keep.indexOf(name) !== -1) return;
+      const rows = Math.max(0, sheet.getLastRow() - 1);
+      file.ss.deleteSheet(sheet);
+      log.push(file.label + ": ลบแท็บ " + name + " (" + rows + " แถว)");
+    });
+    // เรียงแท็บตามโครง
+    file.keep.forEach((name, i) => {
+      const sh = file.ss.getSheetByName(name);
+      file.ss.setActiveSheet(sh);
+      file.ss.moveActiveSheet(i + 1);
+    });
+  });
+  _tables = {};
+  if (log.length === 0) log.push("ไม่มีแท็บเกิน ทั้ง 2 ไฟล์ตรงโครงแล้ว");
+  Logger.log(log.join("\n"));
+  return log.join("\n");
+}
+
 /** ล้างข้อมูลเฉพาะตารางของระบบ (ไม่แตะชีตอื่นที่สร้างไว้เอง) */
 function resetAndRebuildAllSheets() {
   _tables = {};

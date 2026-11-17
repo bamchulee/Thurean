@@ -11,12 +11,9 @@ function getUserSpreadsheet() {
   return SpreadsheetApp.openById(USER_SPREADSHEET_ID);
 }
 
+// เปิดตามรหัสไฟล์เสมอ (ไม่ใช้ getActiveSpreadsheet) — ถ้าสคริปต์ผูกอยู่กับไฟล์ USER ตารางร้านจะได้ไม่ไปงอกในไฟล์ USER
 function getThureanSpreadsheet() {
-  try {
-    return SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID);
-  } catch (e) {
-    return SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID);
-  }
+  return SpreadsheetApp.openById(THUREAN_SPREADSHEET_ID);
 }
 
 function getSpreadsheetFor(sheetName) {
