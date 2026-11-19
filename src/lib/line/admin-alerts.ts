@@ -591,3 +591,61 @@ export function buildTicketAlertForAdmin(
     },
   ];
 }
+
+/** ลูกค้าพิมพ์คุยต่อในแชท (หลังส่งเรื่องให้แอดมินแล้ว) — การ์ดเล็ก มีปุ่มสร้างออเดอร์ให้ลูกค้าคนนี้ */
+export function buildChatMessageAlertForAdmin(
+  msg: { customerName: string; phone?: string; lineUserId: string; message: string },
+  publicBaseUrl?: string
+): unknown[] {
+  const base = (publicBaseUrl || "https://durianwinkin.vercel.app").replace(/\/+$/, "");
+  return [
+    {
+      type: "flex",
+      altText: `💬 ${msg.customerName}: ${msg.message.slice(0, 60)}`,
+      contents: {
+        type: "bubble",
+        size: "kilo",
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          paddingAll: "lg",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                { type: "text", text: `💬 ${msg.customerName}`, weight: "bold", size: "sm", color: "#111827", flex: 7, wrap: true },
+                { type: "text", text: "พิมพ์เพิ่ม", size: "xxs", color: "#0369A1", align: "end", gravity: "center", flex: 3 },
+              ],
+            },
+            ...(msg.phone ? [{ type: "text", text: `📞 ${msg.phone}`, size: "xxs", color: "#6B7280" }] : []),
+            {
+              type: "box",
+              layout: "vertical",
+              backgroundColor: "#F0F9FF",
+              cornerRadius: "md",
+              paddingAll: "md",
+              contents: [{ type: "text", text: msg.message, size: "sm", color: "#0F172A", wrap: true }],
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "horizontal",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#B45309",
+              height: "sm",
+              action: { type: "uri", label: "🧾 สร้างออเดอร์ให้", uri: `${base}/admin?tab=orders&chatOrder=${encodeURIComponent(msg.lineUserId)}` },
+            },
+            { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "💬 แชทตอบ", uri: "https://chat.line.biz/" } },
+          ],
+        },
+      },
+    },
+  ];
+}

@@ -9,6 +9,7 @@ import { getAdminOperatorName, getCurrentUser, requireStaff, unauthorizedRespons
 import { isOwnOrder } from "../../../../lib/order-access";
 import {
   buildCustomerStatusFlex,
+  buildPaymentQrForCustomerFlex,
   getLineChatUrl,
   pushLineMessage,
 } from "../../../../lib/line-notify";
@@ -114,12 +115,25 @@ export async function PATCH(
       rejectReason?: string;
       isActive?: number | string | boolean;
       notifyLine?: boolean;
+      resendPayment?: boolean;
     };
     const actor = getAdminOperatorName(req);
     const { data } = await getAllDatabase(true);
     let order = findOrderById(data.orders, orderId);
     if (!order) {
       return NextResponse.json({ ok: false, error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });
+    }
+
+    // ส่งสรุปยอด + QR ให้ลูกค้าอีกครั้ง (ส่งครั้งแรกไม่ถึง / ลูกค้าหาข้อความไม่เจอ)
+    if (body.resendPayment) {
+      if (orderStatusOf(order) !== "รอชำระเงิน") {
+        return NextResponse.json({ ok: false, error: "ส่งยอดได้เฉพาะออเดอร์ที่รอชำระเงิน" }, { status: 400 });
+      }
+      if (!order.lineUserId) return NextResponse.json({ ok: false, error: "ลูกค้าคนนี้ไม่มี LINE" }, { status: 400 });
+      const cfg = getRuntimeConfig();
+      const push = await pushLineMessage(order.lineUserId, buildPaymentQrForCustomerFlex(order, cfg.publicBaseUrl), cfg.lineChannelAccessToken);
+      if (!push.sent) return NextResponse.json({ ok: false, error: `ส่ง LINE ไม่สำเร็จ: ${push.reason || "LINE ไม่ตอบรับ"}` }, { status: 502 });
+      return NextResponse.json({ ok: true, order, lineResult: push });
     }
 
     if (body.rejectSlip) {

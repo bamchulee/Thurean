@@ -62,6 +62,7 @@ import { readSlipText } from "../../../../lib/slip-text";
 import { extractOrderId, findOrderById } from "../../../../lib/ids";
 import { shopInfo } from "../../../../data/shop";
 import { readChatIntent } from "../../../../lib/line/order-intent";
+import { buildChatMessageAlertForAdmin } from "../../../../lib/line/admin-alerts";
 import type { DatabaseState, Order, RuntimeConfig, User } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
@@ -851,7 +852,12 @@ async function handleFreeText(ctx: Ctx, raw: string) {
     }
     // ส่งต่อไปแล้วเมื่อกี้: แจ้งกลุ่มเฉพาะข้อความใหม่ ไม่ตอบซ้ำให้ลูกค้ารำคาญ
     const user = findLineUser(data, ctx.userId);
-    await notifyAdmins([text(`💬 ${contactOf(user)?.name || user?.displayName || "ลูกค้า LINE"} พิมพ์เพิ่ม:\n${raw.slice(0, 1000)}`, false)]);
+    await notifyAdmins(
+      buildChatMessageAlertForAdmin(
+        { customerName: contactOf(user)?.name || user?.displayName || "ลูกค้า LINE", phone: user?.phone, lineUserId: ctx.userId, message: raw.slice(0, 1000) },
+        ctx.baseUrl
+      )
+    );
     return;
   }
 

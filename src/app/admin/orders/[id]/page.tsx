@@ -422,7 +422,19 @@ export default function AdminOrderPage() {
               <img src={order.slipUrl} alt="สลิปโอนเงิน" className="w-full max-h-[480px] object-contain rounded-xl border border-stone-200 bg-stone-50" />
             </a>
           ) : (
-            <p className="text-sm text-stone-500">ลูกค้ายังไม่ได้ส่งสลิป</p>
+            <div className="space-y-2">
+              <p className="text-sm text-stone-500">ลูกค้ายังไม่ได้ส่งสลิป</p>
+              {order.lineUserId && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => patch({ resendPayment: true }, "ส่งสรุปยอด + QR ให้ลูกค้าทาง LINE อีกครั้งแล้ว")}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl border border-[#06C755] text-[#06A847] bg-white hover:bg-emerald-50 text-sm font-bold disabled:opacity-50"
+                >
+                  📨 ส่งยอด + QR ให้ลูกค้าอีกครั้ง
+                </button>
+              )}
+            </div>
           )}
           {order.slipUrl && (
             <div
