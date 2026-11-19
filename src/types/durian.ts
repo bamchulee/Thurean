@@ -73,6 +73,8 @@ export interface OrderItem {
   actualWeightKg?: number;
   /** น้ำหนักที่ชั่งได้ทีละลูก (กก.) — กรอกจากหน้าออเดอร์ของแอดมิน */
   fruitKgs?: number[];
+  /** ยอดเหมาของรายการนี้ (แอดมินคิดราคาเองจากแชท เช่น ยกลัง) */
+  lineTotal?: number;
 }
 
 export type PaymentStatus = "pending" | "slip_submitted" | "confirmed" | "refunded" | string;

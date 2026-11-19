@@ -355,7 +355,9 @@ export function buildPaymentQrForCustomerFlex(order: Order, publicBaseUrl?: stri
     .map((it) =>
       it.actualWeightKg && it.pricePerKg
         ? `• ${it.productName} ${it.qty} ลูก${it.fruitKgs?.length ? ` (${it.fruitKgs.join(" + ")} กก.)` : ""}\n   รวม ${it.actualWeightKg} กก. × ฿${it.pricePerKg.toLocaleString()} = ฿${Math.round(it.actualWeightKg * it.pricePerKg).toLocaleString()}`
-        : `• ${it.productName} x${it.qty}`
+        : it.lineTotal
+          ? `• ${it.productName} ${it.qty} ลูก\n   ราคาเหมา ฿${it.lineTotal.toLocaleString()}`
+          : `• ${it.productName} x${it.qty}`
     )
     .join("\n");
 

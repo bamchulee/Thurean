@@ -101,8 +101,17 @@ function itemsBlock(order: Order) {
     margin: "md",
     contents: order.items.map((it) => {
       const kgs = (it.fruitKgs || []).filter((k) => Number(k) > 0);
-      const kg = kgs.reduce((s, k) => s + Number(k), 0);
+      const kg = kgs.length ? kgs.reduce((s, k) => s + Number(k), 0) : Number(it.actualWeightKg || 0);
       const perKg = it.pricePerKg || it.price || 0;
+      // ราคา: เหมา / ชั่งแล้ว / ยังไม่ชั่ง
+      const priceText = it.lineTotal ? money(it.lineTotal) : kg > 0 ? money(kg * perKg) : `${money(perKg)}/กก.`;
+      const detail = it.lineTotal
+        ? "ราคาเหมา"
+        : kgs.length
+          ? `${kgs.join(" + ")} = ${Math.round(kg * 100) / 100} กก.`
+          : kg > 0
+            ? `รวม ${Math.round(kg * 100) / 100} กก. × ${money(perKg)}`
+            : "รอชั่งน้ำหนัก";
       return {
         type: "box",
         layout: "vertical",
@@ -112,12 +121,12 @@ function itemsBlock(order: Order) {
             layout: "horizontal",
             contents: [
               { type: "text", text: `${it.productName} × ${it.qty}`, size: "sm", weight: "bold", color: "#111827", flex: 7, wrap: true },
-              { type: "text", text: kgs.length ? money(kg * perKg) : `${money(perKg)}/กก.`, size: "sm", color: "#111827", flex: 4, align: "end" },
+              { type: "text", text: priceText, size: "sm", color: "#111827", flex: 4, align: "end" },
             ],
           },
           {
             type: "text",
-            text: [kgs.length ? `${kgs.join(" + ")} = ${Math.round(kg * 100) / 100} กก.` : "รอชั่งน้ำหนัก", (it as { ripenessPref?: string }).ripenessPref].filter(Boolean).join(" · "),
+            text: [detail, (it as { ripenessPref?: string }).ripenessPref].filter(Boolean).join(" · "),
             size: "xxs",
             color: "#6B7280",
             wrap: true,
@@ -532,6 +541,22 @@ export function buildTicketAlertForAdmin(
                 uri: "https://chat.line.biz/",
               },
             },
+            // ลูกค้าคุยสั่งของในแชท → แอดมินกดสร้างออเดอร์ให้ (เติมชื่อ/ที่อยู่ลูกค้าคนนี้ให้เอง)
+            ...(ticket.lineUserId
+              ? [
+                  {
+                    type: "button",
+                    style: "primary",
+                    color: "#B45309",
+                    height: "sm",
+                    action: {
+                      type: "uri",
+                      label: "🧾 สร้างออเดอร์ให้",
+                      uri: `${baseUrl.replace(/\/+$/, "")}/admin?tab=orders&chatOrder=${encodeURIComponent(ticket.lineUserId)}`,
+                    },
+                  },
+                ]
+              : []),
             ...(ticket.orderId
               ? [
                   {
@@ -540,8 +565,8 @@ export function buildTicketAlertForAdmin(
                     height: "sm",
                     action: {
                       type: "uri",
-                      label: `📦 ดูออเดอร์ #${ticket.orderId} ในระบบ`,
-                      uri: `${baseUrl}/tracking?q=${encodeURIComponent(ticket.orderId)}`,
+                      label: "📦 เปิดออเดอร์",
+                      uri: adminOrderUrl(ticket.orderId, baseUrl),
                     },
                   },
                 ]

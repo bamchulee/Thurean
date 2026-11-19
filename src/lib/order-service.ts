@@ -109,7 +109,8 @@ export async function submitNewOrder(
         status: 400,
       };
     }
-    const qty = Math.min(50, Math.max(1, Math.floor(Number(reqItem.qty) || 1)));
+    // ลูกค้าสั่งเองได้ไม่เกิน 50 — แอดมินคีย์ออเดอร์ใหญ่ (ยกลัง) ได้ถึง 999
+    const qty = Math.min(trusted ? 999 : 50, Math.max(1, Math.floor(Number(reqItem.qty) || 1)));
     const itemLabel = prod.name;
     if (reqItem.ripenessPref) {
       ripenessSummarySet.push(`${prod.variety || prod.name}: ${reqItem.ripenessPref} x${qty}`);
