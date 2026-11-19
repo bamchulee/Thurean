@@ -1,7 +1,7 @@
 "use client";
 
 // รายการสั่งซื้อ: ตารางแถวละออเดอร์ กรองตามงาน (รอชั่ง/สลิป/รอส่ง…) ค้นหา แบ่งหน้า — กดแถวเปิดหน้าออเดอร์เดี่ยว (ชั่ง/ตรวจสลิป/ส่งของ)
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PlusCircle } from "lucide-react";
 import { normalizePaymentStatus, orderStatusOf } from "../../../lib/order-status";
 import type { Order, Product, Round, SafeUser } from "../../../types/durian";
@@ -11,13 +11,7 @@ import { ChatOrderModal } from "./ChatOrderModal";
 /** เปิดจากปุ่ม "สร้างออเดอร์ให้" ในกลุ่ม LINE: /admin?tab=orders&chatOrder=<lineUserId> */
 function chatOrderFromUrl(): string | undefined {
   if (typeof window === "undefined") return undefined;
-  const url = new URL(window.location.href);
-  const id = url.searchParams.get("chatOrder") || undefined;
-  if (id) {
-    url.searchParams.delete("chatOrder");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  }
-  return id;
+  return new URL(window.location.href).searchParams.get("chatOrder") || undefined;
 }
 import { itemsText, orderDate, orderKg, orderQty, OrderStatusBadge, PaymentBadge, shortDate } from "./shared";
 
@@ -49,6 +43,13 @@ export function Orders({
   const [roundId, setRoundId] = useState("");
   const [chatFor] = useState(chatOrderFromUrl);
   const [creating, setCreating] = useState(Boolean(chatFor));
+  // เอา chatOrder ออกจาก URL หลังแสดงผลแล้ว (รีเฟรชจะได้ไม่เปิดซ้ำ)
+  useEffect(() => {
+    if (!chatFor) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("chatOrder");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search);
+  }, [chatFor]);
   const [resetKey, setResetKey] = useState(0);
 
   const clear = useCallback(() => {
@@ -152,16 +153,15 @@ export function Orders({
           </>
         }
       />
-      {creating && (
+      {/* รอรายการสินค้าโหลดก่อน (เปิดจากลิงก์ในกลุ่ม LINE จะมาถึงก่อนข้อมูล) */}
+      {creating && products.length > 0 && (
         <ChatOrderModal
           products={products}
           users={users}
           initialLineUserId={chatFor}
           onClose={() => setCreating(false)}
-          onOrderCreated={(o) => {
-            onOrderCreated(o);
-            setCreating(false);
-          }}
+          // ปิดเองตอนกด "เสร็จ" — ให้แอดมินเห็นก่อนว่าส่งยอดให้ลูกค้าแล้วหรือยัง
+          onOrderCreated={onOrderCreated}
         />
       )}
     </>

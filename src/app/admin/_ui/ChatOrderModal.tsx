@@ -35,6 +35,13 @@ function lineTotal(l: Line): number | null {
   return null;
 }
 
+/** ที่อยู่ + รหัสไปรษณีย์ (ไม่ต่อซ้ำถ้าที่อยู่มีรหัสอยู่แล้ว) */
+export const fullAddress = (address?: string, postalCode?: string) => {
+  const a = (address || "").trim();
+  const p = (postalCode || "").trim();
+  return p && !a.includes(p) ? `${a} ${p}`.trim() : a;
+};
+
 const userName = (u: SafeUser) => `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.displayName || u.username || u.id;
 
 export function ChatOrderModal({
@@ -64,14 +71,14 @@ export function ChatOrderModal({
   const [send, setSend] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [done, setDone] = useState<{ order: Order; sent: boolean; priced: boolean } | null>(null);
+  const [done, setDone] = useState<{ order: Order; sent: boolean; priced: boolean; sendError?: string } | null>(null);
 
   const pickUser = (u: SafeUser) => {
     setUserId(u.id);
     setLineUserId(u.lineUserId || "");
     setName(userName(u));
     setPhone(u.phone || "");
-    setAddress(`${u.address || ""} ${u.postalCode || ""}`.trim());
+    setAddress(fullAddress(u.address, u.postalCode));
     setSearch("");
   };
 
@@ -141,7 +148,7 @@ export function ChatOrderModal({
       });
       const j = await res.json();
       if (!res.ok || !j.ok) return setError(j.error || "สร้างออเดอร์ไม่สำเร็จ");
-      setDone({ order: j.order, sent: j.sent, priced: j.priced });
+      setDone({ order: j.order, sent: j.sent, priced: j.priced, sendError: j.sendError });
       onOrderCreated(j.order);
     } catch {
       setError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
@@ -158,7 +165,13 @@ export function ChatOrderModal({
           <p>{done.order.customerName} · {done.order.phone}</p>
           <p className="font-bold">{done.priced ? `ยอดที่ต้องชำระ ${baht((done.order.totalPrice || 0) + (done.order.shippingCost || 0))}` : "รอชั่งน้ำหนัก (ยังไม่มียอด)"}</p>
           <p className={done.sent ? "text-emerald-700" : "text-amber-700"}>
-            {done.sent ? (done.priced ? "📨 ส่งสรุปยอดพร้อม QR ให้ลูกค้าทาง LINE แล้ว" : "📨 ส่งใบรับจองให้ลูกค้าทาง LINE แล้ว") : "⚠️ ไม่ได้ส่ง LINE (ลูกค้าไม่มี LINE หรือปิดการส่ง)"}
+            {done.sent
+              ? done.priced
+                ? "📨 ส่งสรุปยอดพร้อม QR ให้ลูกค้าทาง LINE แล้ว"
+                : "📨 ส่งใบรับจองให้ลูกค้าทาง LINE แล้ว"
+              : done.sendError
+                ? `⚠️ ส่ง LINE ไม่สำเร็จ: ${done.sendError} — แจ้งยอดลูกค้าในแชทเองก่อน`
+                : "ℹ️ ไม่ได้ส่ง LINE (ลูกค้าไม่มี LINE หรือปิดการส่งไว้)"}
           </p>
         </div>
         <a href={`/admin/orders/${encodeURIComponent(done.order.id)}`} className="block text-center text-sm font-bold text-[#1B4D31] underline">

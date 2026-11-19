@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   const name = `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.displayName || "";
   return NextResponse.json({
     ok: true,
-    customer: { lineUserId, userId: u.id, name, phone: u.phone || "", address: `${u.address || ""} ${u.postalCode || ""}`.trim() },
+    customer: { lineUserId, userId: u.id, name, phone: u.phone || "", address: u.postalCode && !(u.address || "").includes(u.postalCode) ? `${u.address || ""} ${u.postalCode}`.trim() : (u.address || "").trim() },
   });
 }
 
@@ -126,13 +126,15 @@ export async function POST(req: NextRequest) {
 
     // 3) แจ้งลูกค้าทาง LINE
     let sent = false;
+    let sendError: string | undefined;
     if (body.send !== false && order.lineUserId) {
       const cfg = getRuntimeConfig();
       const msgs = priced ? buildPaymentQrForCustomerFlex(order, cfg.publicBaseUrl) : buildBookingReceiptFlex(order);
       const push = await pushLineMessage(order.lineUserId, msgs, cfg.lineChannelAccessToken);
       sent = push.sent;
+      if (!push.sent) sendError = push.reason || "LINE ไม่ตอบรับ";
     }
-    return NextResponse.json({ ok: true, order, sent, priced }, { status: 201 });
+    return NextResponse.json({ ok: true, order, sent, sendError, priced }, { status: 201 });
   } catch (err) {
     return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
