@@ -233,7 +233,7 @@ export function buildAdminOrderCard(event: AdminOrderEvent, order: Order, links:
               margin: "sm",
               contents: [
                 { type: "text", text: `#${order.id}`, color: "#FFFFFF", weight: "bold", size: "lg", flex: 6 },
-                { type: "text", text: bangkokTime(), color: "#FFFFFFCC", size: "xxs", align: "end", gravity: "center", flex: 4 },
+                { type: "text", text: bangkokTime(), color: "#D1FAE5", size: "xxs", align: "end", gravity: "center", flex: 4 },
               ],
             },
           ],
