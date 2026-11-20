@@ -33,6 +33,7 @@ import { LineIcon } from "../../components/Icons";
 import { resolveCourierInfo } from "../../lib/courier";
 import { normalizeOrderStatus } from "../../lib/order-status";
 import { useAuth } from "../../context/AuthContext";
+import { BottomNav, SubPageHeader } from "../../components/store/StoreChrome";
 
 interface CurrentUser {
   id: string;
@@ -330,70 +331,33 @@ export default function TrackingPage() {
 
   return (
     <div className="min-h-screen bg-[#FBF6E3]">
-      {/* Top Navbar */}
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3">
-            <img
-              src={shopInfo.logo}
-              alt={shopInfo.name}
-              className="w-10 h-10 rounded-full border border-stone-200 bg-white object-cover"
-            />
-            <div>
-              <h1 className="font-extrabold text-sm sm:text-base text-[#1B4D31]">
-                {shopInfo.name}
-              </h1>
-              <p className="text-[10px] sm:text-xs text-stone-500 font-mono">
-                ประวัติคำสั่งซื้อ &amp; ติดตามพัสดุ
-              </p>
-            </div>
-          </a>
-          <div className="flex items-center gap-2">
+      <SubPageHeader
+        title="ออเดอร์ของฉัน"
+        subtitle="สถานะ น้ำหนักชั่งจริง เลขพัสดุ"
+        right={
+          <>
             <button
               type="button"
               onClick={loadUserAndOrders}
-              title="รีเฟรชข้อมูล"
-              className="p-2 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 transition"
+              aria-label="รีเฟรช"
+              className="p-2 rounded-full text-stone-600 hover:bg-black/5"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingOrders ? "animate-spin text-[#1B4D31]" : ""}`} />
+              <RefreshCw className={`w-4 h-4 ${loadingOrders ? "animate-spin text-[#1B4D31]" : ""}`} />
             </button>
             <button
               type="button"
               onClick={() => handleOpenTicket(selectedOrder)}
-              className="text-xs font-bold bg-amber-400 hover:bg-amber-300 text-stone-950 px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-xs"
+              className="h-8 px-3 rounded-full bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-bold inline-flex items-center gap-1"
             >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">คุยกับแอดมิน (Ticket)</span>
-              <span className="sm:hidden">Ticket</span>
+              <MessageSquare className="w-3.5 h-3.5" /> ถามแอดมิน
             </button>
-            <a
-              href="/"
-              className="text-xs font-bold bg-[#1B4D31] hover:bg-[#143B25] text-white px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-xs"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>กลับหน้าร้าน</span>
-            </a>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        {/* Title Header */}
-        <div className="text-center">
-          <span className="inline-flex items-center gap-1.5 bg-emerald-100/70 text-[#1B4D31] border border-emerald-300 text-xs font-bold px-3 py-1 rounded-full mb-2.5">
-            <Package className="w-3.5 h-3.5 text-emerald-800" />
-            <span>ORDER TRACKING &amp; CLAIM SYSTEM</span>
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">
-            ประวัติการสั่งซื้อ &amp; ติดตามสถานะ
-          </h2>
-          <p className="text-xs sm:text-sm text-stone-600 mt-1 max-w-lg mx-auto">
-            ตรวจสอบความคืบหน้าคำสั่งซื้อ อัปเดตน้ำหนักชั่งจริง และแจ้งเคลมประกันคุณภาพสินค้าภายใน 24 ชม.
-          </p>
-        </div>
-
+      <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 pb-24 md:pb-8 space-y-4">
         {/* Search Box */}
-        <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs">
+        <div className="bg-white border border-stone-200 rounded-2xl p-3 sm:p-4 shadow-xs">
           <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-stone-400 absolute left-4 top-1/2 -translate-y-1/2" />
@@ -404,14 +368,14 @@ export default function TrackingPage() {
                   setSearchInput(e.target.value);
                   setNotFound(false);
                 }}
-                placeholder="กรอกรหัสออเดอร์ (เช่น OD000001) หรือ เบอร์โทร 10 หลัก"
-                className="w-full border border-stone-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] focus:outline-none bg-stone-50/50 text-stone-900"
+                placeholder="เลขออเดอร์ / เลขพัสดุ / เบอร์โทร"
+                className="w-full border border-stone-300 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-[#1B4D31] focus:ring-1 focus:ring-[#1B4D31] focus:outline-none bg-stone-50/50 text-stone-900"
               />
             </div>
             <button
               type="submit"
               disabled={searching}
-              className="bg-[#1B4D31] hover:bg-[#143B25] text-white px-6 py-3 rounded-xl text-sm font-bold transition shadow-sm disabled:opacity-60 flex items-center justify-center gap-2 shrink-0"
+              className="bg-[#1B4D31] hover:bg-[#143B25] text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow-sm disabled:opacity-60 flex items-center justify-center gap-2 shrink-0"
             >
               {searching ? (
                 <>
@@ -427,18 +391,32 @@ export default function TrackingPage() {
             </button>
           </form>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-stone-500 pt-3 border-t border-stone-100">
-            <span>
-              💡 ค้นหาได้ด้วย <strong>เลขออเดอร์ OD...</strong> หรือ <strong>เบอร์โทรศัพท์ผู้รับ</strong>
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-2 text-[11px] text-stone-500">
+            <span>ค้นได้เฉพาะออเดอร์ในบัญชีของคุณ</span>
             {currentUser && (
-              <span className="text-[#1B4D31] font-semibold flex items-center gap-1">
-                <User className="w-3.5 h-3.5" />
-                <span>เข้าสู่ระบบเป็น: {currentUser.name || currentUser.displayName || currentUser.id}</span>
+              <span className="text-[#1B4D31] font-semibold flex items-center gap-1 min-w-0">
+                <User className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{currentUser.name || currentUser.displayName || currentUser.id}</span>
               </span>
             )}
           </div>
         </div>
+
+        {/* ยังไม่ล็อกอิน: บอกตรง ๆ ว่าต้องเข้าสู่ระบบ (แทนรายการว่างที่ชวนเข้าใจผิด) */}
+        {!loadingOrders && !currentUser && !loginRequired && (
+          <div className="bg-white border border-amber-200 rounded-2xl p-5 text-center shadow-xs">
+            <p className="font-extrabold text-stone-900">เข้าสู่ระบบเพื่อดูออเดอร์ของคุณ</p>
+            <p className="text-xs text-stone-600 mt-1 mb-3">ใช้บัญชีเดียวกับที่สั่งซื้อ (LINE / Google)</p>
+            <button
+              type="button"
+              onClick={() => openAuthModal()}
+              className="bg-[#1B4D31] hover:bg-[#143B25] text-white font-bold text-sm px-5 py-2.5 rounded-xl"
+            >
+              เข้าสู่ระบบ
+            </button>
+            <p className="text-[11px] text-stone-400 mt-3">สั่งทาง LINE? กด &quot;เช็กสถานะ&quot; ในแชทร้านได้เลย</p>
+          </div>
+        )}
 
         {/* Not Found Alert */}
         {loginRequired && (
@@ -897,16 +875,16 @@ export default function TrackingPage() {
         )}
 
         {/* LOGGED-IN CUSTOMER ORDERS SECTION (When not currently inspecting single search) */}
-        {!selectedOrder && (
-          <div className="space-y-4 pt-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="font-black text-lg text-stone-900 flex items-center gap-2">
+        {!selectedOrder && currentUser && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-extrabold text-base text-stone-900 flex items-center gap-2">
                 <Package className="w-5 h-5 text-[#1B4D31]" />
-                <span>ประวัติคำสั่งซื้อทั้งหมดของฉัน</span>
+                <span>ออเดอร์ทั้งหมด</span>
               </h3>
 
               {/* Filter Tabs */}
-              <div className="flex items-center bg-stone-200/70 p-1 rounded-xl text-xs font-bold">
+              <div className="flex items-center bg-stone-200/70 p-1 rounded-xl text-xs font-bold max-w-full overflow-x-auto no-scrollbar">
                 <button
                   type="button"
                   onClick={() => setFilterTab("all")}
@@ -938,7 +916,7 @@ export default function TrackingPage() {
                       : "text-stone-600 hover:text-stone-900"
                   }`}
                 >
-                  จัดส่งสำเร็จ (เสร็จสิ้น)
+                  ส่งแล้ว
                 </button>
               </div>
             </div>
@@ -959,7 +937,7 @@ export default function TrackingPage() {
                     : "ไม่มีรายการคำสั่งซื้อในหมวดหมู่นี้"}
                 </p>
                 <p className="text-xs text-stone-500 max-w-sm mx-auto">
-                  หากคุณเคยสั่งซื้อผ่านเบอร์โทรศัพท์ สามารถพิมพ์เบอร์โทรในช่องค้นหาด้านบน หรือกดสั่งซื้อทุเรียนรอบใหม่ได้เลยครับ
+                  ออเดอร์ที่สั่งด้วยบัญชีนี้จะขึ้นที่นี่ — สั่งทาง LINE ด้วยบัญชีอื่น? เช็กได้ในแชทร้าน
                 </p>
                 <a
                   href="/"
@@ -1222,6 +1200,7 @@ export default function TrackingPage() {
           </div>
         )}
       </div>
+      <BottomNav active="orders" />
     </div>
   );
 }

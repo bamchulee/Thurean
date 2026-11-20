@@ -152,6 +152,11 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("setup_address") || params.get("line_login_error")) openAuthModal("line");
+    // กดตะกร้าจากหน้าอื่น (/#cart) → เปิดตะกร้าให้เลย
+    if (window.location.hash === "#cart") {
+      window.history.replaceState({}, "", window.location.pathname + window.location.search);
+      queueMicrotask(() => setCartOpen(true));
+    }
     if (params.get("login_success")) {
       const next = new URL(window.location.href);
       next.searchParams.delete("login_success");

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ChevronLeft,
   ChevronRight,
   House,
   LogOut,
@@ -204,40 +205,92 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
 }
 
 /** แถบเมนูล่างจอสำหรับมือถือ (เหมือนแอปช้อปปิ้ง) */
-export function BottomNav({ cartCount, onOpenCart, onOpenAccount }: { cartCount: number; onOpenCart: () => void; onOpenAccount: () => void }) {
+/**
+ * แถบเมนูล่างจอสำหรับมือถือ (เหมือนแอปช้อปปิ้ง) — ใช้ได้ทุกหน้า
+ * หน้าร้านส่ง onOpenCart/onOpenAccount มา, หน้าอื่นกดตะกร้าแล้วกลับไปเปิดตะกร้าที่หน้าร้าน
+ */
+export function BottomNav({
+  cartCount = 0,
+  onOpenCart,
+  onOpenAccount,
+  active = "home",
+}: {
+  cartCount?: number;
+  onOpenCart?: () => void;
+  onOpenAccount?: () => void;
+  active?: "home" | "orders" | "claim";
+}) {
   const item = "flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-stone-500 active:text-[#1B4D31]";
+  const on = (k: string) => (active === k ? " !text-[#1B4D31] font-bold" : "");
+  const cartInner = (
+    <>
+      <span className="relative">
+        <ShoppingBasket className="w-5 h-5" />
+        {cartCount > 0 && (
+          <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[#D9480F] text-white text-[9px] font-bold leading-4 text-center">
+            {cartCount > 99 ? "99+" : cartCount}
+          </span>
+        )}
+      </span>
+      ตะกร้า
+    </>
+  );
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-stone-200 pb-[env(safe-area-inset-bottom)]">
       <div className="h-14 flex">
-        <a href="#top" className={`${item} text-[#1B4D31]`}>
+        <a href={active === "home" ? "#top" : "/"} className={item + on("home")}>
           <House className="w-5 h-5" />
           หน้าร้าน
         </a>
-        <button type="button" onClick={onOpenCart} className={`${item} relative`}>
-          <span className="relative">
-            <ShoppingBasket className="w-5 h-5" />
-            {cartCount > 0 && (
-              <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[#D9480F] text-white text-[9px] font-bold leading-4 text-center">
-                {cartCount > 99 ? "99+" : cartCount}
-              </span>
-            )}
-          </span>
-          ตะกร้า
-        </button>
+        {onOpenCart ? (
+          <button type="button" onClick={onOpenCart} className={item}>
+            {cartInner}
+          </button>
+        ) : (
+          <a href="/#cart" className={item}>
+            {cartInner}
+          </a>
+        )}
         <LineDirectLink prefillText={LINE_HELLO} className={item} ariaLabel="แชท LINE">
           <LineIcon className="w-5 h-5 text-[#06C755]" />
           แชทร้าน
         </LineDirectLink>
-        <a href="/tracking" className={item}>
+        <a href="/tracking" className={item + on("orders")}>
           <Package className="w-5 h-5" />
           ออเดอร์
         </a>
-        <button type="button" onClick={onOpenAccount} className={item}>
-          <UserIcon className="w-5 h-5" />
-          ฉัน
-        </button>
+        {onOpenAccount ? (
+          <button type="button" onClick={onOpenAccount} className={item}>
+            <UserIcon className="w-5 h-5" />
+            ฉัน
+          </button>
+        ) : (
+          <a href="/claim" className={item + on("claim")}>
+            <ShieldCheck className="w-5 h-5" />
+            เคลม
+          </a>
+        )}
       </div>
     </nav>
+  );
+}
+
+/** หัวหน้าย่อย (เช็กออเดอร์ / แจ้งเคลม): ย้อนกลับ + โลโก้ + ชื่อหน้า + ปุ่มด้านขวา */
+export function SubPageHeader({ title, subtitle, right }: { title: string; subtitle?: string; right?: React.ReactNode }) {
+  return (
+    <header className="sticky top-0 z-30 bg-[#FFFBEA]/95 backdrop-blur border-b border-amber-200/70">
+      <div className="max-w-3xl mx-auto px-3 h-14 flex items-center gap-2">
+        <a href="/" aria-label="กลับหน้าร้าน" className="p-1.5 -ml-1 rounded-full text-[#1B4D31] hover:bg-black/5">
+          <ChevronLeft className="w-6 h-6" />
+        </a>
+        <img src={shopInfo.logo} alt="" className="w-8 h-8 rounded-full border border-amber-200 bg-white object-cover shrink-0" />
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[15px] font-extrabold text-[#1B4D31] leading-tight truncate">{title}</h1>
+          {subtitle && <p className="text-[10px] text-stone-500 leading-tight truncate">{subtitle}</p>}
+        </div>
+        {right && <div className="flex items-center gap-1.5 shrink-0">{right}</div>}
+      </div>
+    </header>
   );
 }
 

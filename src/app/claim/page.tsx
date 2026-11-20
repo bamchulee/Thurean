@@ -19,6 +19,7 @@ import {
 import { shopInfo } from "../../data/shop";
 import type { Claim, Order } from "../../types/durian";
 import { LineIcon } from "../../components/Icons";
+import { BottomNav, SubPageHeader } from "../../components/store/StoreChrome";
 
 export default function ClaimPage() {
   const [orderId, setOrderId] = useState("");
@@ -182,52 +183,22 @@ export default function ClaimPage() {
   return (
     <div className="min-h-screen bg-[#FBF6E3]">
       {/* Header */}
-      <header className="bg-white border-b border-stone-200 shadow-xs">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3">
-            <img
-              src={shopInfo.logo}
-              alt={shopInfo.name}
-              className="w-11 h-11 rounded-full border border-stone-200 bg-white object-cover"
-            />
-            <div>
-              <h1 className="font-extrabold text-base text-[#1B4D31]">
-                {shopInfo.name}
-              </h1>
-              <p className="text-[11px] text-stone-500 font-mono">
-                ศูนย์แจ้งเคลมประกัน 100% • โทร. {shopInfo.phone}
-              </p>
-            </div>
-          </a>
-          <a
-            href="/tracking"
-            className="text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-xl transition inline-flex items-center gap-1.5"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>ดูประวัติคำสั่งซื้อ</span>
-          </a>
-        </div>
-      </header>
+      <SubPageHeader title="แจ้งเคลมสินค้า" subtitle={`รับประกันทุกลูก • โทร ${shopInfo.phone}`} />
 
-      <div className="max-w-2xl mx-auto px-4 py-10">
+      <div className="max-w-2xl mx-auto px-3 sm:px-4 py-4 pb-24 md:pb-10">
         {/* Guarantee Banner */}
-        <div className="bg-gradient-to-br from-[#11301F] to-[#1B4D31] text-white rounded-3xl p-6 sm:p-8 mb-8 border border-white/10 shadow-lg">
-          <span className="inline-flex items-center gap-1.5 bg-white/10 text-amber-300 border border-white/15 text-[11px] font-bold px-3 py-1 rounded-full">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>รับประกันคุณภาพทุกลูก 100% (ภายใน 24 ชม. หลังส่งเสร็จสิ้น)</span>
-          </span>
-          <h2 className="text-2xl font-extrabold mt-3 mb-2 text-white">
-            เจอทุเรียนอ่อน เนื้อขาว เละ หนอน —{" "}
-            <span className="text-amber-300">เคลมฟรีทันที</span>
-          </h2>
-          <p className="text-xs sm:text-sm text-emerald-100/85 leading-relaxed">
-            ที่ร้าน <strong>{shopInfo.name}</strong> เรารับประกันความสดและคุณภาพทุเรียนทุกผล
-            เมื่อพัสดุขึ้นสถานะ <strong>"จัดส่งสำเร็จ"</strong> ท่านสามารถกดแจ้งเคลมพร้อมแนบรูปถ่ายหลักฐานได้ <strong>ภายใน 24 ชั่วโมง</strong> เพื่อให้แอดมินเปลี่ยนลูกใหม่ให้ในรอบถัดไป หรือโอนเงินคืนทันทีครับ
+        <div className="bg-gradient-to-br from-[#11301F] to-[#1B4D31] text-white rounded-2xl p-4 sm:p-5 mb-4 shadow-sm">
+          <p className="flex items-center gap-1.5 text-[#FFD84D] text-sm font-extrabold">
+            <ShieldCheck className="w-4 h-4 shrink-0" /> อ่อน เนื้อขาว เละ หนอน — เคลมฟรี
+          </p>
+          <p className="text-xs text-emerald-100/90 leading-relaxed mt-1.5">
+            แจ้งได้<strong className="text-white"> ภายใน 24 ชม. หลังได้รับของ </strong>
+            พร้อมรูปถ่ายหลักฐาน — เปลี่ยนลูกใหม่รอบถัดไป หรือคืนเงิน
           </p>
         </div>
 
         {createdClaim ? (
-          <div className="bg-white rounded-3xl p-8 border border-stone-200 text-center shadow-lg">
+          <div className="bg-white rounded-2xl p-5 sm:p-8 border border-stone-200 text-center shadow-lg">
             <div className="w-14 h-14 rounded-full bg-emerald-50 text-[#1B4D31] border border-emerald-200 flex items-center justify-center mx-auto mb-3">
               <CheckCircle2 className="w-8 h-8" />
             </div>
@@ -276,11 +247,11 @@ export default function ClaimPage() {
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 space-y-5 shadow-xs"
+            className="bg-white rounded-2xl border border-stone-200 p-4 sm:p-6 space-y-4 shadow-xs"
           >
-            <div className="border-b border-stone-100 pb-4">
-              <h3 className="text-lg font-extrabold text-stone-900">
-                แบบฟอร์มแจ้งปัญหา / ขอเคลมทุเรียน
+            <div className="border-b border-stone-100 pb-3">
+              <h3 className="text-base font-extrabold text-stone-900">
+                แบบฟอร์มแจ้งเคลม
               </h3>
               <p className="text-xs text-stone-500 mt-0.5">
                 กรอกเลขออเดอร์ OD... เพื่อตรวจสิทธิ์รับประกัน 24 ชม.
@@ -492,6 +463,7 @@ export default function ClaimPage() {
           </form>
         )}
       </div>
+      <BottomNav active="claim" />
     </div>
   );
 }
