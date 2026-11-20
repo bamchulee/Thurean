@@ -142,7 +142,7 @@ export async function signInWithIdentity(profile: IdentityProfile, linkToUserId?
     };
     // LINE ที่ผูกเป็นแอดมินหลักไว้ (LINE_ADMIN_USER_ID / พิมพ์ /admin <PIN> กับบอท) ได้สิทธิ์เจ้าของร้าน
     const adminLineId = getRuntimeConfig().lineAdminUserId;
-    if (profile.provider === "line" && adminLineId && adminLineId === profile.providerId && owner.role !== "admin") {
+    if (profile.provider === "line" && adminLineId && adminLineId === profile.providerId && owner.role !== "admin" && owner.role !== "superadmin") {
       updates.role = "admin";
     }
     return { ok: true, user: (await updateUserRecord(owner.id, updates)) || { ...owner, ...updates } };

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { requireAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { requireSuperAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
 import { getBankAccount, getRuntimeConfig, getSettingsBundle, loadAppSettings, saveAppSettings, saveCustomColumns, writeSettingsSheet } from "../../../../lib/sheets-db";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +77,7 @@ function effective(key: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  if (!(await requireAdmin(req))) return unauthorizedResponse();
+  if (!(await requireSuperAdmin(req))) return unauthorizedResponse();
   await loadAppSettings(true);
   const { settings, customColumns, schema, loadedAt } = getSettingsBundle();
   const fields = SETTING_FIELDS.map((f) => {
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await requireAdmin(req))) return unauthorizedResponse();
+  if (!(await requireSuperAdmin(req))) return unauthorizedResponse();
   try {
     const body = (await req.json()) as {
       action: "save" | "columns" | "syncSheet";

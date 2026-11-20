@@ -18,15 +18,24 @@ import { Members } from "./_ui/Members";
 import { Settings } from "./_ui/Settings";
 import type { TabId } from "./_ui/shared";
 
-const NAV: { id: TabId; label: string; icon: typeof LayoutDashboard; staff?: boolean }[] = [
+// staff = พนักงานเห็นด้วย, superOnly = เฉพาะ SUPERADMIN (ซ่อนจากคนอื่นทั้งเมนูและลิงก์ตรง)
+const NAV: { id: TabId; label: string; icon: typeof LayoutDashboard; staff?: boolean; superOnly?: boolean }[] = [
   { id: "dashboard", label: "ภาพรวม", icon: LayoutDashboard },
   { id: "orders", label: "รายการสั่งซื้อ", icon: ClipboardList, staff: true },
   { id: "products", label: "สินค้า", icon: Package },
   { id: "rounds", label: "รอบรถ & ต้นทุน", icon: Truck },
   { id: "claims", label: "ศูนย์เคลม", icon: ShieldCheck, staff: true },
-  { id: "users", label: "สมาชิก", icon: Users },
-  { id: "settings", label: "การเชื่อมต่อ", icon: Plug },
+  { id: "users", label: "สิทธิ์ & สมาชิก", icon: Users, superOnly: true },
+  { id: "settings", label: "การเชื่อมต่อ", icon: Plug, superOnly: true },
 ];
+
+/** เห็นแท็บนี้ได้ไหม: superOnly → SUPERADMIN เท่านั้น, พนักงาน → เฉพาะแท็บ staff, เจ้าของร้าน → ที่เหลือทั้งหมด */
+function canSee(n: (typeof NAV)[number] | undefined, role: "superadmin" | "admin" | "staff" | null, superAdmin: boolean): boolean {
+  if (!n || !role) return false;
+  if (n.superOnly) return superAdmin;
+  if (role === "staff") return Boolean(n.staff);
+  return true;
+}
 
 function LoginScreen() {
   return (
@@ -58,7 +67,13 @@ function tabFromUrl(): { tab?: TabId; filter?: string } {
 }
 
 export default function AdminPage() {
-  const [auth, setAuth] = useState<{ checked: boolean; role: "admin" | "staff" | null; name?: string }>({ checked: false, role: null });
+  type Role = "superadmin" | "admin" | "staff";
+  const [auth, setAuth] = useState<{ checked: boolean; role: Role | null; name?: string; superAdmin: boolean; bootstrap: boolean }>({
+    checked: false,
+    role: null,
+    superAdmin: false,
+    bootstrap: false,
+  });
   const [tab, setTab] = useState<TabId>("dashboard");
   const [orderFilter, setOrderFilter] = useState<string | undefined>();
   const [actions, setActions] = useState<PageActions>({});
@@ -73,7 +88,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [warning, setWarning] = useState("");
 
-  const loadAll = useCallback(async (role: "admin" | "staff") => {
+  const loadAll = useCallback(async (role: "superadmin" | "admin" | "staff") => {
     setLoading(true);
     try {
       const get = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ ok: false }));
@@ -85,7 +100,7 @@ export default function AdminPage() {
       if (ord.ok) setOrders(ord.orders || []);
       if (rnd.ok) setRounds(rnd.rounds || []);
       if (clm.ok) setClaims(clm.claims || []);
-      if (role === "admin") {
+      if (role !== "staff") {
         const [lot, usr] = await Promise.all([get("/api/lots"), get("/api/admin/users")]);
         if (lot.ok) setLots(lot.lots || []);
         if (usr.ok) setUsers(usr.users || []);
@@ -98,17 +113,18 @@ export default function AdminPage() {
   useEffect(() => {
     fetch("/api/admin/auth", { cache: "no-store" })
       .then((r) => r.json())
-      .then((j: { authenticated?: boolean; role?: string; user?: { displayName?: string; firstName?: string } }) => {
-        const role = j.authenticated && (j.role === "admin" || j.role === "staff") ? j.role : null;
-        setAuth({ checked: true, role, name: j.user?.displayName || j.user?.firstName });
+      .then((j: { authenticated?: boolean; role?: string; superAdmin?: boolean; bootstrap?: boolean; user?: { displayName?: string; firstName?: string } }) => {
+        const role = j.authenticated && (j.role === "superadmin" || j.role === "admin" || j.role === "staff") ? j.role : null;
+        const superAdmin = Boolean(j.superAdmin);
+        setAuth({ checked: true, role, superAdmin, bootstrap: Boolean(j.bootstrap), name: j.user?.displayName || j.user?.firstName });
         if (!role) return;
         const fromUrl = tabFromUrl();
-        const allowed = (t?: TabId) => t && (role === "admin" || NAV.find((n) => n.id === t)?.staff);
+        const allowed = (t?: TabId) => Boolean(t && canSee(NAV.find((n) => n.id === t), role, superAdmin));
         setTab(allowed(fromUrl.tab) ? (fromUrl.tab as TabId) : role === "staff" ? "orders" : "dashboard");
         setOrderFilter(fromUrl.filter);
         loadAll(role);
       })
-      .catch(() => setAuth({ checked: true, role: null }));
+      .catch(() => setAuth({ checked: true, role: null, superAdmin: false, bootstrap: false }));
   }, [loadAll]);
 
   const go = useCallback((t: TabId, filter?: string) => {
@@ -130,7 +146,7 @@ export default function AdminPage() {
   if (!auth.role) return <LoginScreen />;
 
   const role = auth.role;
-  const nav = NAV.filter((n) => role === "admin" || n.staff);
+  const nav = NAV.filter((n) => canSee(n, role, auth.superAdmin));
   const current = NAV.find((n) => n.id === tab) || NAV[0];
   const badge: Partial<Record<TabId, number>> = {
     orders: orders.filter((o) => o.paymentStatus === "slip_submitted").length,
@@ -148,7 +164,7 @@ export default function AdminPage() {
             <img src={shopInfo.logo} alt="" className="w-10 h-10 rounded-full bg-white object-cover" />
             <div className="min-w-0">
               <div className="font-extrabold text-sm truncate">{shopInfo.name}</div>
-              <div className="text-[11px] text-emerald-200/70">{role === "admin" ? "เจ้าของร้าน" : "พนักงาน"}</div>
+              <div className="text-[11px] text-emerald-200/70">{role === "superadmin" ? "SUPERADMIN" : role === "admin" ? "เจ้าของร้าน" : "พนักงาน"}</div>
             </div>
           </div>
           <nav className="flex-1 p-3 space-y-1">
@@ -236,8 +252,14 @@ export default function AdminPage() {
               />
             )}
             {tab === "claims" && <Claims claims={claims} onUpdated={(c) => setClaims((prev) => prev.map((x) => (x.claimId === c.claimId ? c : x)))} />}
-            {tab === "users" && <Members users={users} onSaved={() => loadAll(role)} />}
-            {tab === "settings" && <Settings />}
+            {(tab === "users" || tab === "settings") && auth.superAdmin && auth.bootstrap && (
+              <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                <b>ยังไม่มี SUPERADMIN</b> — ตอนนี้แอดมินทุกคนเข้าหน้านี้ได้ ตั้งบัญชีเจ้าของระบบในชีต Users คอลัมน์ <b>role</b> เป็น <b>superadmin</b> (มีผลภายใน 1-2 นาที)
+                เพื่อซ่อนหน้าการเชื่อมต่อและการกำหนดสิทธิ์จากคนอื่น
+              </div>
+            )}
+            {tab === "users" && auth.superAdmin && <Members users={users} onSaved={() => loadAll(role)} />}
+            {tab === "settings" && auth.superAdmin && <Settings />}
           </main>
         </div>
         {health && <HealthDialog onClose={() => setHealth(false)} />}

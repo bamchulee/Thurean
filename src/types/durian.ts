@@ -214,8 +214,8 @@ export interface User extends BaseAuditLog {
   latitude?: number;
   longitude?: number;
   lastLoginAt?: string;
-  /** user = ลูกค้า, staff = พนักงาน (ชั่ง/ยืนยันสลิป/จัดส่ง), admin = เจ้าของร้าน (ทุกอย่าง) */
-  role: "user" | "staff" | "admin";
+  /** user = ลูกค้า, staff = พนักงาน, admin = เจ้าของร้าน, superadmin = เจ้าของระบบ (+ การเชื่อมต่อ & สิทธิ์) */
+  role: "user" | "staff" | "admin" | "superadmin";
   googleId?: string;
   email?: string;
   /** ช่องทางที่ผูกไว้ คั่นด้วยจุลภาค เช่น "google,line" */

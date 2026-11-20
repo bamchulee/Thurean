@@ -1409,7 +1409,8 @@ export async function upsertLineUser(input: UpsertLineUserInput): Promise<User> 
     const updates: Partial<User> = {
       updatedAt: now,
     };
-    if (isAdminByLineId && existing.role !== "admin") {
+    // ห้ามลดสิทธิ์ SUPERADMIN ลงเป็น admin
+    if (isAdminByLineId && existing.role !== "admin" && existing.role !== "superadmin") {
       updates.role = "admin";
     }
     if (cleanLineId && !existing.lineUserId) updates.lineUserId = cleanLineId;

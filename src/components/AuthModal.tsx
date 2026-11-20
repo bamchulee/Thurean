@@ -173,13 +173,13 @@ export function AuthModal() {
                   <p className="font-bold text-stone-900 truncate">{user.displayName || user.firstName || "สมาชิก"}</p>
                   {user.email && <p className="text-xs text-stone-500 truncate">{user.email}</p>}
                 </div>
-                {(user.role === "admin" || user.role === "staff") && (
+                {(user.role === "superadmin" || user.role === "admin" || user.role === "staff") && (
                   <a
                     href="/admin"
                     className="ml-auto text-xs font-bold bg-[#1B4D31] text-white px-3 py-1.5 rounded-xl inline-flex items-center gap-1"
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    {user.role === "admin" ? "หลังบ้าน" : "งานพนักงาน"}
+                    {user.role === "staff" ? "งานพนักงาน" : "หลังบ้าน"}
                   </a>
                 )}
               </div>

@@ -52,7 +52,7 @@ export function StoreHeader({
   onOpenAccount: () => void;
 }) {
   const { user, loading, openAuthModal } = useAuth();
-  const canManage = user?.role === "admin" || user?.role === "staff";
+  const canManage = user?.role === "superadmin" || user?.role === "admin" || user?.role === "staff";
 
   const search = (
     <label className="relative flex-1 min-w-0">
@@ -140,7 +140,7 @@ export function StoreHeader({
 export function AccountSheet({ onClose }: { onClose: () => void }) {
   const { user, logout, openAuthModal } = useAuth();
   if (!user) return null;
-  const canManage = user.role === "admin" || user.role === "staff";
+  const canManage = user.role === "superadmin" || user.role === "admin" || user.role === "staff";
   const row = "flex items-center gap-3 px-4 py-3 text-sm text-stone-800 hover:bg-stone-50";
   return (
     <Sheet title="บัญชีของฉัน" onClose={onClose}>
@@ -162,7 +162,7 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
         {canManage && (
           <a href="/admin" className={`${row} bg-amber-50 font-bold`}>
             <ShieldAlert className="w-5 h-5 text-amber-600" />
-            <span className="flex-1">{user.role === "admin" ? "หลังบ้านร้าน" : "งานพนักงาน"}</span>
+            <span className="flex-1">{user.role === "staff" ? "งานพนักงาน" : "หลังบ้านร้าน"}</span>
             <ChevronRight className="w-4 h-4 text-stone-400" />
           </a>
         )}

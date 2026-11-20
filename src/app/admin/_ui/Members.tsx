@@ -6,14 +6,18 @@ import type { SafeUser } from "../../../types/durian";
 import { baht, Badge, DataTable, Drawer, Field, inputCls, Toast, usePageActions, type Column } from "./kit";
 import { shortDate } from "./shared";
 
-type Role = "user" | "staff" | "admin";
+type Role = "user" | "staff" | "admin" | "superadmin";
 type Patch = { role?: Role; isActive?: number; notes?: string };
 
 const ROLE: Record<Role, { label: string; cls: string }> = {
+  superadmin: { label: "SUPERADMIN", cls: "bg-purple-100 text-purple-900" },
   admin: { label: "เจ้าของร้าน", cls: "bg-amber-100 text-amber-900" },
   staff: { label: "พนักงาน", cls: "bg-sky-100 text-sky-800" },
   user: { label: "ลูกค้า", cls: "bg-stone-100 text-stone-600" },
 };
+
+/** สิทธิ์ที่ตั้งจากหน้าเว็บได้ — SUPERADMIN ตั้ง/แก้ได้ที่ชีต Users เท่านั้น */
+const EDITABLE_ROLES: Role[] = ["admin", "staff", "user"];
 
 const active = (u: SafeUser) => !(u.isActive === 0 || u.isActive === false || (u.isActive as unknown) === "0");
 
@@ -24,13 +28,21 @@ export function Members({ users, onSaved }: { users: SafeUser[]; onSaved: () => 
 
   const saveAll = useCallback(async () => {
     const failed: string[] = [];
+    const reasons: string[] = [];
     for (const [userId, p] of Object.entries(edits)) {
       const res = await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, ...p }) }).catch(() => null);
       const j = res ? await res.json().catch(() => ({})) : {};
-      if (!res || !res.ok || !j.ok) failed.push(userId);
+      if (!res || !res.ok || !j.ok) {
+        failed.push(userId);
+        if (j.error) reasons.push(j.error);
+      }
     }
     setEdits((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => failed.includes(id))));
-    setToast(failed.length ? { msg: `บันทึกไม่สำเร็จ: ${failed.join(", ")}`, ok: false } : { msg: "บันทึกสมาชิกแล้ว", ok: true });
+    setToast(
+      failed.length
+        ? { msg: `บันทึกไม่สำเร็จ: ${failed.join(", ")}${reasons.length ? ` — ${[...new Set(reasons)].join(" / ")}` : ""}`, ok: false }
+        : { msg: "บันทึกสมาชิกแล้ว", ok: true }
+    );
     onSaved();
   }, [edits, onSaved]);
 
@@ -81,20 +93,23 @@ export function Members({ users, onSaved }: { users: SafeUser[]; onSaved: () => 
     {
       key: "role",
       header: "สิทธิ์",
-      render: (u) => (
-        <select
-          value={roleOf(u)}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => setEdit(u.id, { role: e.target.value as Role })}
-          className={`border border-stone-200 rounded-lg px-2 py-1 text-xs font-bold bg-white ${edits[u.id]?.role ? "ring-2 ring-amber-300" : ""}`}
-        >
-          {(Object.keys(ROLE) as Role[]).map((r) => (
-            <option key={r} value={r}>
-              {ROLE[r].label}
-            </option>
-          ))}
-        </select>
-      ),
+      render: (u) =>
+        u.role === "superadmin" ? (
+          <Badge className={ROLE.superadmin.cls}>{ROLE.superadmin.label}</Badge>
+        ) : (
+          <select
+            value={roleOf(u)}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setEdit(u.id, { role: e.target.value as Role })}
+            className={`border border-stone-200 rounded-lg px-2 py-1 text-xs font-bold bg-white ${edits[u.id]?.role ? "ring-2 ring-amber-300" : ""}`}
+          >
+            {EDITABLE_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {ROLE[r].label}
+              </option>
+            ))}
+          </select>
+        ),
     },
     { key: "orders", header: "ออเดอร์", className: "text-right", hideOnMobile: true, render: (u) => <span className="tabular-nums">{u.orderCount || 0}</span> },
     { key: "spent", header: "ยอดซื้อ", className: "text-right", hideOnMobile: true, render: (u) => <span className="tabular-nums">{baht(u.totalSpent || 0)}</span> },
@@ -111,6 +126,7 @@ export function Members({ users, onSaved }: { users: SafeUser[]; onSaved: () => 
         search={(u) => `${u.id} ${name(u)} ${u.displayName || ""} ${u.phone} ${u.email || ""}`}
         searchPlaceholder="ค้นหาชื่อ เบอร์ อีเมล"
         filters={[
+          { id: "superadmin", label: "SUPERADMIN", test: (u) => u.role === "superadmin" },
           { id: "admin", label: "เจ้าของร้าน", test: (u) => u.role === "admin" },
           { id: "staff", label: "พนักงาน", test: (u) => u.role === "staff" },
           { id: "user", label: "ลูกค้า", test: (u) => u.role === "user" },
@@ -145,22 +161,30 @@ export function Members({ users, onSaved }: { users: SafeUser[]; onSaved: () => 
             <dt className="text-stone-500">สมัครเมื่อ</dt>
             <dd className="col-span-2">{shortDate(open.createdAt)}</dd>
           </dl>
-          <Field label="สิทธิ์">
-            <select className={inputCls} value={roleOf(open)} onChange={(e) => setEdit(open.id, { role: e.target.value as Role })}>
-              {(Object.keys(ROLE) as Role[]).map((r) => (
-                <option key={r} value={r}>
-                  {ROLE[r].label}
-                </option>
-              ))}
-            </select>
-          </Field>
+          {open.role === "superadmin" ? (
+            <p className="rounded-xl bg-purple-50 border border-purple-200 px-3 py-2 text-xs text-purple-900">
+              บัญชี SUPERADMIN — แก้สิทธิ์หรือปิดบัญชีได้ที่ชีต Users (คอลัมน์ role) เท่านั้น
+            </p>
+          ) : (
+            <Field label="สิทธิ์" hint="SUPERADMIN ตั้งได้ที่ชีต Users เท่านั้น">
+              <select className={inputCls} value={roleOf(open)} onChange={(e) => setEdit(open.id, { role: e.target.value as Role })}>
+                {EDITABLE_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE[r].label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label="หมายเหตุ">
             <textarea className={`${inputCls} min-h-16`} value={edits[open.id]?.notes ?? open.notes ?? ""} onChange={(e) => setEdit(open.id, { notes: e.target.value })} />
           </Field>
-          <label className="flex items-center gap-2 text-sm font-semibold">
-            <input type="checkbox" checked={activeOf(open)} onChange={(e) => setEdit(open.id, { isActive: e.target.checked ? 1 : 0 })} />
-            บัญชีใช้งานได้ (เอาติ๊กออก = ปิดบัญชี เข้าระบบไม่ได้)
-          </label>
+          {open.role !== "superadmin" && (
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" checked={activeOf(open)} onChange={(e) => setEdit(open.id, { isActive: e.target.checked ? 1 : 0 })} />
+              บัญชีใช้งานได้ (เอาติ๊กออก = ปิดบัญชี เข้าระบบไม่ได้)
+            </label>
+          )}
           <p className="text-[11px] text-stone-400">แก้แล้วกด บันทึก ที่แถบด้านบน</p>
         </Drawer>
       )}

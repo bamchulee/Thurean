@@ -3,7 +3,7 @@ import path from "path";
 import sharp from "sharp";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { requireAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { requireSuperAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
 import { getRuntimeConfig, getSettingsBundle, loadAppSettings } from "../../../../lib/sheets-db";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +92,7 @@ async function line(token: string, url: string, init: RequestInit = {}) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!(await requireAdmin(req))) return unauthorizedResponse();
+  if (!(await requireSuperAdmin(req))) return unauthorizedResponse();
   try {
     const token = getRuntimeConfig().lineChannelAccessToken;
     let defaultRichMenuId = "";
@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await requireAdmin(req))) return unauthorizedResponse();
+  if (!(await requireSuperAdmin(req))) return unauthorizedResponse();
   try {
     await loadAppSettings(true);
     const token = getRuntimeConfig().lineChannelAccessToken;

@@ -1,18 +1,23 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ADMIN_COOKIE_NAME, USER_COOKIE_NAME, getCurrentUser } from "../../../../lib/admin-auth";
+import { ADMIN_COOKIE_NAME, USER_COOKIE_NAME, getCurrentUser, getSuperAdminAccess } from "../../../../lib/admin-auth";
 import { toSafeUser } from "../../../../lib/user-auth";
 
 export const dynamic = "force-dynamic";
 
-// หลังบ้านใช้ได้เฉพาะสมาชิกที่มีสิทธิ์ staff / admin ในชีต Users (เข้าระบบด้วย LINE / Google)
+// หลังบ้านใช้ได้เฉพาะสมาชิกที่มีสิทธิ์ staff / admin / superadmin ในชีต Users (เข้าระบบด้วย LINE / Google)
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser(req);
-  const role = user?.role === "admin" || user?.role === "staff" ? user.role : null;
+  const role =
+    user?.role === "superadmin" || user?.role === "admin" || user?.role === "staff" ? user.role : null;
+  // superAdmin = เข้าแท็บการเชื่อมต่อ/สิทธิ์ได้, bootstrap = ยังไม่มี SUPERADMIN ในระบบ (admin เข้าได้ชั่วคราว)
+  const access = role ? await getSuperAdminAccess(req) : { ok: false, bootstrap: false };
   return NextResponse.json({
     ok: true,
     authenticated: Boolean(role),
     role,
+    superAdmin: access.ok,
+    bootstrap: access.bootstrap,
     user: user ? toSafeUser(user) : null,
   });
 }
