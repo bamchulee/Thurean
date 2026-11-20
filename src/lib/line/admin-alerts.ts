@@ -1,6 +1,7 @@
 // การ์ดแจ้งเตือนกลุ่มแอดมิน: ออเดอร์ใหม่ สลิป เคลม ตั๋ว
 import type { Claim, Order } from "../../types/durian";
 import { slipAccountText, slipAmountText, slipCheckText } from "../slip-check";
+import { signedSlipUrl } from "../slip-link";
 
 /** ลิงก์ในการ์ดแจ้งเตือนกลุ่มแอดมิน — กลุ่มมีแค่การแจ้งเตือน งานทุกอย่างทำในหน้าออเดอร์บนเว็บ */
 export interface AdminAlertLinks {
@@ -259,7 +260,8 @@ export function buildOrderAlertForAdmin(order: Order, links: AdminAlertLinks): u
 
 export function buildSlipAlertForAdmin(order: Order, links: AdminAlertLinks, slipUrl?: string): unknown[] {
   const base = links.orderUrl.replace(/\/admin\/orders\/.*$/, "");
-  const fullSlipUrl = slipUrl ? (slipUrl.startsWith("http") ? slipUrl : `${base}${slipUrl}`) : undefined;
+  // รูปสลิปเปิดได้เฉพาะลิงก์ที่มีลายเซ็น (LINE ดึงรูปไปแสดงในการ์ด)
+  const fullSlipUrl = slipUrl ? signedSlipUrl(slipUrl.startsWith("http") ? slipUrl : `${base}${slipUrl}`) : undefined;
   const qr = slipCheckText(order.slipCheck);
   const checks = [qr.label, slipAmountText(order), slipAccountText(order.slipAccountCheck)].filter(Boolean);
   const bad = qr.tone === "bad" || order.slipAmountCheck === "mismatch" || order.slipAccountCheck === "mismatch";

@@ -4,11 +4,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getWritableDataDir } from "../../../../lib/storage-dir";
 import { getRuntimeConfig } from "../../../../lib/sheets-db";
+import { requireStaff } from "../../../../lib/admin-auth";
+import { verifySlipSignature } from "../../../../lib/slip-link";
 
 export const dynamic = "force-dynamic";
 
+// รูปสลิป/หลักฐานมีข้อมูลการเงินของลูกค้า: เปิดได้เฉพาะพนักงานที่ล็อกอิน หรือลิงก์ที่มีลายเซ็นจากการ์ด LINE
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ filename: string }> }
 ) {
   try {
@@ -16,6 +19,11 @@ export async function GET(
     const safeName = path.basename(decodeURIComponent(filename));
     if (!/^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$/i.test(safeName)) {
       return NextResponse.json({ ok: false, error: "Invalid filename" }, { status: 400 });
+    }
+    const sp = req.nextUrl.searchParams;
+    const allowed = verifySlipSignature(safeName, sp.get("exp"), sp.get("sig")) || (await requireStaff(req));
+    if (!allowed) {
+      return NextResponse.json({ ok: false, error: "ไม่มีสิทธิ์ดูรูปนี้" }, { status: 401 });
     }
 
     const filePath = path.join(getWritableDataDir("slips"), safeName);
@@ -53,7 +61,7 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": "private, max-age=3600",
       },
     });
   } catch (err) {

@@ -63,6 +63,7 @@ import { extractOrderId, findOrderById } from "../../../../lib/ids";
 import { shopInfo } from "../../../../data/shop";
 import { readChatIntent } from "../../../../lib/line/order-intent";
 import { buildChatMessageAlertForAdmin } from "../../../../lib/line/admin-alerts";
+import { signedSlipUrl } from "../../../../lib/slip-link";
 import type { DatabaseState, Order, RuntimeConfig, User } from "../../../../types/durian";
 
 export const dynamic = "force-dynamic";
@@ -687,7 +688,8 @@ async function handleImage(ctx: Ctx, messageId: string) {
   // ไม่มีออเดอร์ที่รอโอน: ส่งรูปให้แอดมินดู แต่ไม่ไปเปลี่ยนสถานะออเดอร์ไหน
   const booked = ordersOfUser(data, ctx.userId).find((o) => orderStatusOf(o) === "สั่งจอง");
   const user = findLineUser(data, ctx.userId);
-  const imageUrl = media.ok && ctx.baseUrl ? `${ctx.baseUrl}${media.apiPath}` : "";
+  // ลิงก์มีลายเซ็น: LINE ดึงรูปได้ แต่คนนอกเดาลิงก์เปิดเองไม่ได้
+  const imageUrl = media.ok && ctx.baseUrl && media.apiPath ? signedSlipUrl(media.apiPath, ctx.baseUrl) : "";
   await notifyAdmins([
     text(
       `🖼️ ลูกค้าส่งรูปทางแชท (ไม่มีออเดอร์ที่รอโอน)\n👤 ${user ? contactOf(user)?.name || user.displayName : "ลูกค้า LINE"}${booked ? `\n📦 มีออเดอร์จอง #${booked.id} (ยังไม่ชั่ง)` : ""}`,
