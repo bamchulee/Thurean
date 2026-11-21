@@ -15,6 +15,7 @@ import {
   type AddressValue,
   type GeoResult,
 } from "../../lib/thai-address";
+import { canonicalize, searchTambon, useThaiAddress, type ThaiAddressData, type TambonRow } from "../../lib/thai-address-data";
 
 const field =
   "w-full border border-stone-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:border-[#1B4D31] focus:ring-2 focus:ring-[#1B4D31]/15 focus:outline-none";
@@ -51,12 +52,27 @@ export function AddressForm({
   const [msg, setMsg] = useState("");
   const geoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ฐานข้อมูลจังหวัด/อำเภอ/ตำบล/รหัสไปรษณีย์ (โหลดตอนเปิดฟอร์ม)
+  const thai = useThaiAddress();
+  const thaiRef = useRef<ThaiAddressData | null>(null);
+  useEffect(() => {
+    thaiRef.current = thai;
+  }, [thai]);
+  const [tambonQuery, setTambonQuery] = useState("");
+  const tambonHits = thai ? searchTambon(thai, tambonQuery) : [];
+
   const bkk = isBangkok(v.province);
   const pin = inThailand(v.lat, v.lng) ? { lat: v.lat as number, lng: v.lng as number } : null;
 
   /** หมุดย้าย → เติมตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ที่ลูกค้ายังไม่ได้พิมพ์เอง */
-  const fillFrom = (g: GeoResult, onlyMissing = false) => {
+  const fillFrom = (raw: GeoResult, onlyMissing = false) => {
     const cur = latest.current;
+    // ชื่อจากแผนที่ → ชื่อตามไปรษณีย์ไทย + รหัสไปรษณีย์จริง (ถ้าฐานข้อมูลโหลดแล้ว)
+    const data = thaiRef.current;
+    const c = data ? canonicalize(data, raw) : null;
+    const g: GeoResult = c
+      ? { ...raw, province: c.province || raw.province, district: c.district || "", subdistrict: c.subdistrict || "", postalCode: c.postalCode || raw.postalCode }
+      : raw;
     const patch: Partial<AddressValue> = {};
     // ช่องที่ระบบเติมเอง: ตำแหน่งใหม่ไม่มีค่านั้น → ล้างค่าเก่าทิ้ง (กันรหัสไปรษณีย์ของที่เดิมค้าง)
     const auto = (k: AutoKey, val?: string) => {
@@ -143,6 +159,12 @@ export function AddressForm({
     if (!g.postalCode) lookup({ lat: g.lat, lng: g.lng }, g.label);
   };
 
+  const pickTambon = (t: TambonRow) => {
+    (["province", "district", "subdistrict", "postalCode"] as const).forEach((k) => touched.current.add(k));
+    setTambonQuery("");
+    set({ province: t.province, district: t.district, subdistrict: t.subdistrict, postalCode: t.postalCode });
+  };
+
   const typed = (k: AutoKey | "detail", patch: Partial<AddressValue>) => {
     touched.current.add(k);
     set(patch);
@@ -221,10 +243,42 @@ export function AddressForm({
       </div>
 
       {/* ที่อยู่ตามไปรษณีย์ */}
+      {thai && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+          <input
+            className={`${field} pl-9`}
+            value={tambonQuery}
+            onChange={(e) => setTambonQuery(e.target.value)}
+            placeholder="ค้นหาเร็ว: ชื่อตำบล หรือรหัสไปรษณีย์"
+          />
+          {tambonHits.length > 0 && (
+            <div className="absolute z-20 mt-1 w-full rounded-xl border border-stone-200 bg-white shadow-lg overflow-hidden">
+              {tambonHits.map((t) => (
+                <button
+                  key={`${t.province}-${t.district}-${t.subdistrict}-${t.postalCode}`}
+                  type="button"
+                  onClick={() => pickTambon(t)}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-stone-50 border-b border-stone-100 last:border-0"
+                >
+                  <b>{t.subdistrict}</b> › {t.district} › {t.province} <span className="text-stone-400">{t.postalCode}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2.5">
         <label className="block col-span-2 sm:col-span-1">
           <span className="text-xs font-semibold text-stone-600">จังหวัด *</span>
-          <select className={`${field} mt-1`} value={v.province} onChange={(e) => typed("province", { province: e.target.value })}>
+          <select
+            className={`${field} mt-1`}
+            value={v.province}
+            onChange={(e) => {
+              ["district", "subdistrict", "postalCode"].forEach((k) => touched.current.delete(k as AutoKey));
+              typed("province", { province: e.target.value, district: "", subdistrict: "", postalCode: "" });
+            }}
+          >
             <option value="">เลือกจังหวัด</option>
             {PROVINCES.map((p) => (
               <option key={p}>{p}</option>
@@ -233,11 +287,62 @@ export function AddressForm({
         </label>
         <label className="block col-span-2 sm:col-span-1">
           <span className="text-xs font-semibold text-stone-600">{bkk ? "เขต *" : "อำเภอ *"}</span>
-          <input className={`${field} mt-1`} value={v.district} onChange={(e) => typed("district", { district: e.target.value })} placeholder={bkk ? "เช่น บางรัก" : "เช่น เมืองระยอง"} />
+          {(() => {
+            const list = thai && v.province && thai[v.province] ? Object.keys(thai[v.province]) : null;
+            return list ? (
+              <select
+                className={`${field} mt-1`}
+                value={list.includes(v.district) ? v.district : ""}
+                onChange={(e) => typed("district", { district: e.target.value, subdistrict: "", postalCode: "" })}
+              >
+                <option value="">{bkk ? "เลือกเขต" : "เลือกอำเภอ"}</option>
+                {list.map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className={`${field} mt-1`}
+                value={v.district}
+                disabled={Boolean(thai) && !v.province}
+                onChange={(e) => typed("district", { district: e.target.value })}
+                placeholder={thai ? "เลือกจังหวัดก่อน" : bkk ? "เช่น บางรัก" : "เช่น เมืองระยอง"}
+              />
+            );
+          })()}
         </label>
         <label className="block">
           <span className="text-xs font-semibold text-stone-600">{bkk ? "แขวง *" : "ตำบล *"}</span>
-          <input className={`${field} mt-1`} value={v.subdistrict} onChange={(e) => typed("subdistrict", { subdistrict: e.target.value })} placeholder={bkk ? "เช่น สีลม" : "เช่น ท่าประดู่"} />
+          {(() => {
+            const list = thai && v.province && thai[v.province]?.[v.district] ? thai[v.province][v.district] : null;
+            return list ? (
+              <select
+                className={`${field} mt-1`}
+                value={list.some(([t]) => t === v.subdistrict) ? `${v.subdistrict}|${v.postalCode}` : ""}
+                onChange={(e) => {
+                  const [sub, zip] = e.target.value.split("|");
+                  touched.current.add("postalCode");
+                  typed("subdistrict", { subdistrict: sub || "", postalCode: zip || "" });
+                }}
+              >
+                <option value="">{bkk ? "เลือกแขวง" : "เลือกตำบล"}</option>
+                {list.map(([t, z]) => (
+                  <option key={`${t}|${z}`} value={`${t}|${z}`}>
+                    {t}
+                    {list.filter(([x]) => x === t).length > 1 ? ` (${z})` : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className={`${field} mt-1`}
+                value={v.subdistrict}
+                disabled={Boolean(thai) && !v.district}
+                onChange={(e) => typed("subdistrict", { subdistrict: e.target.value })}
+                placeholder={thai ? (bkk ? "เลือกเขตก่อน" : "เลือกอำเภอก่อน") : bkk ? "เช่น สีลม" : "เช่น ท่าประดู่"}
+              />
+            );
+          })()}
         </label>
         <label className="block">
           <span className="text-xs font-semibold text-stone-600">รหัสไปรษณีย์ *</span>

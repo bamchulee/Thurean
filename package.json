@@ -33,6 +33,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
     "tailwindcss": "^4",
+    "thai-address-database": "^0.0.33",
     "typescript": "^5"
   }
 }
