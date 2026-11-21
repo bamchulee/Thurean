@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CheckCircle2, Minus, Plus, ShoppingBasket, Trash2 } from "lucide-react";
 import { shopInfo } from "../data/shop";
 import { CheckoutAccountGate, canCheckout } from "./CheckoutAccountGate";
@@ -9,9 +9,9 @@ import { useAuth } from "../context/AuthContext";
 import type { Order } from "../types/durian";
 import { OrderSuccessModal } from "./OrderSuccessModal";
 import { LineIcon } from "./Icons";
-import { MapLocationPicker } from "./MapLocationPicker";
 import { pricePerKgOf } from "../lib/stock";
 import { Sheet } from "./store/Sheet";
+import { DeliveryAddressSection, useDeliveryAddress } from "./address/DeliveryAddress";
 
 const field =
   "w-full border border-stone-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:border-[#1B4D31] focus:ring-2 focus:ring-[#1B4D31]/15 focus:outline-none";
@@ -28,32 +28,13 @@ export function CartDrawerModal({
   onClose: () => void;
 }) {
   const { items, updateQty, removeItem, clearCart } = useCart();
-  const { user, openAuthModal } = useAuth();
-  const [name, setName] = useState(
-    user
-      ? `${user.firstName} ${user.lastName}`.trim() || user.username
-      : lineProfile?.displayName || ""
-  );
-  const [phone, setPhone] = useState(user?.phone || "");
-  const [address, setAddress] = useState(
-    user ? `${user.address} ${user.postalCode}`.trim() : ""
-  );
+  const { user, updateProfile } = useAuth();
+  // ที่อยู่จัดส่ง: ที่อยู่ที่บันทึกไว้ หรือกรอกใหม่พร้อมปักหมุด
+  const delivery = useDeliveryAddress(user, lineProfile?.displayName);
   const [shipping, setShipping] = useState(shopInfo.shippingMethods[0].name);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      if (!name) setName(`${user.firstName} ${user.lastName}`.trim() || user.username);
-      if (!phone && user.phone) setPhone(user.phone);
-      if (!address && user.address) {
-        setAddress(`${user.address} ${user.postalCode}`.trim());
-      }
-    } else if (lineProfile?.displayName && !name) {
-      setName(lineProfile.displayName);
-    }
-  }, [user, lineProfile]);
 
   if (createdOrder) {
     return (
@@ -73,6 +54,11 @@ export function CartDrawerModal({
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return;
+    const addr = delivery.resolve();
+    if (!addr.ok) {
+      setErrorMsg(addr.error);
+      return;
+    }
     setSubmitting(true);
     setErrorMsg("");
 
@@ -81,10 +67,7 @@ export function CartDrawerModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user?.id || user?.userId,
-          customerName: name,
-          phone,
-          address,
+          ...addr.data,
           shippingMethod: shipping,
           roundId,
           lineUserId: user?.lineUserId || lineProfile?.userId,
@@ -106,6 +89,9 @@ export function CartDrawerModal({
         setCreatedOrder(json.order);
         clearCart();
         onSuccess(json.order);
+        // ที่อยู่ใหม่ → เก็บเป็นที่อยู่หลัก (ไม่ต้องรอ)
+        const patch = delivery.profilePatch();
+        if (patch && user) void updateProfile(patch);
       }
     } catch {
       setErrorMsg("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
@@ -201,21 +187,7 @@ export function CartDrawerModal({
             )}
             <CheckoutAccountGate />
 
-            <p className="text-xs font-bold text-stone-700 pt-1">ที่อยู่จัดส่ง</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <input required className={field} value={name} onChange={(e) => setName(e.target.value)} placeholder="ชื่อผู้รับ *" autoComplete="name" />
-              <input required type="tel" inputMode="tel" className={field} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="เบอร์โทร * 08X-XXX-XXXX" autoComplete="tel" />
-            </div>
-            <MapLocationPicker address={address} onAddressChange={(a) => setAddress(a)} />
-            <textarea
-              required
-              rows={2}
-              className={`${field} resize-none`}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="ที่อยู่ละเอียด * (หรือกดปักหมุดด้านบน)"
-              autoComplete="street-address"
-            />
+            <DeliveryAddressSection state={delivery} canSave={Boolean(user)} />
             <select value={shipping} onChange={(e) => setShipping(e.target.value)} className={`${field} truncate`}>
               {shopInfo.shippingMethods.map((s) => (
                 <option key={s.name} value={s.name}>

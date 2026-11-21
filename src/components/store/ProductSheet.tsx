@@ -9,6 +9,7 @@ import { CheckoutAccountGate, canCheckout } from "../CheckoutAccountGate";
 import { OrderSuccessModal } from "../OrderSuccessModal";
 import { formatProductStock, pricePerKgOf } from "../../lib/stock";
 import { Sheet } from "./Sheet";
+import { DeliveryAddressSection, useDeliveryAddress } from "../address/DeliveryAddress";
 import { baht } from "./ProductCard";
 
 export const RIPENESS = [
@@ -48,17 +49,12 @@ export function ProductSheet({
   onSuccess: (order: Order) => void;
   onClose: () => void;
 }) {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [step, setStep] = useState<"detail" | "checkout">("detail");
   const [qty, setQty] = useState(1);
   const [ripeness, setRipeness] = useState(initialRipeness || RIPENESS[0].value);
-  // ช่องที่ลูกค้ายังไม่แก้ ใช้ข้อมูลสมาชิก (โหลดเสร็จทีหลังก็เติมให้เอง)
-  const [nameEdit, setName] = useState<string | null>(null);
-  const [phoneEdit, setPhone] = useState<string | null>(null);
-  const [addressEdit, setAddress] = useState<string | null>(null);
-  const name = nameEdit ?? (displayName(user) || lineProfile?.displayName || "");
-  const phone = phoneEdit ?? (user?.phone || "");
-  const address = addressEdit ?? (user ? `${user.address || ""} ${user.postalCode || ""}`.trim() : "");
+  // ที่อยู่จัดส่ง: ที่อยู่ที่บันทึกไว้ หรือกรอกใหม่พร้อมปักหมุด
+  const delivery = useDeliveryAddress(user, lineProfile?.displayName);
   const [shipping, setShipping] = useState(shopInfo.shippingMethods[0].name);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -72,6 +68,11 @@ export function ProductSheet({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const addr = delivery.resolve();
+    if (!addr.ok) {
+      setErrorMsg(addr.error);
+      return;
+    }
     setSubmitting(true);
     setErrorMsg("");
     try {
@@ -79,9 +80,7 @@ export function ProductSheet({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customerName: name,
-          phone,
-          address,
+          ...addr.data,
           ripenessPref: ripeness,
           shippingMethod: shipping,
           roundId,
@@ -94,6 +93,9 @@ export function ProductSheet({
       } else {
         setCreatedOrder(json.order);
         onSuccess(json.order);
+        // ที่อยู่ใหม่ → เก็บเป็นที่อยู่หลัก (ไม่ต้องรอ)
+        const patch = delivery.profilePatch();
+        if (patch && user) void updateProfile(patch);
       }
     } catch {
       setErrorMsg("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่");
@@ -161,20 +163,7 @@ export function ProductSheet({
 
           <CheckoutAccountGate />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <label className="block">
-              <span className="text-xs font-semibold text-stone-600">ชื่อผู้รับ *</span>
-              <input required className={`${inputCls} mt-1`} value={name} onChange={(e) => setName(e.target.value)} placeholder="ชื่อ-นามสกุล" autoComplete="name" />
-            </label>
-            <label className="block">
-              <span className="text-xs font-semibold text-stone-600">เบอร์โทร *</span>
-              <input required type="tel" inputMode="tel" className={`${inputCls} mt-1`} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08X-XXX-XXXX" autoComplete="tel" />
-            </label>
-          </div>
-          <label className="block">
-            <span className="text-xs font-semibold text-stone-600">ที่อยู่จัดส่ง *</span>
-            <textarea required rows={2} className={`${inputCls} mt-1 resize-none`} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="บ้านเลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" autoComplete="street-address" />
-          </label>
+          <DeliveryAddressSection state={delivery} canSave={Boolean(user)} />
 
           <fieldset>
             <legend className="text-xs font-semibold text-stone-600 mb-1">วิธีจัดส่ง</legend>

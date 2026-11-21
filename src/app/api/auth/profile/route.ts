@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getUserById, updateUserRecord } from "../../../../lib/sheets-db";
 import { verifySessionToken, toSafeUser, createSessionToken } from "../../../../lib/user-auth";
+import { inThailand, mapsLink } from "../../../../lib/thai-address";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,12 @@ export async function PUT(req: NextRequest) {
     if (body.address) updates.address = String(body.address).trim();
     if (body.postalCode) updates.postalCode = String(body.postalCode).trim().replace(/[^0-9]/g, "");
     if (body.avatarUrl !== undefined) updates.avatarUrl = String(body.avatarUrl).trim();
+    // หมุดจากฟอร์มที่อยู่ (ใช้ซ้ำตอนสั่งครั้งหน้า)
+    if (inThailand(Number(body.latitude), Number(body.longitude))) {
+      updates.latitude = Math.round(Number(body.latitude) * 1e6) / 1e6;
+      updates.longitude = Math.round(Number(body.longitude) * 1e6) / 1e6;
+      updates.mapsUrl = mapsLink(Number(body.latitude), Number(body.longitude));
+    }
 
     const updated = await updateUserRecord(user.id, {
       ...updates,

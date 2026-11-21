@@ -8,6 +8,8 @@ import { type AuthProviderName, useAuth } from "../context/AuthContext";
 import { LineIcon } from "./Icons";
 import { shopInfo } from "../data/shop";
 import { GOOGLE_LOGIN_ENABLED } from "../lib/feature-flags";
+import { AddressForm } from "./address/AddressForm";
+import { EMPTY_ADDRESS, addressErrors, formatThaiAddress, inThailand, type AddressValue } from "../lib/thai-address";
 
 // Google ปิดไว้ก่อน (lib/feature-flags.ts) — ไม่โชว์ทั้งปุ่มเข้าสู่ระบบและปุ่มเชื่อมบัญชี
 const PROVIDERS: { id: AuthProviderName; label: string }[] = (
@@ -59,6 +61,9 @@ export function AuthModal() {
   const [notFriend, setNotFriend] = useState(false);
   const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", address: "" });
   const [saving, setSaving] = useState(false);
+  // แก้ที่อยู่ด้วยฟอร์มแบบปักหมุด (ไม่กดแก้ = ใช้ที่อยู่เดิม)
+  const [editAddr, setEditAddr] = useState(false);
+  const [addr, setAddr] = useState<AddressValue>(EMPTY_ADDRESS);
 
   // ข้อความจากการกลับมาจากหน้าล็อกอิน (?auth_error= / ?linked= / ?line_friend=0)
   useEffect(() => {
@@ -100,8 +105,24 @@ export function AuthModal() {
       setNotice({ ok: false, text: "กรุณากรอกเบอร์โทร 9-10 หลัก" });
       return;
     }
+    let patch: Record<string, unknown> = { ...form };
+    if (editAddr) {
+      const pinned = { ...addr, lat: addr.lat ?? user?.latitude, lng: addr.lng ?? user?.longitude };
+      const missing = addressErrors(pinned, { contact: false });
+      if (missing.length) {
+        setNotice({ ok: false, text: `กรอกที่อยู่ให้ครบ: ${missing.join(", ")}` });
+        return;
+      }
+      patch = {
+        ...patch,
+        address: formatThaiAddress({ ...pinned, postalCode: "" }),
+        postalCode: pinned.postalCode,
+        ...(inThailand(pinned.lat, pinned.lng) ? { latitude: pinned.lat, longitude: pinned.lng } : {}),
+      };
+    }
     setSaving(true);
-    const res = await updateProfile(form);
+    const res = await updateProfile(patch);
+    if (res.ok) setEditAddr(false);
     setSaving(false);
     setNotice(res.ok ? { ok: true, text: "บันทึกข้อมูลแล้ว" } : { ok: false, text: res.error || "บันทึกไม่สำเร็จ" });
   };
@@ -259,13 +280,30 @@ export function AuthModal() {
                   inputMode="tel"
                   className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm font-mono"
                 />
-                <textarea
-                  value={form.address}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  placeholder="ที่อยู่จัดส่ง"
-                  rows={3}
-                  className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm"
-                />
+                <p className="text-xs font-bold text-stone-500 pt-1">ที่อยู่จัดส่ง</p>
+                {editAddr ? (
+                  <div className="rounded-xl border border-stone-200 p-2.5">
+                    <AddressForm
+                      value={{ ...addr, lat: addr.lat ?? user?.latitude, lng: addr.lng ?? user?.longitude }}
+                      onChange={setAddr}
+                      showContact={false}
+                    />
+                    <button type="button" onClick={() => setEditAddr(false)} className="mt-2 text-xs font-bold text-stone-500 underline">
+                      ยกเลิก ใช้ที่อยู่เดิม
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-stone-200 p-3 flex items-start gap-2">
+                    <span className="text-[#D9480F]">📍</span>
+                    <p className="flex-1 text-sm text-stone-700 break-words">
+                      {[user?.address, user?.postalCode && !(user?.address || "").includes(user.postalCode) ? user.postalCode : ""].filter(Boolean).join(" ") || "ยังไม่มีที่อยู่"}
+                      {inThailand(user?.latitude, user?.longitude) && <span className="block text-[11px] text-emerald-700">📌 มีหมุดแผนที่</span>}
+                    </p>
+                    <button type="button" onClick={() => setEditAddr(true)} className="shrink-0 text-xs font-bold text-[#D9480F]">
+                      {user?.address ? "แก้ไข / ปักหมุด" : "เพิ่มที่อยู่"}
+                    </button>
+                  </div>
+                )}
                 <button
                   type="submit"
                   disabled={saving}

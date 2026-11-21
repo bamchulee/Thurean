@@ -81,6 +81,8 @@ export async function POST(req: NextRequest) {
       shippingMethod: raw.shippingMethod,
       roundId: raw.roundId,
       notes: typeof raw.notes === "string" ? raw.notes.slice(0, 500) : undefined,
+      latitude: typeof raw.latitude === "number" ? raw.latitude : undefined,
+      longitude: typeof raw.longitude === "number" ? raw.longitude : undefined,
       items: Array.isArray(raw.items)
         ? raw.items.slice(0, 20).map((it) => ({
             productId: String(it.productId || ""),

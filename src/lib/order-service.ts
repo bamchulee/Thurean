@@ -23,6 +23,7 @@ import {
 import { adminAlertLinks, notifyAdmins } from "./order-workflow";
 import { shopInfo } from "../data/shop";
 import { runInBackground } from "./background";
+import { inThailand, mapsLink } from "./thai-address";
 import { resolveCourierInfo } from "./courier";
 import { checkClaimEligibility } from "./claim-policy";
 import { findOrderById } from "./ids";
@@ -42,6 +43,9 @@ export interface SubmitOrderInput {
   createdBy?: string;
   /** คีย์จากปุ่มยืนยันใน LINE — กดซ้ำได้ออเดอร์เดิม */
   bookingKey?: string;
+  /** หมุดที่ลูกค้าปักในฟอร์มที่อยู่ (ให้คนส่งของเปิดแผนที่) */
+  latitude?: number;
+  longitude?: number;
   /** price ต่อชิ้นกำหนดเองได้เฉพาะแอดมิน (ขายหน้าร้าน/ราคาพิเศษ) */
   items?: { productId: string; qty: number; ripenessPref?: string; price?: number }[];
   // ช่องด้านล่างรับเฉพาะแอดมิน (options.trusted) เช่น คีย์ออเดอร์หน้าร้านที่จ่ายแล้ว
@@ -51,6 +55,14 @@ export interface SubmitOrderInput {
   slipUrl?: string;
   paymentStatus?: string;
   orderStatus?: OrderStatus;
+}
+
+/** หมุดที่ใช้ได้ (อยู่ในไทย) → พิกัด + ลิงก์ Google Maps */
+function pinOf(b: { latitude?: number; longitude?: number }): Pick<Order, "latitude" | "longitude" | "mapsUrl"> | null {
+  const lat = Number(b.latitude);
+  const lng = Number(b.longitude);
+  if (!inThailand(lat, lng)) return null;
+  return { latitude: Math.round(lat * 1e6) / 1e6, longitude: Math.round(lng * 1e6) / 1e6, mapsUrl: mapsLink(lat, lng) };
 }
 
 export type SubmitOrderResult =
@@ -253,6 +265,7 @@ export async function submitNewOrder(
     slipUrl: (trusted && body.slipUrl?.trim()) || undefined,
     bookingKey,
     notes: body.notes?.trim() || undefined,
+    ...(pinOf(body) || {}),
   };
 
   // ชีตเป็นตัวตัดสินสุดท้าย (เช็กรหัสซ้ำ/สต็อกใต้ล็อก) — รหัสชนให้สุ่มใหม่ ของหมดให้แจ้งลูกค้า
