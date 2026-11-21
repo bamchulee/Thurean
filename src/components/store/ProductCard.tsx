@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, MapPin, Plus } from "lucide-react";
 import type { Product } from "../../types/durian";
 import { formatProductStock, pricePerKgOf } from "../../lib/stock";
+import { DurianIcon } from "../Icons";
 
 export const baht = (n: number) => `฿${(n || 0).toLocaleString()}`;
 
@@ -18,6 +19,8 @@ export function ProductCard({
   onAdd: (p: Product) => void;
 }) {
   const [added, setAdded] = useState(false);
+  // ลิงก์รูปเสีย/โหลดไม่ได้ → ใช้ภาพแทนของร้าน
+  const [imgFailed, setImgFailed] = useState(false);
   const stock = formatProductStock(product);
   const out = stock.isOutOfStock;
   const closed = product.isActive === 0 || (product.isActive as unknown) === "0" || product.isActive === false;
@@ -30,18 +33,25 @@ export function ProductCard({
   };
 
   return (
-    <article className="relative bg-white rounded-lg overflow-hidden border border-stone-200/70 shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-md hover:border-[#1B4D31]/25 transition">
+    <article className="relative bg-white rounded-xl overflow-hidden border border-stone-200/70 shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-lg hover:-translate-y-0.5 hover:border-[#1B4D31]/25 transition">
       <button type="button" onClick={() => onOpen(product)} className="block w-full text-left">
         <div className="relative aspect-square bg-stone-100">
-          {product.image ? (
+          {product.image && !imgFailed ? (
             <img
               src={product.image}
               alt={product.name}
               loading="lazy"
               decoding="async"
+              onError={() => setImgFailed(true)}
               className={`absolute inset-0 w-full h-full object-cover ${out ? "grayscale opacity-70" : ""}`}
             />
-          ) : null}
+          ) : (
+            // ยังไม่มีรูปสินค้า: ภาพแทนสีร้าน (ไม่ปล่อยเป็นกล่องเทาว่าง ๆ)
+            <span className="absolute inset-0 bg-gradient-to-br from-[#FFF7D1] via-[#FDE68A] to-[#F5C842] flex flex-col items-center justify-center gap-1">
+              <DurianIcon className="w-14 h-14 text-[#1B4D31]/70" />
+              <span className="text-[10px] font-bold text-[#1B4D31]/70">{product.variety || "ทุเรียน"}</span>
+            </span>
+          )}
           {product.badge && (
             <span className="absolute top-0 left-0 max-w-[85%] truncate bg-[#1B4D31] text-[#FFD84D] text-[10px] font-bold px-1.5 py-0.5 rounded-br-md">
               {product.badge}
@@ -77,16 +87,29 @@ export function ProductCard({
               <span className="text-[10px] text-stone-400 line-through truncate">{baht(product.marketPrice || 0)}</span>
             ) : null}
           </div>
-          <p className="mt-1 pr-8 text-[10px] text-stone-500 flex items-center gap-0.5 min-w-0">
-            {product.origin ? (
-              <>
-                <MapPin className="w-2.5 h-2.5 shrink-0" />
-                <span className="truncate">{product.origin}</span>
-              </>
-            ) : (
-              <span className="truncate">{stock.summary}</span>
-            )}
-          </p>
+          {/* เหลือกี่ลูก (แถบแบบแอปช้อปปิ้ง) */}
+          {!out && typeof product.stockQty === "number" && product.stockQty > 0 ? (
+            <div className="mt-1.5 mr-8 relative h-3.5 rounded-full bg-[#FDE8D7] overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#FED7AA] to-[#FB923C]"
+                style={{ width: `${Math.max(12, Math.min(100, (product.stockQty / 20) * 100))}%` }}
+              />
+              <span className="relative z-10 block text-center text-[9px] leading-[14px] font-bold text-[#7C2D12]">
+                เหลือ {product.stockQty} {product.unit || "ลูก"}
+              </span>
+            </div>
+          ) : (
+            <p className="mt-1 pr-8 text-[10px] text-stone-500 flex items-center gap-0.5 min-w-0">
+              {product.origin ? (
+                <>
+                  <MapPin className="w-2.5 h-2.5 shrink-0" />
+                  <span className="truncate">{product.origin}</span>
+                </>
+              ) : (
+                <span className="truncate">{stock.summary}</span>
+              )}
+            </p>
+          )}
         </div>
       </button>
       <button

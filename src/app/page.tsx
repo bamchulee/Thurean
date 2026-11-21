@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Award, Calendar, MapPin, ShieldCheck, Snowflake, Truck } from "lucide-react";
+import { Award, ShieldCheck, Snowflake, Truck } from "lucide-react";
 import { shopInfo } from "../data/shop";
 import { useBankAccount } from "../hooks/useBankAccount";
-import type { Order, Product, Round } from "../types/durian";
+import type { Order, Product, Promotion, Round } from "../types/durian";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { useLiff } from "../lib/use-liff";
@@ -14,53 +14,12 @@ import { formatProductStock } from "../lib/stock";
 import { ProductCard, ProductCardSkeleton } from "../components/store/ProductCard";
 import { ProductSheet, RIPENESS } from "../components/store/ProductSheet";
 import { AccountSheet, BottomNav, DesktopFloating, StoreHeader } from "../components/store/StoreChrome";
+import { CartBar, CategoryRow, HeroCarousel, RoundMini, SortTabs, type SortKey } from "../components/store/HomeSections";
+import { pricePerKgOf } from "../lib/stock";
 
-const SHOP_CACHE_KEY = "winkin_shop_v2";
+const SHOP_CACHE_KEY = "winkin_shop_v3";
 
-type ShopPayload = { products?: Product[]; currentRound?: Round | null; lineLiffId?: string };
-
-// ===================== รอบส่ง (การ์ดเล็ก) =====================
-function RoundCard({ round }: { round: Round }) {
-  const used = round.totalQuota ? ((round.totalQuota - round.quotaRemaining) / round.totalQuota) * 100 : 0;
-  const pct = Math.min(100, Math.max(0, used));
-  return (
-    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#11301F] via-[#1B4D31] to-[#24603D] text-white p-3 sm:p-4">
-      <div className="absolute inset-0 thorn-pattern opacity-60 pointer-events-none" />
-      <div className="relative">
-        <div className="flex items-center justify-between gap-2">
-          <p className="flex items-center gap-1.5 text-sm font-bold text-[#FFD84D] min-w-0">
-            <Calendar className="w-4 h-4 shrink-0" />
-            <span className="truncate">{round.name}</span>
-          </p>
-          <span className="shrink-0 rounded-full bg-[#FFD84D] text-[#11301F] text-[11px] font-bold px-2 py-0.5">
-            เหลือ {round.quotaRemaining} ลูก
-          </span>
-        </div>
-        <div className="mt-2 h-1.5 rounded-full bg-white/15 overflow-hidden">
-          <div className="h-full rounded-full bg-[#FFD84D]" style={{ width: `${pct}%` }} />
-        </div>
-        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-emerald-100">
-          {round.harvestDate && (
-            <span>
-              รับจากสวน <b className="text-white font-semibold">{round.harvestDate}</b>
-            </span>
-          )}
-          {round.deliveryDate && (
-            <span>
-              ส่งถึงบ้าน <b className="text-white font-semibold">{round.deliveryDate}</b>
-            </span>
-          )}
-        </div>
-        {round.truckRoute && (
-          <p className="mt-1 flex items-center gap-1 text-[11px] text-emerald-200/90 min-w-0">
-            <MapPin className="w-3 h-3 shrink-0" />
-            <span className="truncate">{round.truckRoute}</span>
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
+type ShopPayload = { products?: Product[]; currentRound?: Round | null; promotions?: Promotion[]; lineLiffId?: string };
 
 // ===================== จุดเด่นร้าน (ช่องเล็ก) =====================
 const PERKS = [
@@ -92,7 +51,7 @@ function Perks() {
 function Footer() {
   const bank = useBankAccount();
   return (
-    <footer id="contact" className="bg-[#0E2719] text-stone-300 text-xs pb-20 md:pb-0">
+    <footer id="contact" className="bg-[#0E2719] text-stone-300 text-xs pb-36 md:pb-0">
       <div className="max-w-6xl mx-auto px-3 py-6 grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -139,6 +98,8 @@ export default function Home() {
   const [liffId, setLiffId] = useState("");
   const [query, setQuery] = useState("");
   const [variety, setVariety] = useState("all");
+  const [sort, setSort] = useState<SortKey>("recommend");
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [ripeness, setRipeness] = useState<string>(RIPENESS[0].value);
   const [openProduct, setOpenProduct] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
@@ -175,6 +136,7 @@ export default function Home() {
   const applyShop = useCallback((json: ShopPayload) => {
     if (Array.isArray(json.products)) setProducts(json.products);
     setRound(json.currentRound || null);
+    if (Array.isArray(json.promotions)) setPromotions(json.promotions);
     if (json.lineLiffId) setLiffId(json.lineLiffId);
   }, []);
 
@@ -196,7 +158,7 @@ export default function Home() {
       .then((r) => r.json())
       .then((json) => {
         if (cancelled || !json.ok) return;
-        const payload: ShopPayload = { products: json.products, currentRound: json.currentRound, lineLiffId: json.lineLiffId };
+        const payload: ShopPayload = { products: json.products, currentRound: json.currentRound, promotions: json.promotions, lineLiffId: json.lineLiffId };
         applyShop(payload);
         try {
           localStorage.setItem(SHOP_CACHE_KEY, JSON.stringify(payload));
@@ -211,18 +173,22 @@ export default function Home() {
     };
   }, [applyShop]);
 
-  const varieties = useMemo(
-    () => ["all", ...new Set(products.map((p) => p.variety).filter((v): v is string => Boolean(v)))],
-    [products]
-  );
-
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products
       .filter((p) => variety === "all" || p.variety === variety)
       .filter((p) => !q || [p.name, p.variety, p.origin, p.grade, p.badge].some((v) => v && String(v).toLowerCase().includes(q)))
-      .sort((a, b) => Number(formatProductStock(a).isOutOfStock) - Number(formatProductStock(b).isOutOfStock));
-  }, [products, variety, query]);
+      .sort((a, b) => {
+        // ของหมดไว้ท้ายเสมอ
+        const out = Number(formatProductStock(a).isOutOfStock) - Number(formatProductStock(b).isOutOfStock);
+        if (out) return out;
+        if (sort === "priceAsc") return pricePerKgOf(a) - pricePerKgOf(b);
+        if (sort === "priceDesc") return pricePerKgOf(b) - pricePerKgOf(a);
+        if (sort === "lowStock") return (a.stockQty ?? 9999) - (b.stockQty ?? 9999);
+        // แนะนำ: มีป้าย (ขายดี/พรีเมียม) ขึ้นก่อน
+        return Number(Boolean(b.badge)) - Number(Boolean(a.badge));
+      });
+  }, [products, variety, query, sort]);
 
   const handleOrderCreated = (order: Order) => {
     const qty = order.items.reduce((s, it) => s + it.qty, 0);
@@ -242,37 +208,32 @@ export default function Home() {
       />
 
       <div className="max-w-6xl mx-auto px-2.5 sm:px-4 py-3 space-y-3 pb-6">
-        {/* หัวร้าน + รอบส่ง */}
-        <section className="grid gap-2.5 md:grid-cols-[1fr_minmax(0,22rem)] md:items-stretch">
-          <div className="hidden md:flex flex-col justify-center rounded-xl bg-[#FFFBEA] border border-amber-200/80 px-5 py-4">
-            <h1 className="text-2xl font-extrabold text-[#1B4D31] leading-tight">ทุเรียนแก่จัด คัดพูทอง ส่งตรงถึงบ้าน</h1>
-            <p className="mt-1 text-sm text-stone-600">จองก่อน ชั่งน้ำหนักจริงแล้วค่อยโอน — แอดมินส่งยอดพร้อม QR ทาง LINE</p>
+        {/* แบนเนอร์ (รอบส่ง / โปรโมชัน / ร้าน) + รายละเอียดรอบ (จอใหญ่) */}
+        <section className="grid gap-3 md:grid-cols-[1fr_17rem]">
+          <HeroCarousel round={round} promotions={promotions} />
+          <div className="hidden md:block">
+            <RoundMini round={round} />
           </div>
-          {round ? (
-            <RoundCard round={round} />
-          ) : (
-            <div className="rounded-xl bg-[#1B4D31] text-white p-3 text-sm">
-              <p className="font-bold text-[#FFD84D]">ทุเรียนแก่จัด คัดพูทอง</p>
-              <p className="text-[11px] text-emerald-100 mt-0.5">จองก่อน ชั่งจริงแล้วค่อยโอน • ติดตามรอบใหม่ทาง LINE {shopInfo.lineOA}</p>
-            </div>
-          )}
         </section>
 
-        {/* ความสุก + หมวด */}
-        <section id="menu" className="bg-white rounded-xl border border-stone-200/70 p-2.5 space-y-2.5 scroll-mt-32">
+        {/* หมวดพันธุ์ */}
+        <CategoryRow products={products} value={variety} onChange={setVariety} />
+
+        {/* ความสุกที่ชอบ — ใช้เป็นค่าตั้งต้นตอนกด + ใส่ตะกร้า */}
+        <section id="menu" className="bg-white rounded-2xl border border-stone-200/70 p-2.5 scroll-mt-32">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-stone-600 shrink-0">ความสุก</span>
-            <div className="grid grid-cols-2 gap-1.5 flex-1 max-w-sm">
+            <span className="text-xs font-bold text-stone-700 shrink-0">ชอบแบบไหน</span>
+            <div className="grid grid-cols-2 gap-1.5 flex-1 max-w-md">
               {RIPENESS.map((r) => (
                 <button
                   key={r.value}
                   type="button"
                   onClick={() => setRipeness(r.value)}
-                  className={`flex items-center gap-1.5 rounded-lg border px-1.5 py-1 text-left transition ${
+                  className={`flex items-center gap-2 rounded-xl border px-1.5 py-1 text-left transition ${
                     ripeness === r.value ? "border-[#1B4D31] bg-emerald-50 ring-1 ring-[#1B4D31]" : "border-stone-200"
                   }`}
                 >
-                  <img src={r.img} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
+                  <img src={r.img} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
                   <span className="min-w-0">
                     <span className="block text-xs font-bold text-stone-900 leading-tight">{r.label}</span>
                     <span className="block text-[10px] text-stone-500 truncate leading-tight">{r.sub}</span>
@@ -281,30 +242,15 @@ export default function Home() {
               ))}
             </div>
           </div>
-          {varieties.length > 2 && (
-            <div className="-mx-2.5 px-2.5 flex gap-1.5 overflow-x-auto no-scrollbar">
-              {varieties.map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setVariety(v)}
-                  className={`shrink-0 h-7 px-3 rounded-full text-xs font-semibold border transition ${
-                    variety === v ? "bg-[#1B4D31] border-[#1B4D31] text-[#FFD84D]" : "bg-white border-stone-300 text-stone-700"
-                  }`}
-                >
-                  {v === "all" ? "ทั้งหมด" : v}
-                </button>
-              ))}
-            </div>
-          )}
         </section>
 
         {/* สินค้า */}
-        <section aria-label="สินค้ารอบนี้">
-          <div className="flex items-baseline justify-between px-0.5 mb-2">
-            <h2 className="text-sm font-bold text-stone-900">ทุเรียนรอบนี้</h2>
-            {loaded && <span className="text-[11px] text-stone-500">{shown.length} รายการ</span>}
+        <section aria-label="สินค้ารอบนี้" className="space-y-2">
+          <div className="flex items-center gap-2 px-0.5">
+            <span className="w-1 h-5 rounded-full bg-[#D9480F]" />
+            <h2 className="text-base font-extrabold text-stone-900">ทุเรียนรอบนี้</h2>
           </div>
+          <SortTabs value={sort} onChange={setSort} count={loaded ? shown.length : undefined} />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
             {!loaded && products.length === 0
               ? Array.from({ length: 6 }, (_, i) => <ProductCardSkeleton key={i} />)
@@ -313,7 +259,7 @@ export default function Home() {
                 ))}
           </div>
           {loaded && shown.length === 0 && (
-            <p className="text-center text-sm text-stone-500 bg-white border border-stone-200 rounded-xl py-8 px-4">
+            <p className="text-center text-sm text-stone-500 bg-white border border-stone-200 rounded-2xl py-8 px-4">
               {products.length === 0
                 ? `ยังไม่มีสินค้าเปิดจองรอบนี้ — ติดตามรอบถัดไปทาง LINE ${shopInfo.lineOA}`
                 : "ไม่พบสินค้าที่ค้นหา"}
@@ -325,6 +271,7 @@ export default function Home() {
       </div>
 
       <Footer />
+      <CartBar count={totalItems} onOpen={() => setCartOpen(true)} />
       <BottomNav cartCount={totalItems} onOpenCart={() => setCartOpen(true)} onOpenAccount={openAccount} />
       <DesktopFloating />
 

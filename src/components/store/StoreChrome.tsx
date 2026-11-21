@@ -26,10 +26,10 @@ const LINE_HELLO = "สวัสดีครับ สนใจสั่งซ�
 
 function CartButton({ count, onClick, className = "" }: { count: number; onClick: () => void; className?: string }) {
   return (
-    <button type="button" onClick={onClick} aria-label={`ตะกร้า ${count} ชิ้น`} className={`relative p-2 rounded-full hover:bg-black/5 ${className}`}>
+    <button type="button" onClick={onClick} aria-label={`ตะกร้า ${count} ชิ้น`} className={`relative p-2 rounded-full text-white hover:bg-white/10 ${className}`}>
       <ShoppingBasket className="w-6 h-6" />
       {count > 0 && (
-        <span className="absolute top-0.5 right-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#D9480F] text-white text-[10px] font-bold leading-[18px] text-center border-2 border-[#FFFBEA]">
+        <span className="absolute top-0.5 right-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FFD84D] text-[#11301F] text-[10px] font-extrabold leading-[18px] text-center ring-2 ring-[#1B4D31]">
           {count > 99 ? "99+" : count}
         </span>
       )}
@@ -37,7 +37,10 @@ function CartButton({ count, onClick, className = "" }: { count: number; onClick
   );
 }
 
-/** หัวร้านแบบแอปช้อปปิ้ง: แถบประกาศ 1 บรรทัด + โลโก้/ค้นหา/บัญชี/ตะกร้า (ติดด้านบน) */
+/**
+ * หัวร้านแบบแอปช้อปปิ้ง: แถบเขียวร้าน + ช่องค้นหาสีขาวตรงกลาง + ไอคอนขาว (ติดด้านบนตลอด)
+ * มือถือ: โลโก้ · ค้นหา · แชท LINE · ตะกร้า   |   จอใหญ่: โลโก้+ชื่อ · ค้นหา · เมนู · บัญชี · ตะกร้า
+ */
 export function StoreHeader({
   cartCount,
   onOpenCart,
@@ -54,66 +57,59 @@ export function StoreHeader({
   const { user, loading, openAuthModal } = useAuth();
   const canManage = user?.role === "superadmin" || user?.role === "admin" || user?.role === "staff";
 
-  const search = (
-    <label className="relative flex-1 min-w-0">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
-      <input
-        type="search"
-        value={query}
-        onChange={(e) => onQuery(e.target.value)}
-        placeholder="ค้นหาทุเรียน พันธุ์ สวน…"
-        className="w-full h-9 rounded-full bg-white border border-stone-300 pl-9 pr-8 text-sm focus:outline-none focus:border-[#1B4D31] focus:ring-2 focus:ring-[#1B4D31]/15"
-      />
-      {query && (
-        <button type="button" onClick={() => onQuery("")} aria-label="ล้างคำค้น" className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-stone-400">
-          <X className="w-4 h-4" />
-        </button>
-      )}
-    </label>
-  );
-
   return (
-    <>
-      <div className="bg-[#1B4D31] text-[#FFD84D] text-[11px] leading-tight">
-        <div className="max-w-6xl mx-auto px-3 py-1.5 flex items-center justify-between gap-3">
-          <p className="truncate min-w-0">🚚 คัดสดจากสวนระยอง-จันทบุรี แก่จัด 85%+ เคลมได้ 100%</p>
-          <a href={`tel:${shopInfo.phone.replace(/-/g, "")}`} className="hidden sm:inline-flex items-center gap-1 shrink-0 font-semibold hover:underline">
-            <Phone className="w-3 h-3" /> {shopInfo.phone}
+    <header className="sticky top-0 z-40 bg-gradient-to-r from-[#11301F] via-[#1B4D31] to-[#24603D] shadow-sm">
+      <div className="max-w-6xl mx-auto px-3 h-14 md:h-16 flex items-center gap-2.5 md:gap-5">
+        <a href="#top" className="flex items-center gap-2 shrink-0">
+          <img src={shopInfo.logo} alt={shopInfo.name} className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-white object-cover ring-2 ring-[#FFD84D]/70" />
+          <span className="hidden md:block leading-tight">
+            <span className="block text-base font-extrabold text-white">{shopInfo.name}</span>
+            <span className="block text-[11px] text-[#FFD84D]">คัดสดจากสวน ส่งตรงถึงบ้าน</span>
+          </span>
+        </a>
+
+        <label className="relative flex-1 min-w-0 max-w-2xl">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#1B4D31] pointer-events-none" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            placeholder="ค้นหาทุเรียน พันธุ์ สวน"
+            className="w-full h-9 md:h-10 rounded-full bg-white pl-9 pr-8 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#FFD84D]"
+          />
+          {query && (
+            <button type="button" onClick={() => onQuery("")} aria-label="ล้างคำค้น" className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-stone-400">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </label>
+
+        <nav className="hidden lg:flex items-center gap-4 text-xs font-semibold text-emerald-50 shrink-0">
+          <a href="/tracking" className="hover:text-[#FFD84D]">ออเดอร์ของฉัน</a>
+          <a href="/claim" className="hover:text-[#FFD84D]">แจ้งเคลม</a>
+          <a href={`tel:${shopInfo.phone.replace(/-/g, "")}`} className="inline-flex items-center gap-1 hover:text-[#FFD84D]">
+            <Phone className="w-3.5 h-3.5" /> {shopInfo.phone}
           </a>
-        </div>
-      </div>
+          {canManage && (
+            <a href="/admin" className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#FFD84D] text-[#11301F]">
+              <ShieldAlert className="w-3.5 h-3.5" /> หลังบ้าน
+            </a>
+          )}
+        </nav>
 
-      <header className="sticky top-0 z-40 bg-[#FFFBEA]/95 backdrop-blur border-b border-amber-200/70 text-[#1B4D31]">
-        <div className="max-w-6xl mx-auto px-3 h-14 flex items-center gap-2 sm:gap-4">
-          <a href="#top" className="flex items-center gap-2 shrink-0 min-w-0">
-            <img src={shopInfo.logo} alt="" className="w-9 h-9 rounded-full border border-amber-200 bg-white object-cover" />
-            <span className="min-w-0">
-              <span className="block text-[15px] font-extrabold leading-tight whitespace-nowrap">{shopInfo.name}</span>
-              <span className="block text-[10px] text-stone-500 leading-tight whitespace-nowrap">ส่งตรงจากสวน</span>
-            </span>
-          </a>
-
-          <div className="hidden md:flex flex-1 max-w-xl">{search}</div>
-
-          <nav className="hidden lg:flex items-center gap-4 text-xs font-semibold text-stone-600 shrink-0">
-            <a href="/tracking" className="hover:text-[#1B4D31]">เช็กออเดอร์</a>
-            <a href="/claim" className="hover:text-[#1B4D31]">แจ้งเคลม</a>
-            {canManage && (
-              <a href="/admin" className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-400 text-stone-950">
-                <ShieldAlert className="w-3.5 h-3.5" /> หลังบ้าน
-              </a>
-            )}
-          </nav>
-
-          <div className="ml-auto flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
+          <LineDirectLink prefillText={LINE_HELLO} ariaLabel="แชท LINE" className="md:hidden p-2 rounded-full text-white hover:bg-white/10">
+            <LineIcon className="w-6 h-6" />
+          </LineDirectLink>
+          <span className="hidden md:inline-flex">
             {loading && !user ? (
-              <span className="w-8 h-8 rounded-full bg-stone-200 animate-pulse" />
+              <span className="w-9 h-9 rounded-full bg-white/20 animate-pulse" />
             ) : user ? (
-              <button type="button" onClick={onOpenAccount} aria-label="บัญชีของฉัน" className="p-1 rounded-full hover:bg-black/5">
+              <button type="button" onClick={onOpenAccount} aria-label="บัญชีของฉัน" className="p-1 rounded-full hover:bg-white/10">
                 {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover border border-emerald-300 bg-white" />
+                  <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-white/60 bg-white" />
                 ) : (
-                  <span className="w-8 h-8 rounded-full bg-[#1B4D31] text-[#FFD84D] text-xs font-bold flex items-center justify-center">
+                  <span className="w-8 h-8 rounded-full bg-[#FFD84D] text-[#11301F] text-xs font-bold flex items-center justify-center">
                     {(displayName(user) || "ส").charAt(0)}
                   </span>
                 )}
@@ -122,17 +118,16 @@ export function StoreHeader({
               <button
                 type="button"
                 onClick={() => openAuthModal()}
-                className="h-8 px-3 rounded-full bg-[#1B4D31] text-white text-xs font-bold inline-flex items-center gap-1"
+                className="h-9 px-3.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-bold inline-flex items-center gap-1"
               >
-                <UserIcon className="w-3.5 h-3.5" /> เข้าสู่ระบบ
+                <UserIcon className="w-4 h-4" /> เข้าสู่ระบบ
               </button>
             )}
-            <CartButton count={cartCount} onClick={onOpenCart} className="hidden md:inline-flex" />
-          </div>
+          </span>
+          <CartButton count={cartCount} onClick={onOpenCart} />
         </div>
-        <div className="md:hidden px-3 pb-2 flex">{search}</div>
-      </header>
-    </>
+      </div>
+    </header>
   );
 }
 
