@@ -11,6 +11,7 @@ import { getSigningSecret } from "./secrets";
 import { createSessionToken, toSafeUser, verifySessionToken } from "./user-auth";
 import { USER_COOKIE_NAME } from "./admin-auth";
 import { type AuthProvider, type IdentityProfile, signInWithIdentity } from "./auth-identity";
+import { GOOGLE_LOGIN_ENABLED } from "./feature-flags";
 
 const NONCE_COOKIE = "winkin_oauth_nonce";
 const STATE_TTL_MS = 15 * 60 * 1000;
@@ -36,7 +37,8 @@ function credentialsFor(provider: AuthProvider): ProviderCredentials | null {
 export function configuredProviders(): Record<AuthProvider, boolean> {
   return {
     line: Boolean(credentialsFor("line")),
-    google: Boolean(credentialsFor("google")),
+    // ปิดไว้ก่อน (lib/feature-flags.ts)
+    google: GOOGLE_LOGIN_ENABLED && Boolean(credentialsFor("google")),
   };
 }
 

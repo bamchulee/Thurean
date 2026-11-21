@@ -1,10 +1,11 @@
 "use client";
 
-// สมาชิก: ตารางคนเดียวต่อแถว เห็นช่องทางที่ผูก (LINE/Google) สิทธิ์ ยอดซื้อ — เปลี่ยนสิทธิ์/ปิดบัญชีในแถว แล้วกดบันทึก
+// สมาชิก: ตารางคนเดียวต่อแถว เห็นช่องทางที่ผูก (LINE) สิทธิ์ ยอดซื้อ — เปลี่ยนสิทธิ์/ปิดบัญชีในแถว แล้วกดบันทึก
 import { useCallback, useState } from "react";
 import type { SafeUser } from "../../../types/durian";
 import { baht, Badge, DataTable, Drawer, Field, inputCls, Toast, usePageActions, type Column } from "./kit";
 import { shortDate } from "./shared";
+import { GOOGLE_LOGIN_ENABLED } from "../../../lib/feature-flags";
 
 type Role = "user" | "staff" | "admin" | "superadmin";
 type Patch = { role?: Role; isActive?: number; notes?: string };
@@ -85,7 +86,7 @@ export function Members({ users, onSaved }: { users: SafeUser[]; onSaved: () => 
       render: (u) => (
         <div className="flex gap-1">
           {u.lineUserId && <Badge className="bg-[#06C755]/15 text-[#047a34]">LINE</Badge>}
-          {u.googleId && <Badge className="bg-blue-50 text-blue-700">Google</Badge>}
+          {GOOGLE_LOGIN_ENABLED && u.googleId && <Badge className="bg-blue-50 text-blue-700">Google</Badge>}
           {!u.lineUserId && <Badge className="bg-rose-50 text-rose-700">ยังไม่ผูก LINE</Badge>}
         </div>
       ),
@@ -141,7 +142,7 @@ export function Members({ users, onSaved }: { users: SafeUser[]; onSaved: () => 
           <div className="flex flex-wrap gap-1.5">
             <Badge className={ROLE[roleOf(open)].cls}>{ROLE[roleOf(open)].label}</Badge>
             {open.lineUserId && <Badge className="bg-[#06C755]/15 text-[#047a34]">LINE</Badge>}
-            {open.googleId && <Badge className="bg-blue-50 text-blue-700">Google</Badge>}
+            {GOOGLE_LOGIN_ENABLED && open.googleId && <Badge className="bg-blue-50 text-blue-700">Google</Badge>}
           </div>
           <dl className="text-sm grid grid-cols-3 gap-y-2">
             <dt className="text-stone-500">รหัส</dt>

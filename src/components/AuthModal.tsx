@@ -7,11 +7,15 @@ import { AlertCircle, CheckCircle2, Link2, LogOut, ShieldCheck, X } from "lucide
 import { type AuthProviderName, useAuth } from "../context/AuthContext";
 import { LineIcon } from "./Icons";
 import { shopInfo } from "../data/shop";
+import { GOOGLE_LOGIN_ENABLED } from "../lib/feature-flags";
 
-const PROVIDERS: { id: AuthProviderName; label: string }[] = [
-  { id: "line", label: "LINE" },
-  { id: "google", label: "Google" },
-];
+// Google ปิดไว้ก่อน (lib/feature-flags.ts) — ไม่โชว์ทั้งปุ่มเข้าสู่ระบบและปุ่มเชื่อมบัญชี
+const PROVIDERS: { id: AuthProviderName; label: string }[] = (
+  [
+    { id: "line", label: "LINE" },
+    { id: "google", label: "Google" },
+  ] as { id: AuthProviderName; label: string }[]
+).filter((p) => p.id !== "google" || GOOGLE_LOGIN_ENABLED);
 
 const ERROR_TEXT: Record<string, string> = {
   invalid_state: "ลิงก์เข้าสู่ระบบหมดอายุ กรุณากดใหม่อีกครั้ง",

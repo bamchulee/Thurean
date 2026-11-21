@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireSuperAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { GOOGLE_LOGIN_ENABLED } from "../../../../lib/feature-flags";
 import { getBankAccount, getRuntimeConfig, getSettingsBundle, loadAppSettings, saveAppSettings, saveCustomColumns, writeSettingsSheet } from "../../../../lib/sheets-db";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,10 @@ const SETTING_FIELDS = [
   { key: "liveStreamNote", group: "web", label: "ข้อความไลฟ์สด", secret: false, env: "LINE_LIVE_NOTE" },
 ] as const;
 
-const EDITABLE = new Set<string>([...SETTING_FIELDS.map((f) => f.key), "isLiveNow", "richMenu"]);
+// Google login ปิดไว้ก่อน — ไม่โชว์/ไม่รับช่อง Google Client ID / secret
+const VISIBLE_FIELDS = SETTING_FIELDS.filter((f) => GOOGLE_LOGIN_ENABLED || !f.key.startsWith("google"));
+
+const EDITABLE = new Set<string>([...VISIBLE_FIELDS.map((f) => f.key), "isLiveNow", "richMenu"]);
 
 function mask(v: string) {
   if (!v) return "";
@@ -46,7 +50,7 @@ function sourceOf(key: string, env: string): string {
 /** แถวสำหรับแท็บ Settings ในชีต — ค่าลับปิดบังเสมอ */
 function settingsSheetRows() {
   type Row = { group: string; label: string; value: string; source: string; key: string };
-  const rows: Row[] = SETTING_FIELDS.map((f) => {
+  const rows: Row[] = VISIBLE_FIELDS.map((f) => {
     const value = effective(f.key);
     return {
       group: GROUP_LABEL[f.group] || f.group,
@@ -80,7 +84,7 @@ export async function GET(req: NextRequest) {
   if (!(await requireSuperAdmin(req))) return unauthorizedResponse();
   await loadAppSettings(true);
   const { settings, customColumns, schema, loadedAt } = getSettingsBundle();
-  const fields = SETTING_FIELDS.map((f) => {
+  const fields = VISIBLE_FIELDS.map((f) => {
     const saved = typeof settings[f.key] === "string" ? (settings[f.key] as string) : "";
     const value = effective(f.key);
     return {

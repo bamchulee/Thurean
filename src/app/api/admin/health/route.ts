@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireStaff, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { GOOGLE_LOGIN_ENABLED } from "../../../../lib/feature-flags";
 import { getRuntimeConfig, loadAppSettings, testGoogleSheetsConnection } from "../../../../lib/sheets-db";
 
 export const dynamic = "force-dynamic";
@@ -72,7 +73,8 @@ export async function GET(req: NextRequest) {
     ok: Boolean(cfg.lineLoginChannelId && cfg.lineLoginChannelSecret),
     detail: cfg.lineLoginChannelId && cfg.lineLoginChannelSecret ? "พร้อมใช้" : "ขาด Channel ID หรือ secret",
   });
-  checks.push({
+  // Google login ปิดไว้ก่อน (lib/feature-flags.ts) — ไม่ต้องตรวจ
+  if (GOOGLE_LOGIN_ENABLED) checks.push({
     id: "google-login",
     label: "เข้าสู่ระบบด้วย Google",
     ok: Boolean(cfg.googleClientId && cfg.googleClientSecret),
