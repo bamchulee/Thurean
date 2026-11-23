@@ -67,7 +67,7 @@ const GROUPS: { id: FieldInfo["group"]; title: string; desc: string }[] = [
   {
     id: "ai",
     title: "AI ตรวจสลิป (Gemini)",
-    desc: "ใส่ API key จาก Google AI Studio (aistudio.google.com) — ระบบส่งรูปสลิปให้ Gemini อ่านยอด ผู้รับ เลขรายการ และดูร่องรอยการแต่งสลิป ว่าง = ไม่ใช้",
+    desc: "ใส่ API key จาก Google AI Studio (aistudio.google.com) — ระบบส่งรูปสลิปให้ Gemini อ่านยอด ผู้รับ เลขรายการ และดูร่องรอยการแต่งสลิป + ตอบคำถามลูกค้าในแชท (สต็อก ราคา รอบส่ง) จากข้อมูลจริงของร้าน ว่าง = ไม่ใช้ · พิมพ์ off ในช่อง AI ตอบแชท เพื่อปิดเฉพาะการตอบแชท",
   },
   { id: "web", title: "เว็บ & ไลฟ์สด", desc: "ที่อยู่เว็บที่ใช้ในลิงก์ข้อความ LINE และข้อมูลไลฟ์" },
 ];

@@ -61,7 +61,8 @@ import { checkSlip, readSlipQr } from "../../../../lib/slip-qr";
 import { readSlipText } from "../../../../lib/slip-text";
 import { extractOrderId, findOrderById } from "../../../../lib/ids";
 import { shopInfo } from "../../../../data/shop";
-import { readChatIntent } from "../../../../lib/line/order-intent";
+import { isQuestion, readChatIntent, type ChatIntent } from "../../../../lib/line/order-intent";
+import { answerShopQuestion, buildShopContext, getChatHistory, rememberChat } from "../../../../lib/shop-ai";
 import { buildChatMessageAlertForAdmin } from "../../../../lib/line/admin-alerts";
 import { signedSlipUrl } from "../../../../lib/slip-link";
 import { judgeSlipAi, mergeCheck, readSlipWithGemini } from "../../../../lib/slip-ai";
@@ -837,10 +838,55 @@ async function sendTicket(ctx: Ctx, message: string, orderId?: string, customerR
 const FORWARD_WINDOW_MS = 10 * 60 * 1000;
 const lastForward = new Map<string, number>();
 
+// AI ตอบคำถามจากข้อมูลจริงของร้าน — คืน false ถ้าปิดอยู่/ตอบไม่ได้ (ให้ระบบเดิมทำต่อ)
+async function replyWithAi(ctx: Ctx, raw: string, data: DatabaseState, intent: ChatIntent): Promise<boolean> {
+  if (!ctx.cfg.geminiApiKey || (ctx.cfg.geminiChat || "on").trim().toLowerCase() === "off") return false;
+  const myOrders = ordersOfUser(data, ctx.userId)
+    .slice()
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  const context = buildShopContext(data, activeRoundOf(data), myOrders);
+  const ai = await answerShopQuestion(raw, context, getChatHistory(ctx.userId), { apiKey: ctx.cfg.geminiApiKey, model: ctx.cfg.geminiModel });
+  if (!ai) return false;
+  rememberChat(ctx.userId, { q: raw, a: ai.answer });
+  console.log("[LINE Webhook] ai answer", ai.needsAdmin ? "→ admin" : "ok");
+
+  const product = intent.kind === "order" ? intent.line.product : undefined;
+  const orderLabel = product ? `สั่ง${product.name}`.slice(0, 20) : "";
+  await ctx.reply(
+    quickReplyMsg(ai.answer, [
+      ...(product ? [{ label: orderLabel, text: `สั่ง ${product.name}` }] : [{ label: "สั่งซื้อ", text: "สั่งซื้อ" }]),
+      { label: "เช็กสต็อก", text: "เช็กสต็อก" },
+      { label: "คุยกับแอดมิน", text: "คุยกับแอดมิน" },
+    ])
+  );
+
+  if (ai.needsAdmin) {
+    const user = findLineUser(data, ctx.userId);
+    await notifyAdmins(
+      buildChatMessageAlertForAdmin(
+        {
+          customerName: contactOf(user)?.name || user?.displayName || "ลูกค้า LINE",
+          phone: user?.phone,
+          lineUserId: ctx.userId,
+          message: `${raw.slice(0, 700)}\n\n🤖 AI ตอบไปว่า: ${ai.answer.slice(0, 280)}`,
+        },
+        ctx.baseUrl
+      )
+    );
+  }
+  return true;
+}
+
 async function handleFreeText(ctx: Ctx, raw: string) {
   const { data } = await getAllDatabase();
   const products = data.products.filter((p) => p.isActive !== 0 && (p.isActive as unknown) !== "0" && p.isActive !== false);
   const intent = readChatIntent(raw, products);
+
+  // คำถาม (รวม "หมอนทองยังมีไหม / ราคาเท่าไร") → ให้ AI ตอบจากสต็อก-ราคาจริงก่อน
+  const asking =
+    intent.kind === "question" ||
+    (isQuestion(raw) && ((intent.kind === "order" && !intent.line.qty) || intent.kind === "order_vague"));
+  if (asking && (await replyWithAi(ctx, raw, data, intent))) return;
 
   if (intent.kind === "order") {
     const { product, qty } = intent.line;

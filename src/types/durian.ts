@@ -263,6 +263,8 @@ export interface RuntimeConfig {
   /** ตรวจสลิปด้วย AI (Google Gemini) — ว่าง = ไม่ใช้ */
   geminiApiKey?: string;
   geminiModel?: string;
+  /** AI ตอบแชทลูกค้า: "on" (ค่าเริ่มต้นเมื่อมีคีย์) / "off" */
+  geminiChat?: string;
   adminPin?: string;
   publicBaseUrl?: string;
   liveStreamPlatform?: string;

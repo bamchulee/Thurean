@@ -218,6 +218,7 @@ export function getRuntimeConfig(): RuntimeConfig {
     googleClientSecret: pickSetting("googleClientSecret") || process.env.GOOGLE_CLIENT_SECRET || "",
     geminiApiKey: pickSetting("geminiApiKey") || process.env.GEMINI_API_KEY || "",
     geminiModel: pickSetting("geminiModel") || process.env.GEMINI_MODEL || "gemini-3.8-flash",
+    geminiChat: pickSetting("geminiChat") || process.env.GEMINI_CHAT || "on",
     lastSyncedAt: fileConfig.lastSyncedAt,
   };
 }

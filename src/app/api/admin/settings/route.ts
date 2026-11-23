@@ -24,6 +24,7 @@ const SETTING_FIELDS = [
   { key: "shopPromptPay", group: "pay", label: "พร้อมเพย์ (เบอร์/เลขบัตร)", secret: false, env: "SHOP_PROMPTPAY" },
   { key: "geminiApiKey", group: "ai", label: "Gemini API key", secret: true, env: "GEMINI_API_KEY" },
   { key: "geminiModel", group: "ai", label: "รุ่นโมเดล Gemini", secret: false, env: "GEMINI_MODEL" },
+  { key: "geminiChat", group: "ai", label: "AI ตอบแชทลูกค้า (on / off)", secret: false, env: "GEMINI_CHAT" },
   { key: "publicBaseUrl", group: "web", label: "ที่อยู่เว็บ (Base URL)", secret: false, env: "NEXT_PUBLIC_BASE_URL" },
   { key: "liveStreamPlatform", group: "web", label: "แพลตฟอร์มไลฟ์สด", secret: false, env: "LINE_LIVE_PLATFORM" },
   { key: "liveStreamUrl", group: "web", label: "ลิงก์ไลฟ์สด", secret: false, env: "LINE_LIVE_URL" },
