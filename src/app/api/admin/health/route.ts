@@ -80,6 +80,29 @@ export async function GET(req: NextRequest) {
     ok: Boolean(cfg.googleClientId && cfg.googleClientSecret),
     detail: cfg.googleClientId && cfg.googleClientSecret ? "พร้อมใช้" : "ยังไม่ได้ใส่ Client ID / secret",
   });
+  // AI ตรวจสลิป — ไม่ใส่คีย์ = ปิดอยู่ (ไม่นับเป็นปัญหา); ใส่แล้วถาม Google ว่าคีย์ + รุ่นใช้ได้ไหม (ไม่เสีย token)
+  if (cfg.geminiApiKey) {
+    const model = (cfg.geminiModel || "gemini-3.8-flash").trim();
+    const gm = await timed(async () => {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}`, {
+        headers: { "x-goog-api-key": cfg.geminiApiKey || "" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.status === 400 || res.status === 401 || res.status === 403) throw new Error(`Google ตอบ ${res.status} — API key ไม่ถูกต้องหรือยังไม่เปิดใช้`);
+      if (res.status === 404) throw new Error(`ไม่พบรุ่น "${model}" — แก้ช่องรุ่นโมเดล Gemini`);
+      if (!res.ok) throw new Error(`Google ตอบ ${res.status}`);
+      return (await res.json()) as { displayName?: string };
+    });
+    checks.push({
+      id: "gemini",
+      label: "AI ตรวจสลิป (Gemini)",
+      ok: !gm.error,
+      ms: gm.ms,
+      detail: gm.error || `พร้อมใช้ — ${gm.value?.displayName || model}`,
+    });
+  } else {
+    checks.push({ id: "gemini", label: "AI ตรวจสลิป (Gemini)", ok: true, detail: "ปิดอยู่ (ยังไม่ใส่ API key)" });
+  }
   checks.push({
     id: "base-url",
     label: "ที่อยู่เว็บ",
