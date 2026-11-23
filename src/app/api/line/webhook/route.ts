@@ -86,6 +86,8 @@ interface LineWebhookEvent {
     address?: string;
     latitude?: number;
     longitude?: number;
+    /** สติกเกอร์: คำอธิบายอารมณ์จาก LINE */
+    keywords?: string[];
   };
 }
 
@@ -839,26 +841,36 @@ const FORWARD_WINDOW_MS = 10 * 60 * 1000;
 const lastForward = new Map<string, number>();
 
 // AI ตอบคำถามจากข้อมูลจริงของร้าน — คืน false ถ้าปิดอยู่/ตอบไม่ได้ (ให้ระบบเดิมทำต่อ)
-async function replyWithAi(ctx: Ctx, raw: string, data: DatabaseState, intent: ChatIntent): Promise<boolean> {
+async function replyWithAi(
+  ctx: Ctx,
+  raw: string,
+  data: DatabaseState,
+  intent: ChatIntent,
+  opts: { withMenu?: boolean } = {}
+): Promise<boolean> {
   if (!ctx.cfg.geminiApiKey || (ctx.cfg.geminiChat || "on").trim().toLowerCase() === "off") return false;
   const myOrders = ordersOfUser(data, ctx.userId)
     .slice()
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
   const context = buildShopContext(data, activeRoundOf(data), myOrders);
-  const ai = await answerShopQuestion(raw, context, getChatHistory(ctx.userId), { apiKey: ctx.cfg.geminiApiKey, model: ctx.cfg.geminiModel });
+  const history = getChatHistory(ctx.userId);
+  const ai = await answerShopQuestion(raw, context, history, { apiKey: ctx.cfg.geminiApiKey, model: ctx.cfg.geminiModel });
   if (!ai) return false;
+  // ทักครั้งแรกของบทสนทนา → แนบเมนูร้านต่อท้าย
+  const menu = opts.withMenu && history.length === 0 ? buildWelcomeFlex(activeRoundOf(data)) : [];
   rememberChat(ctx.userId, { q: raw, a: ai.answer });
   console.log("[LINE Webhook] ai answer", ai.needsAdmin ? "→ admin" : "ok");
 
   const product = intent.kind === "order" ? intent.line.product : undefined;
   const orderLabel = product ? `สั่ง${product.name}`.slice(0, 20) : "";
-  await ctx.reply(
-    quickReplyMsg(ai.answer, [
-      ...(product ? [{ label: orderLabel, text: `สั่ง ${product.name}` }] : [{ label: "สั่งซื้อ", text: "สั่งซื้อ" }]),
-      { label: "เช็กสต็อก", text: "เช็กสต็อก" },
-      { label: "คุยกับแอดมิน", text: "คุยกับแอดมิน" },
-    ])
-  );
+  const answerMsg = menu.length
+    ? [text(ai.answer, false)]
+    : quickReplyMsg(ai.answer, [
+        ...(product ? [{ label: orderLabel, text: `สั่ง ${product.name}` }] : [{ label: "สั่งซื้อ", text: "สั่งซื้อ" }]),
+        { label: "เช็กสต็อก", text: "เช็กสต็อก" },
+        { label: "คุยกับแอดมิน", text: "คุยกับแอดมิน" },
+      ]);
+  await ctx.reply([...answerMsg, ...menu].slice(0, 5));
 
   if (ai.needsAdmin) {
     const user = findLineUser(data, ctx.userId);
@@ -883,10 +895,17 @@ async function handleFreeText(ctx: Ctx, raw: string) {
   const intent = readChatIntent(raw, products);
 
   // คำถาม (รวม "หมอนทองยังมีไหม / ราคาเท่าไร") → ให้ AI ตอบจากสต็อก-ราคาจริงก่อน
+  // ทักทาย / ขอบคุณ / คุยเล่น / ถามความรู้ทุเรียน → AI คุยแบบคนจริง
+  // ("หมอนทองกับก้านยาวต่างกันยังไง" มีชื่อ 2 พันธุ์ แต่เป็นคำถาม ไม่ใช่สั่งหลายรายการ)
   const asking =
     intent.kind === "question" ||
-    (isQuestion(raw) && ((intent.kind === "order" && !intent.line.qty) || intent.kind === "order_vague"));
-  if (asking && (await replyWithAi(ctx, raw, data, intent))) return;
+    intent.kind === "greeting" ||
+    intent.kind === "thanks" ||
+    (isQuestion(raw) &&
+      ((intent.kind === "order" && !intent.line.qty) ||
+        intent.kind === "order_vague" ||
+        (intent.kind === "order_multi" && intent.lines.every((l) => !l.qty))));
+  if (asking && (await replyWithAi(ctx, raw, data, intent, { withMenu: intent.kind === "greeting" }))) return;
 
   if (intent.kind === "order") {
     const { product, qty } = intent.line;
@@ -1147,6 +1166,13 @@ async function handleCustomerMessage(ctx: Ctx) {
       },
       "line-location"
     );
+  }
+
+  if (msg.type === "sticker") {
+    // สติกเกอร์: ให้ AI ตอบรับตามอารมณ์ (ปิด AI = เมนูต้อนรับเหมือนเดิม)
+    const { data } = await getAllDatabase();
+    const mood = (msg.keywords || []).slice(0, 5).join(", ");
+    if (await replyWithAi(ctx, `(ลูกค้าส่งสติกเกอร์${mood ? ` อารมณ์: ${mood}` : ""})`, data, { kind: "greeting" })) return;
   }
 
   if (msg.type !== "text") {
