@@ -216,6 +216,8 @@ export function getRuntimeConfig(): RuntimeConfig {
     lineChannelSecret: pickSetting("lineChannelSecret") || process.env.LINE_CHANNEL_SECRET || "",
     googleClientId: pickSetting("googleClientId") || process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: pickSetting("googleClientSecret") || process.env.GOOGLE_CLIENT_SECRET || "",
+    geminiApiKey: pickSetting("geminiApiKey") || process.env.GEMINI_API_KEY || "",
+    geminiModel: pickSetting("geminiModel") || process.env.GEMINI_MODEL || "gemini-3.8-flash",
     lastSyncedAt: fileConfig.lastSyncedAt,
   };
 }

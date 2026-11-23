@@ -260,6 +260,9 @@ export interface RuntimeConfig {
   lineChannelSecret?: string;
   googleClientId?: string;
   googleClientSecret?: string;
+  /** ตรวจสลิปด้วย AI (Google Gemini) — ว่าง = ไม่ใช้ */
+  geminiApiKey?: string;
+  geminiModel?: string;
   adminPin?: string;
   publicBaseUrl?: string;
   liveStreamPlatform?: string;

@@ -229,6 +229,8 @@ export async function submitSlip(
     slipAmount?: number;
     slipAmountCheck?: string;
     slipAccountCheck?: string;
+    /** สรุปผลจาก Gemini (โชว์ในการ์ดแอดมิน ไม่เก็บลงชีต) */
+    aiNote?: string;
   }
 ): Promise<WorkflowResult> {
   const { order } = await loadFresh(orderRef);
@@ -257,7 +259,7 @@ export async function submitSlip(
     actor
   );
   await notifyCustomer(updated, buildSlipSubmittedReceiptFlex(updated));
-  await notifyAdmins(buildSlipAlertForAdmin(updated, await adminAlertLinks(updated), slipPath));
+  await notifyAdmins(buildSlipAlertForAdmin(updated, await adminAlertLinks(updated), slipPath, qr?.aiNote));
   return { ok: true, order: updated, changed: true };
 }
 

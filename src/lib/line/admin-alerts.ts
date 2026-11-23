@@ -258,7 +258,7 @@ export function buildOrderAlertForAdmin(order: Order, links: AdminAlertLinks): u
   });
 }
 
-export function buildSlipAlertForAdmin(order: Order, links: AdminAlertLinks, slipUrl?: string): unknown[] {
+export function buildSlipAlertForAdmin(order: Order, links: AdminAlertLinks, slipUrl?: string, aiNote?: string): unknown[] {
   const base = links.orderUrl.replace(/\/admin\/orders\/.*$/, "");
   // รูปสลิปเปิดได้เฉพาะลิงก์ที่มีลายเซ็น (LINE ดึงรูปไปแสดงในการ์ด)
   const fullSlipUrl = slipUrl ? signedSlipUrl(slipUrl.startsWith("http") ? slipUrl : `${base}${slipUrl}`) : undefined;
@@ -267,7 +267,10 @@ export function buildSlipAlertForAdmin(order: Order, links: AdminAlertLinks, sli
   const bad = qr.tone === "bad" || order.slipAmountCheck === "mismatch" || order.slipAccountCheck === "mismatch";
   const ok = qr.tone === "ok" && order.slipAmountCheck === "match" && order.slipAccountCheck !== "mismatch";
   return buildAdminOrderCard("slip", order, links, {
-    note: { text: checks.join("\n"), tone: bad ? "bad" : ok ? "ok" : "warn" },
+    note: {
+      text: [...checks, ...(aiNote ? [aiNote] : [])].join("\n"),
+      tone: bad || (aiNote && /⚠️/.test(aiNote)) ? "bad" : ok ? "ok" : "warn",
+    },
     rows: [
       ...(order.slipBank ? ([["โอนจาก", order.slipBank]] as [string, string][]) : []),
       ...(order.slipRef ? ([["เลขรายการ", order.slipRef]] as [string, string][]) : []),

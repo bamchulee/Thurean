@@ -22,6 +22,8 @@ const SETTING_FIELDS = [
   { key: "shopAccountNumber", group: "pay", label: "เลขบัญชี", secret: false, env: "SHOP_ACCOUNT_NUMBER" },
   { key: "shopAccountName", group: "pay", label: "ชื่อบัญชี", secret: false, env: "SHOP_ACCOUNT_NAME" },
   { key: "shopPromptPay", group: "pay", label: "พร้อมเพย์ (เบอร์/เลขบัตร)", secret: false, env: "SHOP_PROMPTPAY" },
+  { key: "geminiApiKey", group: "ai", label: "Gemini API key", secret: true, env: "GEMINI_API_KEY" },
+  { key: "geminiModel", group: "ai", label: "รุ่นโมเดล Gemini", secret: false, env: "GEMINI_MODEL" },
   { key: "publicBaseUrl", group: "web", label: "ที่อยู่เว็บ (Base URL)", secret: false, env: "NEXT_PUBLIC_BASE_URL" },
   { key: "liveStreamPlatform", group: "web", label: "แพลตฟอร์มไลฟ์สด", secret: false, env: "LINE_LIVE_PLATFORM" },
   { key: "liveStreamUrl", group: "web", label: "ลิงก์ไลฟ์สด", secret: false, env: "LINE_LIVE_URL" },
@@ -38,7 +40,7 @@ function mask(v: string) {
   return v.length <= 8 ? "••••••••" : `${v.slice(0, 4)}••••••••${v.slice(-4)}`;
 }
 
-const GROUP_LABEL: Record<string, string> = { line: "LINE OA", login: "เข้าสู่ระบบ", pay: "บัญชีรับเงิน", web: "เว็บ & ไลฟ์" };
+const GROUP_LABEL: Record<string, string> = { line: "LINE OA", login: "เข้าสู่ระบบ", pay: "บัญชีรับเงิน", ai: "AI ตรวจสลิป", web: "เว็บ & ไลฟ์" };
 const SOURCE_LABEL: Record<string, string> = { admin: "ตั้งจากหน้าแอดมิน", env: "Vercel", default: "ค่าเริ่มต้น", none: "ยังไม่ตั้ง" };
 
 function sourceOf(key: string, env: string): string {
