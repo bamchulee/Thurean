@@ -120,22 +120,64 @@ export async function answerShopQuestion(
       body: JSON.stringify({
         system_instruction: { parts: [{ text: `${RULES}\n\n<shop_data>\n${context}\n</shop_data>` }] },
         contents: [...past, { role: "user", parts: [{ text: `<customer_message>${clip(question, 500)}</customer_message>` }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.4, maxOutputTokens: 800 },
+        // ไม่จำกัด maxOutputTokens: รุ่น Gemini 3 ใช้ token ช่วง "คิด" ด้วย ตั้งต่ำไปคำตอบถูกตัดจน JSON พัง
+        generationConfig: { responseMimeType: "application/json", temperature: 0.4 },
       }),
-      signal: AbortSignal.timeout(opts.timeoutMs ?? 15_000),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 20_000),
     });
     if (!res.ok) {
-      console.warn("[shop-ai] gemini", res.status, (await res.text()).slice(0, 200));
+      lastError = `Gemini ตอบ ${res.status}: ${(await res.text()).slice(0, 300)}`;
+      console.warn("[shop-ai]", lastError);
       return null;
     }
-    const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    const out = json.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
-    const parsed = JSON.parse(out.replace(/^```(?:json)?|```$/g, "").trim()) as { answer?: unknown; needs_admin?: unknown };
-    const answer = typeof parsed.answer === "string" ? parsed.answer.replace(/\*\*/g, "").trim().slice(0, 900) : "";
-    if (!answer) return null;
-    return { answer, needsAdmin: parsed.needs_admin === true };
+    const json = (await res.json()) as {
+      candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
+      promptFeedback?: { blockReason?: string };
+    };
+    const cand = json.candidates?.[0];
+    const out = cand?.content?.parts?.filter((p) => !p.thought).map((p) => p.text || "").join("") || "";
+    if (!out) {
+      lastError = `Gemini ไม่ส่งข้อความกลับ (finish: ${cand?.finishReason || "-"}, block: ${json.promptFeedback?.blockReason || "-"})`;
+      console.warn("[shop-ai]", lastError);
+      return null;
+    }
+    const parsed = pickJson(out);
+    const rawAnswer = parsed && typeof parsed.answer === "string" ? parsed.answer : parsed ? "" : out;
+    const answer = rawAnswer.replace(/\*\*/g, "").trim().slice(0, 900);
+    if (!answer) {
+      lastError = `อ่านคำตอบไม่ได้: ${out.slice(0, 200)}`;
+      console.warn("[shop-ai]", lastError);
+      return null;
+    }
+    lastError = "";
+    return { answer, needsAdmin: parsed?.needs_admin === true };
   } catch (err) {
-    console.warn("[shop-ai] gemini failed", String(err));
+    lastError = `เรียก Gemini ไม่สำเร็จ: ${String(err).slice(0, 200)}`;
+    console.warn("[shop-ai]", lastError);
+    return null;
+  }
+}
+
+/** เหตุผลที่เรียกครั้งล่าสุดไม่สำเร็จ (โชว์ในปุ่มทดสอบระบบ) */
+let lastError = "";
+export function lastShopAiError(): string {
+  return lastError;
+}
+
+/** ดึง JSON ก้อนแรกจากข้อความ (เผื่อมีโค้ดบล็อกหรือข้อความอื่นห่อมา) */
+function pickJson(out: string): { answer?: unknown; needs_admin?: unknown } | null {
+  const cleaned = out.replace(/```(?:json)?/g, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const m = cleaned.match(/\{[\s\S]*\}/);
+    if (m) {
+      try {
+        return JSON.parse(m[0]);
+      } catch {
+        /* ใช้ข้อความดิบแทน */
+      }
+    }
     return null;
   }
 }

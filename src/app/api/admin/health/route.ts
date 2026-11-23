@@ -3,7 +3,8 @@ import type { NextRequest } from "next/server";
 import { requireStaff, requireSuperAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
 import { pushLineMessage } from "../../../../lib/line-notify";
 import { GOOGLE_LOGIN_ENABLED } from "../../../../lib/feature-flags";
-import { getRuntimeConfig, loadAppSettings, testGoogleSheetsConnection } from "../../../../lib/sheets-db";
+import { getAllDatabase, getRuntimeConfig, loadAppSettings, testGoogleSheetsConnection } from "../../../../lib/sheets-db";
+import { answerShopQuestion, buildShopContext, lastShopAiError } from "../../../../lib/shop-ai";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +102,26 @@ export async function GET(req: NextRequest) {
       ms: gm.ms,
       detail: gm.error || `พร้อมใช้ — ${gm.value?.displayName || model}`,
     });
+    // ลองถามจริง 1 ข้อ ด้วยข้อมูลร้านจริง — เหมือนลูกค้าทักมาในแชท
+    if (!gm.error && (cfg.geminiChat || "on").trim().toLowerCase() !== "off") {
+      const chat = await timed(async () => {
+        const { data } = await getAllDatabase();
+        const round = data.rounds.find((r) => r.status === "open");
+        const ans = await answerShopQuestion("สวัสดีครับ ตอนนี้มีทุเรียนอะไรบ้าง", buildShopContext(data, round, []), [], {
+          apiKey: cfg.geminiApiKey,
+          model,
+        });
+        if (!ans) throw new Error(lastShopAiError() || "ไม่มีคำตอบ");
+        return ans;
+      });
+      checks.push({
+        id: "gemini-chat",
+        label: "AI ตอบแชทลูกค้า",
+        ok: !chat.error,
+        ms: chat.ms,
+        detail: chat.error || `ตอบได้: "${chat.value?.answer.slice(0, 120)}"`,
+      });
+    }
   } else {
     checks.push({ id: "gemini", label: "AI ตรวจสลิป (Gemini)", ok: true, detail: "ปิดอยู่ (ยังไม่ใส่ API key)" });
   }
