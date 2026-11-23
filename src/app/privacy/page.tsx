@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { shopInfo } from "../../data/shop";
+import { GOOGLE_LOGIN_ENABLED } from "../../lib/feature-flags";
 
 export const metadata: Metadata = {
   title: `นโยบายความเป็นส่วนตัว | ${shopInfo.name}`,
@@ -21,7 +22,7 @@ export default function PrivacyPage() {
           <ul className="list-disc pl-5 space-y-1">
             <li>ชื่อ เบอร์โทร ที่อยู่จัดส่ง และตำแหน่งแผนที่ที่คุณกรอกหรือปักหมุดเอง</li>
             <li>
-              รหัสบัญชี LINE ที่ใช้เข้าสู่ระบบ ชื่อที่แสดง และรูปโปรไฟล์
+              {GOOGLE_LOGIN_ENABLED ? "รหัสบัญชีจาก LINE / Google ที่ใช้เข้าสู่ระบบ ชื่อที่แสดง รูปโปรไฟล์ และอีเมล (ถ้าผู้ให้บริการส่งมา)" : "รหัสบัญชี LINE ที่ใช้เข้าสู่ระบบ ชื่อที่แสดง และรูปโปรไฟล์"}
             </li>
             <li>ประวัติคำสั่งซื้อ น้ำหนักที่ชั่ง ยอดชำระ รูปสลิป และรายการแจ้งเคลม</li>
           </ul>
@@ -46,7 +47,7 @@ export default function PrivacyPage() {
           <h2 className="text-base font-bold text-stone-900">ขอดู แก้ไข หรือลบข้อมูล</h2>
           <p>
             แก้ชื่อ เบอร์ และที่อยู่ได้เองในเมนู &quot;บัญชีของฉัน&quot; หากต้องการให้ลบบัญชีและข้อมูลทั้งหมด
-            (รวมถึงข้อมูลที่ได้จากการเข้าสู่ระบบด้วย LINE) แจ้งทาง LINE {shopInfo.lineOA} หรือโทร{" "}
+            {GOOGLE_LOGIN_ENABLED ? "(รวมถึงข้อมูลที่ได้จากการเข้าสู่ระบบด้วย LINE / Google)" : "(รวมถึงข้อมูลที่ได้จากการเข้าสู่ระบบด้วย LINE)"} แจ้งทาง LINE {shopInfo.lineOA} หรือโทร{" "}
             {shopInfo.phone} ร้านจะลบให้ภายใน 7 วัน ยกเว้นข้อมูลคำสั่งซื้อที่ต้องเก็บตามกฎหมายบัญชี
           </p>
         </section>
