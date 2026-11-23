@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2, Stethoscope, X, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Send, Stethoscope, X, XCircle } from "lucide-react";
 
 type Check = { id: string; label: string; ok: boolean; detail: string; ms?: number };
 
@@ -9,6 +9,18 @@ type Check = { id: string; label: string; ok: boolean; detail: string; ms?: numb
 export function HealthDialog({ onClose }: { onClose: () => void }) {
   const [checks, setChecks] = useState<Check[] | null>(null);
   const [error, setError] = useState("");
+  const [testMsg, setTestMsg] = useState<{ state: "idle" | "sending" | "ok" | "fail"; text?: string }>({ state: "idle" });
+
+  const sendTest = async () => {
+    setTestMsg({ state: "sending" });
+    try {
+      const r = await fetch("/api/admin/health", { method: "POST" });
+      const j = (await r.json()) as { ok?: boolean; error?: string };
+      setTestMsg(j.ok ? { state: "ok", text: "ส่งแล้ว — เช็กในกลุ่ม LINE แอดมิน" } : { state: "fail", text: r.status === 401 ? "เฉพาะ SUPERADMIN" : j.error || "ส่งไม่สำเร็จ" });
+    } catch (e) {
+      setTestMsg({ state: "fail", text: String(e) });
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +77,20 @@ export function HealthDialog({ onClose }: { onClose: () => void }) {
                 </li>
               ))}
             </ul>
+          )}
+          {checks && (
+            <div className="mt-3 pt-3 border-t border-stone-100 flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={sendTest}
+                disabled={testMsg.state === "sending"}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1B4D31] text-white text-xs font-bold disabled:opacity-60"
+              >
+                {testMsg.state === "sending" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                ส่งการ์ดทดสอบเข้ากลุ่ม LINE
+              </button>
+              {testMsg.text && <span className={`text-xs ${testMsg.state === "ok" ? "text-emerald-700" : "text-rose-700"}`}>{testMsg.text}</span>}
+            </div>
           )}
         </div>
       </div>

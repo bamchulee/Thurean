@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { requireStaff, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { requireStaff, requireSuperAdmin, unauthorizedResponse } from "../../../../lib/admin-auth";
+import { pushLineMessage } from "../../../../lib/line-notify";
 import { GOOGLE_LOGIN_ENABLED } from "../../../../lib/feature-flags";
 import { getRuntimeConfig, loadAppSettings, testGoogleSheetsConnection } from "../../../../lib/sheets-db";
 
@@ -111,4 +112,60 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json({ ok: checks.every((c) => c.ok), checks, at: new Date().toISOString() });
+}
+
+// ส่งการ์ดทดสอบเข้ากลุ่มแอดมิน 1 ใบ (superadmin เท่านั้น) — เช็กว่ากลุ่มรับแจ้งเตือนได้จริง
+export async function POST(req: NextRequest) {
+  if (!(await requireSuperAdmin(req))) return unauthorizedResponse();
+  await loadAppSettings(true);
+  const cfg = getRuntimeConfig();
+  const targets = Array.from(new Set([cfg.lineAdminGroupId, cfg.lineAdminUserId].map((v) => (v || "").trim()).filter(Boolean)));
+  if (!targets.length) return NextResponse.json({ ok: false, error: "ยังไม่ผูกกลุ่มแอดมิน — พิมพ์ /bind-admin <PIN> ในกลุ่ม" }, { status: 400 });
+  const at = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" });
+  const row = (k: string, v: string, color = "#1C1917") => ({
+    type: "box",
+    layout: "horizontal",
+    contents: [
+      { type: "text", text: k, size: "sm", color: "#78716C", flex: 4 },
+      { type: "text", text: v, size: "sm", color, flex: 6, wrap: true, weight: "bold" },
+    ],
+  });
+  const card = {
+    type: "flex",
+    altText: "🧪 ทดสอบระบบแจ้งเตือน — กลุ่มแอดมินรับข้อความได้",
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#1B4D31",
+        paddingAll: "14px",
+        contents: [
+          { type: "text", text: "🧪 ทดสอบระบบแจ้งเตือน", color: "#FFFFFF", weight: "bold", size: "md" },
+          { type: "text", text: at, color: "#D1FAE5", size: "xs", margin: "4px" },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "8px",
+        paddingAll: "14px",
+        contents: [
+          { type: "text", text: "ถ้าเห็นการ์ดนี้ แปลว่ากลุ่มนี้รับแจ้งเตือนออเดอร์และสลิปได้แล้ว ✅", size: "sm", wrap: true, color: "#1C1917" },
+          { type: "separator", margin: "8px" },
+          row("ส่งไปที่", cfg.lineAdminGroupId ? "กลุ่มแอดมิน" : "แอดมินรายคน"),
+          row("AI ตรวจสลิป", cfg.geminiApiKey ? `เปิด (${cfg.geminiModel || "gemini-3.8-flash"})` : "ปิด", cfg.geminiApiKey ? "#047857" : "#A8A29E"),
+          { type: "text", text: "การ์ดนี้ส่งจากปุ่ม ทดสอบระบบ ในหลังบ้าน — ไม่ต้องทำอะไรต่อ", size: "xxs", color: "#A8A29E", wrap: true, margin: "10px" },
+        ],
+      },
+    },
+  };
+  const results = [];
+  for (const to of targets) {
+    const r = await pushLineMessage(to, [card], cfg.lineChannelAccessToken);
+    results.push({ target: to === cfg.lineAdminGroupId ? "group" : "admin", sent: r.sent, reason: r.sent ? undefined : r.reason });
+  }
+  const ok = results.every((r) => r.sent);
+  return NextResponse.json({ ok, results, error: ok ? undefined : results.find((r) => !r.sent)?.reason }, { status: ok ? 200 : 502 });
 }
